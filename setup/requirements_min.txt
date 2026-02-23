@@ -1,0 +1,7 @@
+PyQt6
+requests
+psutil
+numpy
+moviepy
+Pillow
+pyyaml

@@ -1,0 +1,367 @@
+{
+    "nodes": [
+        {
+            "id": "3352a122-d75d-4344-b8c0-a834f3470b91",
+            "type": "String Replace",
+            "name": "String Replace",
+            "pos_x": -33.811329718222794,
+            "pos_y": 212.60021089498508,
+            "properties": {
+                "Source": "",
+                "Find": "[root_key]",
+                "Replace": "",
+                "Start Position": 0,
+                "All": true
+            }
+        },
+        {
+            "id": "518d9dec-d154-4fb6-bc23-6af11ad57303",
+            "type": "String",
+            "name": "String",
+            "pos_x": -292.3888145898929,
+            "pos_y": 212.60021089498508,
+            "properties": {
+                "Value": "{[root_key]}"
+            }
+        },
+        {
+            "id": "6f301dd1-206c-473c-a6ae-8cf1941f11d7",
+            "type": "JSON Parse",
+            "name": "JSON Parse",
+            "pos_x": 1343.7557340755495,
+            "pos_y": -145.41329622255117,
+            "properties": {}
+        },
+        {
+            "id": "71c3cc7c-31ad-45f1-b477-43eb85a100a3",
+            "type": "JSON Parse",
+            "name": "JSON Parse",
+            "pos_x": 511.0,
+            "pos_y": 133.0,
+            "properties": {}
+        },
+        {
+            "id": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "type": "String",
+            "name": "String",
+            "pos_x": 237.0,
+            "pos_y": 92.0,
+            "properties": {
+                "Value": "",
+                "value": ""
+            }
+        },
+        {
+            "id": "215e2968-b7fe-4d6a-8f89-07b854d6024d",
+            "type": "String",
+            "name": "String",
+            "pos_x": -159.99999999999997,
+            "pos_y": 67.45573407554899,
+            "properties": {
+                "Value": "",
+                "value": "{}"
+            }
+        },
+        {
+            "id": "d838e710-2090-4bdd-a872-264c0d79a775",
+            "type": "Compare",
+            "name": "Check if Root Key is Set",
+            "pos_x": -586.8000000000002,
+            "pos_y": 184.1,
+            "properties": {
+                "a": 0,
+                "b": 0,
+                "Compare Type": "=="
+            }
+        },
+        {
+            "id": "68ebb602-67dc-4b8f-840b-27907ad17716",
+            "type": "Path Exists",
+            "name": "Check if 'prompts.json' Exist",
+            "pos_x": -1353.3395094534076,
+            "pos_y": -204.9671241947464,
+            "properties": {
+                "path": ""
+            }
+        },
+        {
+            "id": "5e95855a-ba43-4052-98f1-52aa6c24c8ce",
+            "type": "Read File",
+            "name": "Read 'prompts.json' File.",
+            "pos_x": 1026.6643187514264,
+            "pos_y": -146.05331237344072,
+            "properties": {
+                "path": "data.txt",
+                "Start Offset": 0,
+                "End Offset": -1
+            }
+        },
+        {
+            "id": "3226ba49-bf06-46d3-8956-698f6f6f55e4",
+            "type": "Write File",
+            "name": "Write new 'prompts.json' File",
+            "pos_x": 772.2310187514265,
+            "pos_y": 22.926287626559315,
+            "properties": {
+                "path": "output.txt",
+                "mode": "Overwrite",
+                "Mode Options": [
+                    "Overwrite",
+                    "Append"
+                ],
+                "Start Pos": 0
+            }
+        },
+        {
+            "id": "4f375c6f-b60f-4039-b233-8613d04fbfa4",
+            "type": "Compare",
+            "name": "Does 'prompts.json' Exist",
+            "pos_x": -1112.3395094534073,
+            "pos_y": -199.9671241947464,
+            "properties": {
+                "a": 0,
+                "b": 1,
+                "Compare Type": "=="
+            }
+        },
+        {
+            "id": "b7848255-71bb-444a-9e63-374b9735f278",
+            "type": "Return Node",
+            "name": "Return Node",
+            "pos_x": 1635.6818181818178,
+            "pos_y": -137.34545454545452,
+            "properties": {
+                "label": "",
+                "Data": "",
+                "Additional Inputs": [
+                    "Data"
+                ]
+            }
+        },
+        {
+            "id": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "type": "Start Node",
+            "name": "Start Node",
+            "pos_x": -1657.4467752157125,
+            "pos_y": -198.72814214045638,
+            "properties": {
+                "JSON Path": "F:\\My Programs\\Synapse VS\\sub_graphs\\Bot\\data\\bots.json",
+                "Add Root Key": "\"bots\" : {}",
+                "Additional Outputs": [
+                    "JSON Path",
+                    "Add Root Key"
+                ]
+            }
+        },
+        {
+            "id": "2587a588-8c2b-4dd0-a103-5436ed7e6ae2",
+            "type": "String Length",
+            "name": "String Length",
+            "pos_x": -837.1000000000001,
+            "pos_y": 181.49999999999997,
+            "properties": {}
+        }
+    ],
+    "wires": [
+        {
+            "from_node": "3352a122-d75d-4344-b8c0-a834f3470b91",
+            "from_port": "Result",
+            "to_node": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "to_port": "Value"
+        },
+        {
+            "from_node": "3352a122-d75d-4344-b8c0-a834f3470b91",
+            "from_port": "Flow",
+            "to_node": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "d838e710-2090-4bdd-a872-264c0d79a775",
+            "from_port": "False",
+            "to_node": "518d9dec-d154-4fb6-bc23-6af11ad57303",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "from_port": "Add Root Key",
+            "to_node": "3352a122-d75d-4344-b8c0-a834f3470b91",
+            "to_port": "Replace"
+        },
+        {
+            "from_node": "518d9dec-d154-4fb6-bc23-6af11ad57303",
+            "from_port": "Flow",
+            "to_node": "3352a122-d75d-4344-b8c0-a834f3470b91",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "518d9dec-d154-4fb6-bc23-6af11ad57303",
+            "from_port": "Value",
+            "to_node": "3352a122-d75d-4344-b8c0-a834f3470b91",
+            "to_port": "Source"
+        },
+        {
+            "from_node": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "from_port": "Flow",
+            "to_node": "68ebb602-67dc-4b8f-840b-27907ad17716",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6f301dd1-206c-473c-a6ae-8cf1941f11d7",
+            "from_port": "Data",
+            "to_node": "b7848255-71bb-444a-9e63-374b9735f278",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "6f301dd1-206c-473c-a6ae-8cf1941f11d7",
+            "from_port": "Flow",
+            "to_node": "b7848255-71bb-444a-9e63-374b9735f278",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "5e95855a-ba43-4052-98f1-52aa6c24c8ce",
+            "from_port": "Data",
+            "to_node": "6f301dd1-206c-473c-a6ae-8cf1941f11d7",
+            "to_port": "Text"
+        },
+        {
+            "from_node": "5e95855a-ba43-4052-98f1-52aa6c24c8ce",
+            "from_port": "Flow",
+            "to_node": "6f301dd1-206c-473c-a6ae-8cf1941f11d7",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "from_port": "JSON Path",
+            "to_node": "5e95855a-ba43-4052-98f1-52aa6c24c8ce",
+            "to_port": "Path"
+        },
+        {
+            "from_node": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "from_port": "JSON Path",
+            "to_node": "3226ba49-bf06-46d3-8956-698f6f6f55e4",
+            "to_port": "Path"
+        },
+        {
+            "from_node": "71c3cc7c-31ad-45f1-b477-43eb85a100a3",
+            "from_port": "Data",
+            "to_node": "3226ba49-bf06-46d3-8956-698f6f6f55e4",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "71c3cc7c-31ad-45f1-b477-43eb85a100a3",
+            "from_port": "Flow",
+            "to_node": "3226ba49-bf06-46d3-8956-698f6f6f55e4",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "from_port": "Value",
+            "to_node": "71c3cc7c-31ad-45f1-b477-43eb85a100a3",
+            "to_port": "Text"
+        },
+        {
+            "from_node": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "from_port": "Flow",
+            "to_node": "71c3cc7c-31ad-45f1-b477-43eb85a100a3",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "from_port": "Flow",
+            "to_node": "3226ba49-bf06-46d3-8956-698f6f6f55e4",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "215e2968-b7fe-4d6a-8f89-07b854d6024d",
+            "from_port": "Value",
+            "to_node": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "to_port": "Value"
+        },
+        {
+            "from_node": "215e2968-b7fe-4d6a-8f89-07b854d6024d",
+            "from_port": "Flow",
+            "to_node": "6a75e7dd-62f6-45cd-b7eb-3dc6fa3c7b66",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "from_port": "Add Root Key",
+            "to_node": "215e2968-b7fe-4d6a-8f89-07b854d6024d",
+            "to_port": "Value"
+        },
+        {
+            "from_node": "d838e710-2090-4bdd-a872-264c0d79a775",
+            "from_port": "True",
+            "to_node": "215e2968-b7fe-4d6a-8f89-07b854d6024d",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "68ebb602-67dc-4b8f-840b-27907ad17716",
+            "from_port": "Flow",
+            "to_node": "4f375c6f-b60f-4039-b233-8613d04fbfa4",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "3226ba49-bf06-46d3-8956-698f6f6f55e4",
+            "from_port": "Flow",
+            "to_node": "5e95855a-ba43-4052-98f1-52aa6c24c8ce",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "4f375c6f-b60f-4039-b233-8613d04fbfa4",
+            "from_port": "True",
+            "to_node": "5e95855a-ba43-4052-98f1-52aa6c24c8ce",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "68ebb602-67dc-4b8f-840b-27907ad17716",
+            "from_port": "Exists",
+            "to_node": "4f375c6f-b60f-4039-b233-8613d04fbfa4",
+            "to_port": "A"
+        },
+        {
+            "from_node": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "from_port": "Add Root Key",
+            "to_node": "2587a588-8c2b-4dd0-a103-5436ed7e6ae2",
+            "to_port": "String"
+        },
+        {
+            "from_node": "4f375c6f-b60f-4039-b233-8613d04fbfa4",
+            "from_port": "False",
+            "to_node": "2587a588-8c2b-4dd0-a103-5436ed7e6ae2",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "2587a588-8c2b-4dd0-a103-5436ed7e6ae2",
+            "from_port": "Result",
+            "to_node": "d838e710-2090-4bdd-a872-264c0d79a775",
+            "to_port": "A"
+        },
+        {
+            "from_node": "2587a588-8c2b-4dd0-a103-5436ed7e6ae2",
+            "from_port": "Flow",
+            "to_node": "d838e710-2090-4bdd-a872-264c0d79a775",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "a9c31751-cd11-4a95-8069-c2bc4915a7ea",
+            "from_port": "JSON Path",
+            "to_node": "68ebb602-67dc-4b8f-840b-27907ad17716",
+            "to_port": "Path"
+        }
+    ],
+    "frames": [],
+    "viewport": {
+        "center_x": -3796.2703310156307,
+        "center_y": -3129.7059096692537,
+        "zoom": 0.34955361033127025
+    },
+    "embedded_subgraphs": {},
+    "project_name": "Check and Lood Root Key JSON",
+    "project_description": "",
+    "project_type": "",
+    "project_category": "Data/JSON",
+    "project_version": "1.0.0",
+    "project_vars": {},
+    "version": "2.1.0"
+}

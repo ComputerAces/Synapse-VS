@@ -1,0 +1,167 @@
+{
+    "nodes": [
+        {
+            "id": "start_0",
+            "type": "Start Node",
+            "name": "Start Node",
+            "pos_x": -301.27835051546384,
+            "pos_y": 0.0,
+            "properties": {
+                "Search Query": "ducks",
+                "Max Results": 5,
+                "Additional Outputs": [
+                    "Search Query",
+                    "Max Results"
+                ]
+            }
+        },
+        {
+            "id": "python_0",
+            "type": "Python Script",
+            "name": "DuckDuckGo Scraper",
+            "pos_x": 51.0,
+            "pos_y": 0.0,
+            "properties": {
+                "Search Query": "",
+                "Script Body": "import requests\nfrom bs4 import BeautifulSoup\nimport urllib.parse\n\n### Auto-Input Vars ###\nquery = bridge.get(f'{node_id}_Search Query')\nmax_results = bridge.get(f'{node_id}_Max Results')\n### End of Auto-Input Vars ###\n\nif not query:\n    print(f\"[{name}] Error: No search query provided.\")\n    bridge.set(f\"{node_id}_Status\", \"Error: No query\", \"WebSearch\")\n    bridge.set(f\"{node_id}_Result List\", [], \"WebSearch\")\n    # return False\n\nsearch_term = query\ncount = int(max_results or 5)\n\nprint(f\"Searching Web for: {search_term} (Count: {count})\")\n\n# Target Lite version which is easier to scrape and less likely to block\nurl = \"https://lite.duckduckgo.com/lite/\"\n# Key payload parameters for Lite backend\ndata = {\n    \"q\": search_term,\n    \"kl\": \"us-en\",\n    \"b\": \"\" # Crucial parameter for Lite backend to accept POST\n}\nheaders = {\n    \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\",\n    \"Referer\": \"https://lite.duckduckgo.com/\",\n    \"Sec-Fetch-User\": \"?1\",\n    \"Content-Type\": \"application/x-www-form-urlencoded\"\n}\n\ntry:\n    resp = requests.post(url, data=data, headers=headers, timeout=15)\n    resp.raise_for_status()\n    \n    soup = BeautifulSoup(resp.text, 'html.parser')\n    results = []\n    \n    # Lite version uses tables. Main results are in tr.\n    links = soup.select('a.result-link')\n    snippets = soup.select('td.result-snippet')\n\n    print(f\"DEBUG: Found {len(links)} links\")\n    \n    for i, link_tag in enumerate(links):\n        if i >= count: break\n        \n        title = link_tag.text.strip()\n        href = link_tag.get('href')\n        \n        snippet = \"\"\n        if i < len(snippets):\n            snippet = snippets[i].text.strip()\n            \n        results.append([href, title, snippet])\n\n    bridge.set(f\"{node_id}_Result List\", results, \"WebSearch\")\n    bridge.set(f\"{node_id}_Status\", f\"Success: Found {len(results)} items\", \"WebSearch\")\n    print(f\"Finished. Found {len(results)} results.\")\n\nexcept Exception as e:\n    error_msg = f\"Search Failed: {str(e)}\"\n    print(f\"[ERROR] {error_msg}\")\n    bridge.set(f\"{node_id}_Status\", error_msg, \"WebSearch\")\n    bridge.set(f\"{node_id}_Result List\", [], \"WebSearch\")",
+                "Additional Inputs": [
+                    "Search Query",
+                    "Max Results"
+                ],
+                "Additional Outputs": [
+                    "Result List",
+                    "Status"
+                ],
+                "Requirements": "beautifulsoup4\nrequests"
+            }
+        },
+        {
+            "id": "return_0",
+            "type": "Return Node",
+            "name": "Return Search",
+            "pos_x": 317.0,
+            "pos_y": 42.0,
+            "properties": {
+                "Additional Inputs": [
+                    "Results",
+                    "Status Message"
+                ]
+            }
+        },
+        {
+            "id": "783635c3-b11b-4675-884e-c72890ffbba3",
+            "type": "Debug Node",
+            "name": "Test Std Out",
+            "pos_x": -214.0,
+            "pos_y": 271.0,
+            "properties": {}
+        },
+        {
+            "id": "b547eb6d-b58f-49c9-945a-7dd58a06936c",
+            "type": "Debug Node",
+            "name": "Error Debug",
+            "pos_x": 376.0,
+            "pos_y": 204.0,
+            "properties": {
+                "Header": "Error"
+            }
+        },
+        {
+            "id": "e6c76ae7-9d4d-479a-ac93-79f3a115498b",
+            "type": "Debug Node",
+            "name": "Test Out",
+            "pos_x": 617.0,
+            "pos_y": 47.0,
+            "properties": {
+                "Header": "Web Results"
+            }
+        }
+    ],
+    "wires": [
+        {
+            "from_node": "python_0",
+            "from_port": "Status",
+            "to_node": "e6c76ae7-9d4d-479a-ac93-79f3a115498b",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Status",
+            "to_node": "return_0",
+            "to_port": "Status Message"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Result List",
+            "to_node": "return_0",
+            "to_port": "Results"
+        },
+        {
+            "from_node": "start_0",
+            "from_port": "Max Results",
+            "to_node": "python_0",
+            "to_port": "Max Results"
+        },
+        {
+            "from_node": "start_0",
+            "from_port": "Search Query",
+            "to_node": "python_0",
+            "to_port": "Search Query"
+        },
+        {
+            "from_node": "start_0",
+            "from_port": "Flow",
+            "to_node": "python_0",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Finished Flow",
+            "to_node": "return_0",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Std Out",
+            "to_node": "783635c3-b11b-4675-884e-c72890ffbba3",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Text Out",
+            "to_node": "783635c3-b11b-4675-884e-c72890ffbba3",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Error Flow",
+            "to_node": "b547eb6d-b58f-49c9-945a-7dd58a06936c",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Message",
+            "to_node": "b547eb6d-b58f-49c9-945a-7dd58a06936c",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "python_0",
+            "from_port": "Finished Flow",
+            "to_node": "e6c76ae7-9d4d-479a-ac93-79f3a115498b",
+            "to_port": "Flow"
+        }
+    ],
+    "frames": [],
+    "viewport": {
+        "center_x": 252.47294589178355,
+        "center_y": 198.79759519038075,
+        "zoom": 1.0060483870967742
+    },
+    "embedded_subgraphs": {},
+    "project_name": "Web Crawler",
+    "project_description": "General purpose web search subgraph using DuckDuckGo HTML.",
+    "project_type": "",
+    "project_version": "1.1.0",
+    "project_vars": {},
+    "version": "2.1.0"
+}

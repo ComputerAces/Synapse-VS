@@ -1,0 +1,164 @@
+{
+    "nodes": [
+        {
+            "id": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+            "type": "Return Node",
+            "name": "Return",
+            "pos_x": 1855.3313492934676,
+            "pos_y": -354.0531365616258,
+            "properties": {
+                "label": "",
+                "success": "1",
+                "Additional Inputs": [
+                    "Success"
+                ]
+            }
+        },
+        {
+            "id": "8d1604d5-c2cf-4583-bca7-e89963904dee",
+            "type": "Start Node",
+            "name": "Start Node",
+            "pos_x": 439.11382735127575,
+            "pos_y": -326.1350736467497,
+            "properties": {
+                "Path": "F:\\My Programs\\Synapse VS\\sub_graphs",
+                "Additional Outputs": [
+                    "Path"
+                ]
+            }
+        },
+        {
+            "id": "ebc91833-8953-495b-9303-619010a16d82",
+            "type": "Path Exists",
+            "name": "Does 'sub_graphs' Exists",
+            "pos_x": 734.0,
+            "pos_y": -324.0,
+            "properties": {
+                "path": "./sub_graphs"
+            }
+        },
+        {
+            "id": "cc79c13b-eea6-4a94-a0d9-7cf1588bdab7",
+            "type": "Compare",
+            "name": "Check If 'sub_graphs' Exist",
+            "pos_x": 1031.0384839007627,
+            "pos_y": -394.08050959160227,
+            "properties": {
+                "a": 0,
+                "b": 1,
+                "Compare Type": "=="
+            }
+        },
+        {
+            "id": "2419fdb2-b677-4a76-a61f-da7e1d4a5fe0",
+            "type": "Make Directory",
+            "name": "Make Directory",
+            "pos_x": 1342.123705983629,
+            "pos_y": -257.9501484361165,
+            "properties": {
+                "path": ""
+            }
+        },
+        {
+            "id": "418fb894-2bc4-43d0-9f87-11cfa3bfb778",
+            "type": "OR",
+            "name": "OR",
+            "pos_x": 1588.6918470171715,
+            "pos_y": -356.17879818912894,
+            "properties": {
+                "Additional Inputs": [
+                    "Item 0",
+                    "Item 1"
+                ]
+            }
+        }
+    ],
+    "wires": [
+        {
+            "from_node": "8d1604d5-c2cf-4583-bca7-e89963904dee",
+            "from_port": "Path",
+            "to_node": "2419fdb2-b677-4a76-a61f-da7e1d4a5fe0",
+            "to_port": "Path"
+        },
+        {
+            "from_node": "ebc91833-8953-495b-9303-619010a16d82",
+            "from_port": "Flow",
+            "to_node": "cc79c13b-eea6-4a94-a0d9-7cf1588bdab7",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "ebc91833-8953-495b-9303-619010a16d82",
+            "from_port": "Exists",
+            "to_node": "cc79c13b-eea6-4a94-a0d9-7cf1588bdab7",
+            "to_port": "A"
+        },
+        {
+            "from_node": "cc79c13b-eea6-4a94-a0d9-7cf1588bdab7",
+            "from_port": "False",
+            "to_node": "2419fdb2-b677-4a76-a61f-da7e1d4a5fe0",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "8d1604d5-c2cf-4583-bca7-e89963904dee",
+            "from_port": "Path",
+            "to_node": "ebc91833-8953-495b-9303-619010a16d82",
+            "to_port": "Path"
+        },
+        {
+            "from_node": "8d1604d5-c2cf-4583-bca7-e89963904dee",
+            "from_port": "Flow",
+            "to_node": "ebc91833-8953-495b-9303-619010a16d82",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "2419fdb2-b677-4a76-a61f-da7e1d4a5fe0",
+            "from_port": "Flow",
+            "to_node": "418fb894-2bc4-43d0-9f87-11cfa3bfb778",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "cc79c13b-eea6-4a94-a0d9-7cf1588bdab7",
+            "from_port": "True",
+            "to_node": "418fb894-2bc4-43d0-9f87-11cfa3bfb778",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "cc79c13b-eea6-4a94-a0d9-7cf1588bdab7",
+            "from_port": "Compare Result",
+            "to_node": "418fb894-2bc4-43d0-9f87-11cfa3bfb778",
+            "to_port": "Item 0"
+        },
+        {
+            "from_node": "2419fdb2-b677-4a76-a61f-da7e1d4a5fe0",
+            "from_port": "Success",
+            "to_node": "418fb894-2bc4-43d0-9f87-11cfa3bfb778",
+            "to_port": "Item 1"
+        },
+        {
+            "from_node": "418fb894-2bc4-43d0-9f87-11cfa3bfb778",
+            "from_port": "Flow",
+            "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "418fb894-2bc4-43d0-9f87-11cfa3bfb778",
+            "from_port": "Result",
+            "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+            "to_port": "Success"
+        }
+    ],
+    "frames": [],
+    "viewport": {
+        "center_x": 1232.8683235977155,
+        "center_y": -276.0152963278467,
+        "zoom": 0.7064825848216107
+    },
+    "embedded_subgraphs": {},
+    "project_name": "Check/Make Folder",
+    "project_description": "Checks for and Make a new Folder if it does not exist.",
+    "project_type": "",
+    "project_category": "File System/Folders",
+    "project_version": "1.0.0",
+    "project_vars": {},
+    "version": "2.1.0"
+}

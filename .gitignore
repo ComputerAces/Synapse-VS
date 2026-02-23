@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+environment/
+venv/
+env/
+.env
+
+audit_*.txt
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+.agent/
+.agents/
+
+# Project Local Settings & Data
+settings.json
+favorites.json
+quick_links.json
+user_settings.json
+ToDo.txt
+
+# Temporary Execution Files
+temp_run.json
+.speed_*.txt
+.pause_*.flag
+*.log
+*.cache
+logs/
+sub_graphs/
+snippets/
+
+# Build artifacts
+dist/
+build/
+*.spec
