@@ -64,6 +64,10 @@ For detailed guides, check the `docs/` folder:
 * [Power User Guide](docs/PowerUser.md) - Advanced tips, tricks, and example graphs.
 * [Developer Guide](docs/developer.md) - Technical breakdown for backend and extensions.
 
+## 💬 Community
+
+* [Discussion Board](https://github.com/ComputerAces/Synapse-VS/discussions) - Ask questions, share ideas, and get help from the community.
+
 ## ⚖️ License
 
 SVS Alpha is provided for **single use** only. For commercial use inquiries, please email **<compaces79@gmail.com>**.
