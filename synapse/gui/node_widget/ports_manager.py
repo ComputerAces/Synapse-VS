@@ -79,7 +79,10 @@ class NodePortsMixin:
         # 4. Position Ports
         y_offset = 40
         if getattr(self, "_has_preview", False):
-            preview_h = (self.width - 20) * 9 / 16
+            if getattr(self, "preview_mode", "16:9") == "square":
+                preview_h = 64
+            else:
+                preview_h = (self.width - 20) * 9 / 16
             y_offset += preview_h + 10
 
         spacing = 25

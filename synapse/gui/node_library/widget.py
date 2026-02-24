@@ -679,6 +679,21 @@ class NodeLibrary(QWidget):
                 tooltip = f"<html>{clean_desc}</html>"
                 node_item.setToolTip(0, tooltip)
 
+        elif node_class and getattr(node_class, 'is_native', False):
+            # NATIVE NODES: Dark Purple / Bold (hot-loading libraries installed)
+            font = node_item.font(0)
+            font.setBold(True)
+            node_item.setFont(0, font)
+            node_item.setForeground(0, QBrush(QColor("#6A0DAD"))) # Dark Purple
+            
+            if not hide_tips:
+                import inspect
+                doc = inspect.cleandoc(node_class.__doc__ or "").strip()
+                ver = getattr(node_class, 'version', '1.0.0')
+                formatted_doc = doc.replace("\n", "<br>")
+                tooltip = f"<html><b>{label}</b> (v{ver})<br><br>{formatted_doc}<br><br><b>Type:</b> <span style='color:#6A0DAD;'>Native</span></html>"
+                node_item.setToolTip(0, tooltip)
+
         else:
             # STANDARD
             if not hide_tips:

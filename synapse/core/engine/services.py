@@ -9,22 +9,23 @@ class ServiceMixin:
     Handles background services and hot-reload checks.
     """
     def _check_hot_reload(self):
-        """Checks if the source file has been modified."""
+        """Checks if the source file has been modified. Returns True if modified."""
         if not self.source_file or not os.path.exists(self.source_file):
-            return
+            return False
 
         try:
             current_mtime = os.path.getmtime(self.source_file)
             if current_mtime > self._last_mtime:
                 logger.info(f"Hot Reload Detected: {self.source_file}")
                 self._last_mtime = current_mtime
-                # Signal reload via bridge or exception if needed
-                # For now, just acknowledged to prevent repeated triggers
+                return True
         except Exception:
             pass
+        return False
 
     def stop_all_services(self):
         """Cleans up any long-running nodes."""
+        
         if self.service_registry:
             logger.info(f"Stopping {len(self.service_registry)} background services...")
             for node_id, node in self.service_registry.items():

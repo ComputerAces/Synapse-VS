@@ -4,6 +4,7 @@ from synapse.utils.logger import setup_logger
 from synapse.core.flow_controller import FlowController
 from synapse.core.context_manager import ContextManager
 from synapse.core.node_dispatcher import NodeDispatcher
+from synapse.core.port_registry import PortRegistry
 
 from .data_io import DataMixin
 from .state_management import StateMixin
@@ -41,6 +42,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         import platform
         self.bridge.set("_SYSTEM_HEADLESS", self.headless, "Engine")
         self.bridge.set("_SYSTEM_PAUSE_FILE", self.pause_file, "Engine")
+        self.bridge.set("_SYSTEM_STOP_FILE", self.stop_file, "Engine")
         self.bridge.set("_OS_TYPE", platform.system(), "Engine")
         
         # [NEW] Set Graph Prefix (Scope ID) for Bridge
@@ -55,6 +57,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         is_child_engine = self.parent_bridge is not None
         self.dispatcher = NodeDispatcher(bridge, is_child=is_child_engine)
         self.context_manager = ContextManager(bridge, initial_stack=self.initial_context)
+        self.port_registry = PortRegistry()
+        self.bridge._port_registry = self.port_registry  # Expose to nodes via bridge
         self.history = []
         self._skip_record = False
         
@@ -77,16 +81,75 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
     def register_node(self, node):
         """Registers a node instance with the engine."""
         self.nodes[node.node_id] = node
+        # Auto-register all ports for UUID mapping
+        self.port_registry.register_node_ports(node)
 
     def connect(self, from_node, from_port, to_node, to_port):
         """Registers a connection (wire) between nodes."""
+        # Register ports (idempotent — safe to call multiple times)
+        from_name = self.nodes[from_node].name if from_node in self.nodes else ""
+        to_name = self.nodes[to_node].name if to_node in self.nodes else ""
+        out_uuid = self.port_registry.register(from_node, from_port, "output", from_name)
+        in_uuid = self.port_registry.register(to_node, to_port, "input", to_name)
+
         wire = {
             "from_node": from_node,
             "from_port": from_port,
             "to_node": to_node,
-            "to_port": to_port
+            "to_port": to_port,
+            "from_port_uuid": out_uuid,
+            "to_port_uuid": in_uuid,
         }
         self.wires.append(wire)
+
+    def hot_reload_graph(self):
+        """Reloads the graph from disk and patches the running engine state."""
+        if not self.source_file or not os.path.exists(self.source_file):
+            return
+
+        logger.info(f"Hot Reloading Graph: {self.source_file}")
+        try:
+            import json
+            from synapse.core.loader import load_graph_data
+            
+            with open(self.source_file, 'r') as f:
+                data = json.load(f)
+            
+            # 1. Capture current node ids for deletion tracking
+            old_node_ids = set(self.nodes.keys())
+            new_node_data = {n['id']: n for n in data.get("nodes", [])}
+            new_node_ids = set(new_node_data.keys())
+            
+            # 2. Add New Nodes / Update Existing
+            # Temporarily bypass the engine's connect/register to manually patch
+            load_graph_data(data, self.bridge, self)
+            
+            # 3. Handle Deletions
+            deleted_ids = old_node_ids - new_node_ids
+            for d_id in deleted_ids:
+                node = self.nodes.get(d_id)
+                if node:
+                    if hasattr(node, 'terminate'):
+                        try:
+                            node.terminate()
+                        except: pass
+                    self.nodes.pop(d_id, None)
+                    self.service_registry.pop(d_id, None)
+                    logger.info(f"Hot Reload: Removed node {d_id}")
+
+            # 4. Sync Wires (Full replace is easiest for flow)
+            self.wires = data.get("wires", [])
+            # Re-initialize wires in flow controller
+            self.flow.wires = self.wires
+            
+            # [TRACE] Notify UI of reload if tracing enabled
+            if self.trace:
+                print(f"[HOT_RELOAD] {self.source_file}", flush=True)
+            
+            logger.info("Hot Reload Complete. Changes will take effect on next node pulse.")
+            
+        except Exception as e:
+            logger.error(f"Hot Reload Failed: {e}")
 
     def run(self, start_node_id, initial_stack=None):
         """
@@ -166,7 +229,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                 # Deferred Hot Reload Check
                 now = time.time()
                 if now - self._last_reload_check > self._reload_interval:
-                    self._check_hot_reload()
+                    if self._check_hot_reload():
+                        self.hot_reload_graph()
                     self._last_reload_check = now
 
                 # 1. Get Next Node
@@ -351,7 +415,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                                     self.bridge.set("_SYSTEM_SKIP_NEXT", False, "Engine")
                                 break
                             
-                            self._check_hot_reload()
+                            if self._check_hot_reload():
+                                self.hot_reload_graph()
                             time.sleep(0.05)
                 
                 if skip_execution == "STEP_BACK":
@@ -551,6 +616,10 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             # [TRACE OPTIMIZATION] Sync Trace Flags
             trace_enabled = self.bridge.get("_SYSTEM_TRACE_ENABLED", default=True)
             if self.parent_bridge:
+                # [NEW] Parent Stop Propagation
+                if self.parent_bridge.get("_SYSTEM_STOP"):
+                    self.bridge.set("_SYSTEM_STOP", True, "Parent_Stop_Propagation")
+
                 # We are a sub-graph, check if sub-graph tracing is enabled
                 trace_subgraphs = self.bridge.get("_SYSTEM_TRACE_SUBGRAPHS", default=True)
                 self.trace = trace_enabled and trace_subgraphs

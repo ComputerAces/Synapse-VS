@@ -1,101 +1,76 @@
 from synapse.core.super_node import SuperNode
 from synapse.nodes.registry import NodeRegistry
 from synapse.core.types import DataType
-from synapse.core.dependencies import DependencyManager
-import time
-import os
-import platform
-import ctypes
-
-# Lazy Global
-pyautogui = None
-
-def ensure_pyautogui():
-    global pyautogui
-    if pyautogui: return True
-    if DependencyManager.ensure("pyautogui"):
-        import pyautogui as _p; pyautogui = _p; return True
-    return False
-
-class USER_INPUT_INFO(ctypes.Structure):
-    """Win32 structure for capturing input timing."""
-    _fields_ = [
-        ("cbSize", ctypes.c_uint),
-        ("dwTime", ctypes.c_uint),
-    ]
 
 @NodeRegistry.register("User Activity", "System/State")
 class UserActivityNode(SuperNode):
     """
-    Monitors system-wide user activity to detect idle states.
-    Uses native OS hooks (Windows) or mouse tracking fallback to distinguish 
-    between active and idle sessions.
+    Outputs mouse and keyboard idle counters from the engine's ActivityTracker.
+    
+    The engine runs a background thread that increments idle counters every 250ms.
+    When the mouse moves, its counter resets to 0. When a key is pressed, its 
+    counter resets to 0. Each counter is independent.
     
     Inputs:
-    - Flow: Check for user activity.
-    - Timeout MS: The idle duration threshold in milliseconds (default: 5000).
+    - Flow: Trigger a read of current idle counters.
     
     Outputs:
-    - Active Flow: Pulse triggered if activity was detected within the timeout.
-    - Idle Flow: Pulse triggered if the system has been idle longer than the timeout.
+    - Flow: Always triggered after read.
+    - User Activity: Boolean — True if either counter is 0 (recent activity).
+    - Mouse Idle Time: Milliseconds since last mouse movement (resets to 0 on move).
+    - Keyboard Idle Time: Milliseconds since last key press (resets to 0 on press).
     """
-    version = "2.1.0"
+    version = "2.4.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
-        self._last_mouse_pos = None
-        self._last_activity_time = time.time()
-        self._is_windows = platform.system() == "Windows"
         
+        # Migration: Remove dead properties and ports from prior versions
+        dead_properties = ["Timeout_MS", "Timeout MS", "Last Data"]
+        dead_ports = ["Active Flow", "Idle Flow", "Idle Time", "Activity Data"]
+        migrated = False
+
+        for dp in dead_properties:
+            if dp in self.properties:
+                del self.properties[dp]
+                migrated = True
+
+        for port_name in dead_ports:
+            for port in list(getattr(self, 'outputs', [])):
+                if port.name == port_name:
+                    self.outputs.remove(port)
+                    migrated = True
+
+        if migrated:
+            self.logger.info(f"[Migration] User Activity node '{name}' updated to v{self.version}.")
+
         self.define_schema()
         self.register_handler("Flow", self.do_work)
 
     def define_schema(self):
         self.input_schema = {
             "Flow": DataType.FLOW,
-            "Timeout MS": DataType.NUMBER
         }
         self.output_schema = {
-            "Active Flow": DataType.FLOW,
-            "Idle Flow": DataType.FLOW
+            "Flow": DataType.FLOW,
+            "User Activity": DataType.BOOLEAN,
+            "Mouse Idle Time": DataType.NUMBER,
+            "Keyboard Idle Time": DataType.NUMBER
         }
 
-    def _get_idle_time_ms(self):
-        """Returns system idle time in milliseconds."""
-        if self._is_windows:
-            try:
-                last_input_info = USER_INPUT_INFO()
-                last_input_info.cbSize = ctypes.sizeof(USER_INPUT_INFO)
-                ctypes.windll.user32.GetLastInputInfo(ctypes.byref(last_input_info))
-                
-                millis = ctypes.windll.kernel32.GetTickCount() - last_input_info.dwTime
-                return millis
-            except Exception:
-                pass
+    def do_work(self, **kwargs):
+        # Global singleton — works in any process, reads OS APIs directly
+        from synapse.core.activity_tracker import get_tracker
+        tracker = get_tracker()
         
-        # Fallback: Check mouse position change via pyautogui (if available)
-        # Note: This only works if this node is called frequently.
-        # It's less accurate than OS level hook.
-        if ensure_pyautogui():
-            curr_pos = pyautogui.position()
-            if self._last_mouse_pos != curr_pos:
-                self._last_mouse_pos = curr_pos
-                self._last_activity_time = time.time()
-                return 0
-            else:
-                return (time.time() - self._last_activity_time) * 1000
-        return 0 # Assume active if we can't check
-
-    def do_work(self, Timeout_MS=5000, **kwargs):
-        idle_ms = self._get_idle_time_ms()
+        mouse_idle = tracker.mouse_idle_ms
+        keyboard_idle = tracker.keyboard_idle_ms
         
-        timeout = float(Timeout_MS) if Timeout_MS is not None else 5000.0
+        # Active if either counter is at zero (just had input)
+        is_active = mouse_idle == 0.0 or keyboard_idle == 0.0
         
-        if idle_ms < timeout:
-            # Active
-            self.bridge.set(f"{self.node_id}_Idle Time", idle_ms, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Active Flow"], self.name)
-        else:
-            # Idle
-            self.logger.info(f"User Idle for {idle_ms}ms (Timeout: {timeout}ms)")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Idle Flow"], self.name)
+        self.bridge.set(f"{self.node_id}_User Activity", 1 if is_active else 0, self.name)
+        self.bridge.set(f"{self.node_id}_Mouse Idle Time", mouse_idle, self.name)
+        self.bridge.set(f"{self.node_id}_Keyboard Idle Time", keyboard_idle, self.name)
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True

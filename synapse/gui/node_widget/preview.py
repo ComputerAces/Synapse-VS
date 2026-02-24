@@ -42,25 +42,28 @@ class NodePreviewMixin:
         if self.preview_mode == "square":
             target_w = 64
             target_h = 64
-            self.preview_rect = QRectF(10, 40, target_w, target_h)
+            # Center the preview horizontally within the node
+            x_start = (self.width - target_w) / 2
+            self.preview_rect = QRectF(x_start, 38, target_w, target_h)
             
-            # Draw background
+            # Draw framed background
             painter.setBrush(Qt.GlobalColor.black)
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(self.preview_rect)
             
             # Draw Pixmap with aspect ratio preservation
             pix_w = self.preview_pixmap.width()
             pix_h = self.preview_pixmap.height()
-            
-            scale = min(target_w / pix_w, target_h / pix_h)
-            draw_w = int(pix_w * scale)
-            draw_h = int(pix_h * scale)
-            
-            x_off = (target_w - draw_w) / 2
-            y_off = (target_h - draw_h) / 2
-            
-            draw_rect = QRectF(self.preview_rect.left() + x_off, self.preview_rect.top() + y_off, draw_w, draw_h)
-            painter.drawPixmap(draw_rect.toRect(), self.preview_pixmap)
+            if pix_w > 0 and pix_h > 0:
+                scale = min(target_w / pix_w, target_h / pix_h)
+                draw_w = int(pix_w * scale)
+                draw_h = int(pix_h * scale)
+                
+                x_off = (target_w - draw_w) / 2
+                y_off = (target_h - draw_h) / 2
+                
+                draw_rect = QRectF(self.preview_rect.left() + x_off, self.preview_rect.top() + y_off, draw_w, draw_h)
+                painter.drawPixmap(draw_rect.toRect(), self.preview_pixmap)
         else:
             # 16:9 mode
             target_w = self.width - 20

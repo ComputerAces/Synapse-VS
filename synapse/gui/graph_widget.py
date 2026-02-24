@@ -142,7 +142,10 @@ class GraphWidget(QWidget):
         
         for item in self.canvas.scene.items():
             if hasattr(item, 'node') and isinstance(item.node, SubGraphNode):
-                node_path = item.node.properties.get("graph_path")
+                # Robust Path Lookup
+                props = item.node.properties
+                node_path = props.get("Graph Path") or props.get("graph_path") or props.get("GraphPath")
+                
                 if node_path and os.path.abspath(node_path) == abs_saved_path:
                     # 1. Refresh logical structure
                     item.node.rebuild_ports()
@@ -151,9 +154,10 @@ class GraphWidget(QWidget):
                     logical_inputs = item.node.input_types # {name: type}
                     current_inputs = {p.name: p for p in item.inputs}
                     
-                    # Remove old inputs (except Flow)
+                    # Remove old inputs (except Flow and system properties)
+                    system_inputs = ["Flow", "Graph Path", "Embedded Data", "Isolated"]
                     for p_name in list(current_inputs.keys()):
-                        if p_name not in logical_inputs and p_name != "Flow":
+                        if p_name not in logical_inputs and p_name not in system_inputs:
                             item.remove_port(p_name)
                     
                     # Add missing inputs
@@ -167,8 +171,9 @@ class GraphWidget(QWidget):
                     current_outputs = {p.name: p for p in item.outputs}
                     
                     # Remove old outputs (except Error Flow)
+                    system_outputs = ["Error Flow"]
                     for p_name in list(current_outputs.keys()):
-                        if p_name not in logical_outputs and p_name != "Error Flow":
+                        if p_name not in logical_outputs and p_name not in system_outputs:
                             item.remove_port(p_name)
                     
                     # Add missing outputs
@@ -495,14 +500,19 @@ class GraphWidget(QWidget):
                         else:
                             mode = parts[1]
                             b64_data = parts[2]
-                            
-                        target_node = self._find_node_in_graph(self, node_id)
-                        if target_node:
-                            if hasattr(target_node, "set_preview_data"):
-                                target_node.set_preview_data(mode, b64_data)
-                            elif hasattr(target_node, "set_preview_b64"):
-                                target_node.set_preview_b64(b64_data)
-                except: pass
+                        
+                        # Inline lookup (GraphWidget doesn't inherit ExecutionMixin)
+                        from synapse.gui.node_widget.widget import NodeWidget as NW
+                        target_node = None
+                        for item in self.canvas.scene.items():
+                            if isinstance(item, NW) and item.node and str(item.node.node_id) == node_id:
+                                target_node = item
+                                break
+                        
+                        if target_node and hasattr(target_node, "set_preview_data"):
+                            target_node.set_preview_data(mode, b64_data)
+                except Exception as e:
+                    print(f"[Preview Error] {e}")
             elif line.startswith("[PROVIDER_PULSE]"):
                 node_id = line.replace("[PROVIDER_PULSE]", "").strip()
                 self.output_received.emit(node_id, "provider_pulse")

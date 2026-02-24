@@ -1,13 +1,9 @@
 # Synapse VS (SVS) - Visual Scripting
 
-![Synapse VS Logo](f:/Synapse%20OS/synapse/gui/node_library/icons/app_icon.png)
-
 **Synapse VS (Visual Script)** is a powerful, node-based automation and data processing platform. It allows users to build complex workflows using a visual interface, combining AI, system operations, and data transformations into cohesive "graphs".
 
 ## 🚀 Key Features
 
-* **Universal AI Nodes**: Seamlessly switch between **Ollama (local)**, **OpenAI**, and **Google Gemini** using a unified `Ask AI` provider pattern.
-* **Hybrid Execution Engine**: High-performance "Native" threading for lightweight nodes and isolated "Heavy" processes for custom scripts and unstable tasks.
 * **Hot Packages**: Optional dependencies are installed on-demand — the first time you use a node that needs an extra library, SVS prompts you to install it automatically. No manual `pip install` needed.
 * **Secure API Management**: Pass API keys dynamically via input ports or securely fetch them from OS **Environment Variables**.
 * **Dynamic Subgraphs**: Build reusable tools and "favorited" subgraphs with full property propagation from parent nodes.
@@ -61,15 +57,15 @@ Let's build your first graph:
 
 For detailed guides, check the `docs/` folder:
 
-* [Getting Started](file:///f:/My%20Programs/Synapse%20VS/docs/Installing.md) - Install and launch SVS.
-* [How to Use](file:///f:/My%20Programs/Synapse%20VS/docs/UI_Usage.md) - Learn the Architect interface.
-* [Node Reference](file:///f:/My%20Programs/Synapse%20VS/docs/nodes/Index.md) - Complete guide to available nodes.
+* [Getting Started](docs/Installing.md) - Install and launch SVS.
+* [How to Use](docs/UI_Usage.md) - Learn the Architect interface.
+* [Node Reference](docs/nodes/Index.md) - Complete guide to available nodes.
 
-* [Power User Guide](file:///f:/My%20Programs/Synapse%20VS/docs/PowerUser.md) - Advanced tips, tricks, and example graphs.
-* [Developer Guide](file:///f:/My%20Programs/Synapse%20VS/docs/developer.md) - Technical breakdown for backend and extensions.
+* [Power User Guide](docs/PowerUser.md) - Advanced tips, tricks, and example graphs.
+* [Developer Guide](docs/developer.md) - Technical breakdown for backend and extensions.
 
 ## ⚖️ License
 
 SVS Alpha is provided for **single use** only. For commercial use inquiries, please email **<compaces79@gmail.com>**.
 
-See [License](file:///f:/My%20Programs/Synapse%20VS/license.md) for full details.
+See [License](license.md) for full details.

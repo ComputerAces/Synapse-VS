@@ -13,32 +13,61 @@ class DataMixin:
         flow_ports = ["Flow", "True", "False", "Loop", "In", "Exec", "Then", "Else", "Try", "Catch", "Error Flow"]
         
         node = self.nodes.get(node_id)
+        registry = self.port_registry
         
-        # [IPC OPTIMIZATION] Gather all keys across wires first
+        # [v2.5.0] Gather bridge keys — UUID-based with legacy fallback
         keys_to_pull = []
-        wire_map = {} # bridge_key -> (port_name, source_id, source_port)
+        legacy_keys = []       # Old-style keys for fallback
+        wire_map = {}          # bridge_key → (port_name, source_id, source_port, legacy_key)
+        
         for wire in incoming_wires:
             port_name = wire["to_port"]
             if port_name not in flow_ports:
-                 source_id = wire["from_node"]
-                 source_port = wire["from_port"]
-                 bridge_key = f"{source_id}_{source_port}"
-                 keys_to_pull.append(bridge_key)
-                 wire_map[bridge_key] = (port_name, source_id, source_port)
+                source_id = wire["from_node"]
+                source_port = wire["from_port"]
+                
+                # Primary: UUID-based key from wire
+                uuid_key = wire.get("from_port_uuid")
+                if not uuid_key:
+                    # Wire was created before PortRegistry — generate on the fly
+                    uuid_key = registry.bridge_key(source_id, source_port, "output")
+                
+                # Legacy fallback key
+                legacy_key = f"{source_id}_{source_port}"
+                
+                keys_to_pull.append(uuid_key)
+                legacy_keys.append(legacy_key)
+                wire_map[uuid_key] = (port_name, source_id, source_port, legacy_key)
 
-        # Bulk Get
-        bridge_values = self.bridge.get_batch(keys_to_pull)
+        # Bulk Get (UUID keys)
+        bridge_values = self.bridge.get_batch(keys_to_pull) if keys_to_pull else {}
+        
+        # Identify which UUID keys returned None — need legacy fallback
+        missing_uuid_keys = [k for k in keys_to_pull if bridge_values.get(k) is None]
+        legacy_fallback_needed = []
+        for k in missing_uuid_keys:
+            _, _, _, legacy_key = wire_map[k]
+            legacy_fallback_needed.append(legacy_key)
+        
+        # Bulk Get Legacy Keys
+        legacy_values = self.bridge.get_batch(legacy_fallback_needed) if legacy_fallback_needed else {}
+        
         mirror_updates = {}
 
-        for bridge_key, val in bridge_values.items():
-            port_name, source_id, source_port = wire_map[bridge_key]
+        for uuid_key, (port_name, source_id, source_port, legacy_key) in wire_map.items():
+            # Try UUID key first, then legacy fallback
+            val = bridge_values.get(uuid_key)
+            if val is None:
+                val = legacy_values.get(legacy_key)
             
             if val is not None:
-                mirror_updates[f"{node_id}_{port_name}"] = val
+                # Store under UUID key for the receiving port
+                recv_uuid = registry.bridge_key(node_id, port_name, "input")
+                mirror_updates[recv_uuid] = val
                 node_inputs[port_name] = val
             else:
-                # [NEW] Source Property Fallback
-                # For nodes without Flow (Constant/Memo), we pull directly from their properties
+                # Source Property Fallback
+                # For nodes without Flow (Constant/Memo), pull from their properties
                 source_node = self.nodes.get(source_id)
                 if source_node:
                     pull_val = None
@@ -49,10 +78,11 @@ class DataMixin:
                             break
                     
                     if pull_val is not None:
-                        mirror_updates[f"{node_id}_{port_name}"] = pull_val
+                        recv_uuid = registry.bridge_key(node_id, port_name, "input")
+                        mirror_updates[recv_uuid] = pull_val
                         node_inputs[port_name] = pull_val
                 
-                # Carry over current node property as default if no pulse OR source property found
+                # Current node property as default
                 elif node and port_name in node.properties:
                     node_inputs[port_name] = node.properties[port_name]
 

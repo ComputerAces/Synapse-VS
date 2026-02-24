@@ -89,6 +89,10 @@ class SubGraphNode(SuperNode):
                     
         self.output_schema = new_outputs
 
+        # Populate internal type caches for UI sync
+        self.input_types = self.input_schema.copy()
+        self.output_types = self.output_schema.copy()
+
     def _build_dynamic_inputs(self):
         """Scans child graph for Start Node and builds data inputs."""
         data = self._get_graph_data_for_outputs()
@@ -152,36 +156,28 @@ class SubGraphNode(SuperNode):
     def _get_graph_data_for_outputs(self):
         """Loads and returns the child graph's JSON data for port analysis."""
         import json, os
-        # Priority: 1. Embedded Data, 2. Instance Property, 3. Class Metadata
+        # Priority: 1. File on Disk (always freshest), 2. Embedded Data (fallback)
         
-        # 1. Try embedded data first
-        embedded = self.properties.get("Embedded Data") or self.properties.get("EmbeddedData")
-        if embedded and isinstance(embedded, dict):
-            return embedded
-            
-        # 2. Resolve Graph Path
+        # 1. Resolve Graph Path and try loading from file first
         graph_path = self.properties.get("Graph Path") or \
                      self.properties.get("GraphPath") or \
                      self.properties.get("graph_path") or \
                      getattr(self.__class__, "graph_path", None)
-                     
-        if not graph_path:
-            return None
         
-        # 3. Try loading from file
-        try:
-            # Handle potential relative paths
-            if not os.path.isabs(graph_path):
-                # Try relative to project root? 
-                # For now, assume absolute or relative to CWD
+        if graph_path:
+            try:
+                abs_path = os.path.abspath(graph_path)
+                if os.path.exists(abs_path):
+                    with open(abs_path, 'r') as f:
+                        return json.load(f)
+            except:
                 pass
-                
-            abs_path = os.path.abspath(graph_path)
-            if os.path.exists(abs_path):
-                with open(abs_path, 'r') as f:
-                    return json.load(f)
-        except:
-            pass
+        
+        # 2. Fallback to Embedded Data (e.g. no file path, or file missing)
+        embedded = self.properties.get("Embedded Data") or self.properties.get("EmbeddedData")
+        if embedded and isinstance(embedded, dict):
+            return embedded
+            
         return None
 
     def rebuild_ports(self):
@@ -222,97 +218,113 @@ class SubGraphNode(SuperNode):
         # Prepare Child Bridge
         import multiprocessing
         manager = multiprocessing.Manager()
-        child_bridge = SynapseBridge(manager)
-
-        child_engine = ExecutionEngine(
-            child_bridge, 
-            headless=False,
-            delay=0.0,
-            parent_bridge=self.bridge,
-            parent_node_id=self.node_id,
-            trace=trace_enabled,
-            speed_file=speed_file,
-            stop_file=getattr(self.bridge, 'stop_file', None), # Inherit or null
-            source_file=graph_path,
-            initial_context=self.context_stack if not isolated else []
-        )
-        
-        from synapse.core.loader import load_graph_data
-        load_graph_data(data, child_bridge, child_engine)
-            
-        self._bridge_cache = child_bridge
-        self._engine_cache = child_engine
-        self._cached_data = data
-
-        # Find Start Node ID first — needed for bridge key injection
-        start_id = None
-        for n_data in data["nodes"]:
-            if n_data["type"] == "Start Node":
-                start_id = n_data["id"]
-                break
-
-        # Inject parent kwargs into child bridge
-        # Use {start_node_id}_{port_name} format so _gather_inputs can find them via wires
-        for k, v in kwargs.items():
-            if k.startswith("_") or k == "Flow":
-                continue
-            child_bridge.set(k, v, "Parent_Injection")
-            if start_id:
-                child_bridge.set(f"{start_id}_{k}", v, "Parent_Injection")
-
-        parent_sub_id = self.bridge.get("_SYNP_SUBGRAPH_ID")
-        sub_id = f"{parent_sub_id} > {self.name}" if parent_sub_id else self.name
-        child_bridge.set("_SYNP_SUBGRAPH_ID", sub_id, "Parent_Injection")
-
-        system_props = ["graph_path", "embedded_data", "node_id", "name"]
-        for k, v in self.properties.items():
-            if k not in system_props:
-                child_bridge.set(k, v, "Parent_Property_Injection")
-
         try:
-            parent_keys = self.bridge.get_all_keys()
-            for pk in parent_keys:
-                if pk.startswith("Global:"):
-                    var_name = pk.split(":", 1)[1]
-                    val = self.bridge.get(var_name)
-                    child_bridge.set(var_name, val, "Parent_Scope_Inheritance")
-        except Exception as e:
-            self.logger.warning(f"Failed to inherit global variables: {e}")
+            child_bridge = SynapseBridge(manager)
+
+            # Inherit control files from parent bridge (set by parent engine)
+            stop_file = self.bridge.get("_SYSTEM_STOP_FILE")
+            pause_file = self.bridge.get("_SYSTEM_PAUSE_FILE")
+
+            child_engine = ExecutionEngine(
+                child_bridge, 
+                headless=False,
+                delay=0.0,
+                parent_bridge=self.bridge,
+                parent_node_id=self.node_id,
+                trace=trace_enabled,
+                speed_file=speed_file,
+                stop_file=stop_file,
+                pause_file=pause_file,
+                source_file=graph_path,
+                initial_context=self.context_stack if not isolated else []
+            )
             
-        if start_id:
-            try:
-                child_engine.run(start_id)
-            except Exception as e:
-                self.logger.error(f"Nested SubGraph Failed: {e}")
-                from synapse.core.data import ErrorObject
-                error_obj = ErrorObject(
-                    project_name=f"SubGraph: {self.name}",
-                    node_name=self.name,
-                    inputs={k:v for k,v in kwargs.items() if not k.startswith("_")},
-                    error_details={"message": str(e), "type": type(e).__name__}
-                )
-                self.bridge.set(f"{self.node_id}_LastError", error_obj, self.name)
+            from synapse.core.loader import load_graph_data
+            load_graph_data(data, child_bridge, child_engine)
                 
-                self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
-                return False
+            self._bridge_cache = child_bridge
+            self._engine_cache = child_engine
+            self._cached_data = data
 
-        results = child_bridge.get("SUBGRAPH_RETURN") or {}
-        raw_label = child_bridge.get("__RETURN_NODE_LABEL__")
+            # Find Start Node ID first — needed for bridge key injection
+            start_id = None
+            for n_data in data["nodes"]:
+                if n_data["type"] == "Start Node":
+                    start_id = n_data["id"]
+                    break
 
-        # Use subgraph_utils to get the SAME mapping used by the GUI
-        from synapse.core.subgraph_utils import analyze_subgraph_ports
-        _, _, label_to_gui = analyze_subgraph_ports(data)
-        
-        gui_label = label_to_gui.get(raw_label, raw_label)
-        
-        prefix = ""
-        if gui_label and gui_label != "Flow":
-             prefix = f"{gui_label}: "
-        
-        for k, v in results.items():
-            full_key = f"{prefix}{k}"
-            self.bridge.set(f"{self.node_id}_{full_key}", v, self.name)
+            # Inject parent kwargs into child bridge
+            child_registry = child_engine.port_registry
+            for k, v in kwargs.items():
+                if k.startswith("_") or k == "Flow":
+                    continue
+                child_bridge.set(k, v, "Parent_Injection")
+                if start_id:
+                    # Legacy key
+                    child_bridge.set(f"{start_id}_{k}", v, "Parent_Injection")
+                    # UUID key
+                    uuid_key = child_registry.bridge_key(start_id, k, "output")
+                    child_bridge.set(uuid_key, v, "Parent_Injection")
+
+            parent_sub_id = self.bridge.get("_SYNP_SUBGRAPH_ID")
+            sub_id = f"{parent_sub_id} > {self.name}" if parent_sub_id else self.name
+            child_bridge.set("_SYNP_SUBGRAPH_ID", sub_id, "Parent_Injection")
+
+            system_props = ["graph_path", "embedded_data", "node_id", "name"]
+            for k, v in self.properties.items():
+                if k not in system_props:
+                    child_bridge.set(k, v, "Parent_Property_Injection")
+
+            try:
+                parent_keys = self.bridge.get_all_keys()
+                for pk in parent_keys:
+                    if pk.startswith("Global:"):
+                        var_name = pk.split(":", 1)[1]
+                        val = self.bridge.get(var_name)
+                        child_bridge.set(var_name, val, "Parent_Scope_Inheritance")
+            except Exception as e:
+                self.logger.warning(f"Failed to inherit global variables: {e}")
+                
+            if start_id:
+                try:
+                    child_engine.run(start_id)
+                except Exception as e:
+                    self.logger.error(f"Nested SubGraph Failed: {e}")
+                    from synapse.core.data import ErrorObject
+                    error_obj = ErrorObject(
+                        project_name=f"SubGraph: {self.name}",
+                        node_name=self.name,
+                        inputs={k:v for k,v in kwargs.items() if not k.startswith("_")},
+                        error_details={"message": str(e), "type": type(e).__name__}
+                    )
+                    self.bridge.set(f"{self.node_id}_LastError", error_obj, self.name)
+                    
+                    self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
+                    return False
+
+            results = child_bridge.get("SUBGRAPH_RETURN") or {}
+            raw_label = child_bridge.get("__RETURN_NODE_LABEL__")
+
+            # Use subgraph_utils to get the SAME mapping used by the GUI
+            from synapse.core.subgraph_utils import analyze_subgraph_ports
+            _, _, label_to_gui = analyze_subgraph_ports(data)
             
-        active_ports = [gui_label] if gui_label else ["Flow"]
-        self.bridge.set(f"{self.node_id}_ActivePorts", active_ports, self.name)
-        return True
+            gui_label = label_to_gui.get(raw_label, raw_label)
+            
+            prefix = ""
+            if gui_label and gui_label != "Flow":
+                 prefix = f"{gui_label}: "
+            
+            for k, v in results.items():
+                full_key = f"{prefix}{k}"
+                # Write using both UUID and legacy keys for full compatibility
+                self.set_output(full_key, v)
+                
+            active_ports = [gui_label] if gui_label else ["Flow"]
+            self.bridge.set(f"{self.node_id}_ActivePorts", active_ports, self.name)
+            return True
+        finally:
+            # CRITICAL: Clean up the Manager process to prevent leaks
+            manager.shutdown()
+            if hasattr(self, "_bridge_cache"): del self._bridge_cache
+            if hasattr(self, "_engine_cache"): del self._engine_cache

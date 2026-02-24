@@ -54,6 +54,15 @@ class ExecutionMixin:
         self.console_output.append("\n[!] Execution stopped by user.")
         self.statusBar().showMessage("Execution stopped.", 3000)
         self._clear_graph_highlights(graph)
+        
+        # Also stop any other running graphs (subgraph tabs)
+        for i in range(self.central_tabs.count()):
+            widget = self.central_tabs.widget(i)
+            if isinstance(widget, GraphWidget) and widget != graph:
+                if widget.execution_state != widget.STATE_STOPPED:
+                    widget.stop()
+                    self._clear_graph_highlights(widget)
+        
         self.update_execution_ui()
 
     def stop_all_graphs(self):
@@ -113,7 +122,7 @@ class ExecutionMixin:
         
         if source_graph == self.get_current_graph():
             self.update_execution_ui()
-            self.update_tab_icons()
+        self.update_tab_icons()
 
     def on_graph_output(self, line, channel):
         source_graph = self.sender() if isinstance(self.sender(), GraphWidget) else self.get_current_graph()
@@ -362,8 +371,11 @@ class ExecutionMixin:
     def _clear_graph_highlights(self, graph):
         if not graph or not graph.canvas or not graph.canvas.scene: return
         
-        if hasattr(graph, 'bridge') and graph.bridge:
-            graph.bridge.clear()
+        try:
+            if hasattr(graph, 'bridge') and graph.bridge:
+                graph.bridge.clear()
+        except (BrokenPipeError, EOFError, ConnectionResetError, OSError):
+            pass
 
         for item in graph.canvas.scene.items():
             if hasattr(item, '_is_active'):
@@ -372,11 +384,13 @@ class ExecutionMixin:
             if hasattr(item, '_is_running'):
                  item._is_running = False
                  item._running_since = 0
-                 if hasattr(item, '_is_waiting'):
-                     item._is_waiting = False
-                 if hasattr(item, '_is_fading'):
-                     item._is_fading = True
-                     item._fade_start = QTime.currentTime().msecsSinceStartOfDay()
+                 # Clear ALL visual effects immediately (no fading on stop)
+                 if hasattr(item, '_is_fading'): item._is_fading = False
+                 if hasattr(item, '_is_fading_blue'): item._is_fading_blue = False
+                 if hasattr(item, '_is_pulsing_blue'): item._is_pulsing_blue = False
+                 if hasattr(item, '_is_waiting'): item._is_waiting = False
+                 if hasattr(item, '_is_error'): item._is_error = False
+                 if hasattr(item, '_is_next'): item._is_next = False
                  item.update()
             elif hasattr(item, 'start_port'): # Wire
                  if hasattr(item, '_is_active'): item._is_active = False
@@ -386,6 +400,7 @@ class ExecutionMixin:
         if hasattr(self, '_current_running_node'):
              self._current_running_node = None
              
+        self.update_tab_icons()
         self._trigger_aux_updates()
 
     def _trigger_aux_updates(self):
@@ -422,18 +437,22 @@ class ExecutionMixin:
         self.step_back_action.setEnabled(is_running or is_paused)
 
     def update_tab_icons(self):
-        # Requires QStyle
         from PyQt6.QtWidgets import QStyle
+        from PyQt6.QtGui import QColor
         style = self.style()
+        tab_bar = self.central_tabs.tabBar()
         for i in range(self.central_tabs.count()):
             widget = self.central_tabs.widget(i)
             if isinstance(widget, GraphWidget):
                 if widget.execution_state == widget.STATE_RUNNING:
                     icon = style.standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+                    tab_bar.setTabTextColor(i, QColor("#006400"))  # Dark Green
                 elif widget.execution_state == widget.STATE_PAUSED:
                     icon = style.standardIcon(QStyle.StandardPixmap.SP_MediaPause)
+                    tab_bar.setTabTextColor(i, QColor("#B8860B"))  # Dark Goldenrod
                 else:
                     icon = style.standardIcon(QStyle.StandardPixmap.SP_MediaStop)
+                    tab_bar.setTabTextColor(i, QColor())  # Reset to default
                 self.central_tabs.setTabIcon(i, icon)
 
     def update_speed(self):

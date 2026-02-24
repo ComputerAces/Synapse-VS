@@ -167,10 +167,8 @@ class PropertiesPanel(QWidget):
                         self.add_dropdown_property_ui(key, value, options)
                         continue
 
-                if key == "value" and "True/False" in logic_node.name:
-                     self.add_dropdown_property_ui(key, value, ["True", "False"])
-                elif key == "value" and "Boolean" in logic_node.name:
-                     self.add_dropdown_property_ui(key, value, ["True", "False"])
+                if key.lower() == "value" and ("True/False" in logic_node.name or "Boolean" in logic_node.name):
+                    self.add_dropdown_property_ui(key, value, ["True", "False"])
                 elif key == "Random Type":
                     self.add_dropdown_property_ui(key, value, ["Number", "Currency"])
                 elif key == "condition" and "Watch" in logic_node.name:
@@ -408,19 +406,13 @@ class PropertiesPanel(QWidget):
     
     def add_number_property_ui(self, key, value):
         """Add a number input field for numeric properties."""
-        from PyQt6.QtWidgets import QSpinBox, QDoubleSpinBox
+        from PyQt6.QtWidgets import QDoubleSpinBox
         
-        if isinstance(value, int):
-            spin = QSpinBox()
-            spin.setRange(-999999, 999999)
-            spin.setValue(int(value))
-            spin.valueChanged.connect(lambda v, k=key: self.update_property(k, v))
-        else:
-            spin = QDoubleSpinBox()
-            spin.setRange(-999999.0, 999999.0)
-            spin.setDecimals(4)
-            spin.setValue(float(value))
-            spin.valueChanged.connect(lambda v, k=key: self.update_property(k, v))
+        spin = QDoubleSpinBox()
+        spin.setRange(-999999.0, 999999.0)
+        spin.setDecimals(4)
+        spin.setValue(float(value))
+        spin.valueChanged.connect(lambda v, k=key: self.update_property(k, v))
         
         self.form_layout.addRow(f"{key}:", spin)
 

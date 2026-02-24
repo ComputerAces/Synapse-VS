@@ -53,23 +53,31 @@ class StartNode(ProviderNode):
 
     def _inject_outputs(self):
         outputs = list(self.output_schema.keys())
-        all_keys = self.bridge.get_all_keys()
+        registry = getattr(self.bridge, '_port_registry', None)
         
         for out in outputs:
             if out in ["Flow", "Error Flow"]: continue
-            val = self.bridge.get(out)
             
+            # 1. Try UUID Key (Direct injection from PortRegistry-aware SubGraphNode)
+            val = None
+            if registry:
+                uuid_key = registry.get_uuid(self.node_id, out, "output")
+                if uuid_key:
+                    val = self.bridge.get(uuid_key)
+            
+            # 2. Try Name Key (Standard injection from SubGraphNode)
             if val is None:
-                search_key = out.lower()
-                for k in all_keys:
-                    clean_k = k.split(":", 1)[1] if ":" in k else k
-                    if clean_k.lower() == search_key:
-                        val = self.bridge.get(k)
-                        break
+                val = self.bridge.get(out)
             
+            # 3. Try Legacy Node-Prefixed Key (Injected as {node_id}_{port_name})
+            if val is None:
+                val = self.bridge.get(f"{self.node_id}_{out}")
+                
+            # 4. Property Fallback
             if val is None:
                 val = self.properties.get(out)
                 
             if val is not None:
-                self.bridge.set(f"{self.node_id}_{out}", val, self.name)
+                # Prime the output for downstream nodes in this graph pass
+                self.set_output(out, val)
 

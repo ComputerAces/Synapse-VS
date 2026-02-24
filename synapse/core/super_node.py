@@ -35,6 +35,23 @@ class SuperNode(BaseNode):
         _ = self.default_inputs
         _ = self.default_outputs
 
+    def set_output(self, port_name, value):
+        """
+        Write an output value using the PortRegistry's UUID-based bridge key.
+        Also writes the legacy key for backward compatibility.
+        
+        Usage:  self.set_output("Average", 0.5)
+        Replaces: self.bridge.set(f"{self.node_id}_{port_name}", value, self.name)
+        """
+        # UUID-based key (primary)
+        registry = getattr(self.bridge, '_port_registry', None)
+        if registry:
+            uuid_key = registry.bridge_key(self.node_id, port_name, "output")
+            self.bridge.set(uuid_key, value, self.name)
+        
+        # Legacy key (backward compatibility)
+        self.bridge.set(f"{self.node_id}_{port_name}", value, self.name)
+
     def define_schema(self):
         """
         Override to define input/output schema. 
