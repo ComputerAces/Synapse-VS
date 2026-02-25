@@ -36,6 +36,7 @@ temp_run.json
 logs/
 sub_graphs/
 snippets/
+Synapse VS/
 
 # Build artifacts
 dist/
