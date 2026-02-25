@@ -42,6 +42,7 @@ class PropertiesPanel(QWidget):
         Populate the panel with data from the selected node or frame.
         Accepts NodeWidget, FrameWidget, or BaseNode.
         """
+        from synapse.core.types import DataType
         # 1. Clear existing rows
         while self.form_layout.rowCount() > 0:
             self.form_layout.removeRow(0)
@@ -167,31 +168,37 @@ class PropertiesPanel(QWidget):
                         self.add_dropdown_property_ui(key, value, options)
                         continue
 
+                # [NEW] Check schema for specialized types
+                dtype = DataType.ANY
+                if hasattr(logic_node, 'input_schema'):
+                    dtype = logic_node.input_schema.get(key, DataType.ANY)
+
                 if key.lower() == "value" and ("True/False" in logic_node.name or "Boolean" in logic_node.name):
                     self.add_dropdown_property_ui(key, value, ["True", "False"])
                 elif key == "Random Type":
                     self.add_dropdown_property_ui(key, value, ["Number", "Currency"])
                 elif key == "condition" and "Watch" in logic_node.name:
                      self.add_dropdown_property_ui(key, value, [">", "<", "==", "!=", ">=", "<="])
-                elif key == "compare_type":
+                elif key.lower() == "compare_type" or key == "Compare Type" or dtype == DataType.COMPARE_TYPE:
                     self.add_dropdown_property_ui(key, value, ["<", "<=", ">", ">=", "==", "!="])
-                elif isinstance(value, bool):
+                elif isinstance(value, bool) or dtype == DataType.BOOLEAN:
                      self.add_bool_property_ui(key, value)
-                elif isinstance(value, str):
+                elif isinstance(value, (int, float)) and dtype in [DataType.NUMBER, DataType.INTEGER, DataType.FLOAT]:
+                    self.add_number_property_ui(key, value)
+                elif dtype == DataType.ANY:
+                    self.add_string_property_ui(key, str(value) if value is not None else "")
+                elif isinstance(value, str) or dtype == DataType.STRING:
                     self.add_string_property_ui(key, value)
-                elif isinstance(value, (int, float)):
-                    self.add_number_property_ui(key, value)
-                    
-                elif isinstance(value, (int, float)):
-                    self.add_number_property_ui(key, value)
                 elif value is None:
                     self.add_string_property_ui(key, "")
+                else:
+                    # Fallback for complex types or unknown dtypes
+                    self.add_string_property_ui(key, str(value))
         
         # 5. [NEW] Always show data input ports from the widget as editable properties
         #    This catches input vars not present in logic_node.properties (e.g. SubGraph dynamic inputs)
         if self.current_widget and hasattr(self.current_widget, 'inputs'):
             try:
-                from synapse.core.types import DataType
                 import traceback
                 
                 skip_infrastructure = [

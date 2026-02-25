@@ -87,13 +87,10 @@ def analyze_subgraph_ports(data):
 
          label_to_gui[raw_label] = label
 
-         # Group variables under the label
+         # Map variables directly to their raw names
          prefixed_data_ports = []
          for dp in data_ports:
-             if label == "Flow":
-                 prefixed_data_ports.append(dp)
-             else:
-                 prefixed_data_ports.append(f"{label}: {dp}")
+             prefixed_data_ports.append(dp)
          
          flow_ports_to_add.append((label, prefixed_data_ports))
          

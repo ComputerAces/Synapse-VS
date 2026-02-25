@@ -1,0 +1,92 @@
+/* Light Mode Stylesheet */
+
+QWidget {
+    background-color: #f0f0f0;
+    color: #000000;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 14px;
+}
+
+QLabel {
+    color: #000000;
+    font-weight: bold;
+}
+
+/* Menu Bar */
+QMenuBar {
+    background-color: #e0e0e0;
+    border-bottom: 1px solid #c0c0c0;
+}
+
+QMenuBar::item {
+    padding: 5px 10px;
+}
+
+QMenuBar::item:selected {
+    background-color: #d0d0d0;
+}
+
+QMenu {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+}
+
+QMenu::item {
+    padding: 5px 20px;
+}
+
+QMenu::item:selected {
+    background-color: #e8e8e8;
+    color: #000000;
+}
+
+/* Docks */
+QDockWidget {
+    titlebar-close-icon: url(close.png);
+    titlebar-normal-icon: url(undock.png);
+}
+
+QDockWidget::title {
+    background-color: #dcdcdc;
+    padding: 5px;
+    border: 1px solid #c0c0c0;
+    font-weight: bold;
+}
+
+/* Lists and Trees */
+QListWidget, QTreeWidget, QTableWidget {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    color: #000000;
+    outline: none;
+}
+
+QListWidget::item:selected, QTreeWidget::item:selected, QTableWidget::item:selected {
+    background-color: #cce8ff;
+    color: #000000;
+}
+
+QHeaderView::section {
+    background-color: #e0e0e0;
+    padding: 4px;
+    border: 1px solid #c0c0c0;
+    color: #000000;
+}
+
+/* Text Editors and Inputs */
+QTextEdit, QLineEdit {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #c0c0c0;
+    padding: 2px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #0078d7;
+}
+
+/* Status Bar */
+QStatusBar {
+    background-color: #e0e0e0;
+    color: #000000;
+}

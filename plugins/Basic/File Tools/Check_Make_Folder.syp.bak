@@ -7,11 +7,11 @@
             "pos_x": 1855.3313492934676,
             "pos_y": -354.0531365616258,
             "properties": {
-                "label": "",
-                "success": "1",
                 "Additional Inputs": [
                     "Success"
-                ]
+                ],
+                "Label": "",
+                "Success": "1"
             }
         },
         {
@@ -34,7 +34,7 @@
             "pos_x": 734.0,
             "pos_y": -324.0,
             "properties": {
-                "path": "./sub_graphs"
+                "Path": "./sub_graphs"
             }
         },
         {
@@ -44,9 +44,9 @@
             "pos_x": 1031.0384839007627,
             "pos_y": -394.08050959160227,
             "properties": {
-                "a": 0,
-                "b": 1,
-                "Compare Type": "=="
+                "Compare Type": "==",
+                "A": 0,
+                "B": 1
             }
         },
         {
@@ -56,7 +56,7 @@
             "pos_x": 1342.123705983629,
             "pos_y": -257.9501484361165,
             "properties": {
-                "path": ""
+                "Path": ""
             }
         },
         {

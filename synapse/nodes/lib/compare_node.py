@@ -27,8 +27,8 @@ class CompareNode(SuperNode):
         super().__init__(node_id, name, bridge)
         self.is_native = True
         self.properties["Compare Type"] = "=="
-        self.properties["A"] = 0
-        self.properties["B"] = 0
+        self.properties["A"] = ""
+        self.properties["B"] = ""
         self.hidden_outputs = ["Flow"]
         
         self.define_schema()
@@ -53,32 +53,12 @@ class CompareNode(SuperNode):
         val_a = A if A is not None else kwargs.get("A") or self.properties.get("A", 0)
         val_b = B if B is not None else kwargs.get("B") or self.properties.get("B", 0)
         
-        # Helper for smart casting
-        def smart_cast(val):
-            if val is None: return 0
-            if isinstance(val, (int, float, bool, list, dict, bytes)): return val
-            
-            s = str(val)
-            # Try numeric
-            try:
-                f = float(s)
-                if f.is_integer(): return int(f)
-                return f
-            except ValueError:
-                # Try boolean strings
-                low = s.lower()
-                if low in ("true", "yes"): return True
-                if low in ("false", "no"): return False
-                return s
-                
         # 1. Date/Time Comparison
         if is_formatted_datetime(str(val_a)) and is_formatted_datetime(str(val_b)):
              result = self._compare_dates(val_a, val_b)
         else:
-             # 2. Standard Comparison (Handles List, Dict, Data, etc.)
-             a_c = smart_cast(val_a)
-             b_c = smart_cast(val_b)
-             result = self._compare_standard(a_c, b_c)
+             # 2. Universal Comparison
+             result = self._compare_universal(val_a, val_b)
         
         # Outputs
         self.bridge.set(f"{self.node_id}_Compare Result", result, self.name)
@@ -102,15 +82,75 @@ class CompareNode(SuperNode):
         elif op == "!=": return cmp != 0
         return False
 
-    def _compare_standard(self, a, b):
-        op = self.properties.get("Compare Type", "==")
+    def _get_hash(self, val):
+        """Generates a stable hash for comparison of complex types."""
+        import hashlib
+        import json
+        
+        if val is None: return "None"
+        if isinstance(val, (int, float, bool)): return str(val)
+        
         try:
-            if op == "<": return a < b
-            elif op == "<=": return a <= b
-            elif op == ">": return a > b
-            elif op == ">=": return a >= b
-            elif op == "==": return a == b
-            elif op == "!=": return a != b
-        except TypeError:
-            self.logger.warning(f"Compare Error: Type mismatch {type(a)} vs {type(b)}")
+            if isinstance(val, bytes):
+                # Fastest for raw image data
+                return hashlib.md5(val).hexdigest()
+            elif isinstance(val, (dict, list)):
+                # Stable JSON for data structures
+                encoded = json.dumps(val, sort_keys=True).encode()
+                return hashlib.md5(encoded).hexdigest()
+        except:
+            pass
+            
+        return str(val)
+
+    def _compare_universal(self, a, b):
+        op = self.properties.get("Compare Type", "==")
+        
+        # Helper for smart casting (numeric/bool)
+        def try_numeric(val):
+            if isinstance(val, (int, float, bool)): return val
+            try:
+                f = float(str(val))
+                return int(f) if f.is_integer() else f
+            except:
+                return None
+
+        # 1. Numeric Comparison (Priority)
+        num_a = try_numeric(a)
+        num_b = try_numeric(b)
+        if num_a is not None and num_b is not None:
+            try:
+                if op == "<": return num_a < num_b
+                elif op == "<=": return num_a <= num_b
+                elif op == ">": return num_a > num_b
+                elif op == ">=": return num_a >= num_b
+                elif op == "==": return num_a == num_b
+                elif op == "!=": return num_a != num_b
+            except: pass
+
+        # 2. String/Complex Comparison
+        # For strings, we allow equality and inequality.
+        # For large data (bytes, dict, list), we use hashing.
+        
+        is_complex = isinstance(a, (bytes, dict, list)) or isinstance(b, (bytes, dict, list))
+        
+        if is_complex:
+            hash_a = self._get_hash(a)
+            hash_b = self._get_hash(b)
+            if op == "==": return hash_a == hash_b
+            elif op == "!=": return hash_a != hash_b
+            # Other ops don't make sense for complex data, default to False per user preference
+            return False
+            
+        # Standard strings/other
+        str_a = str(a)
+        str_b = str(b)
+        
+        if op == "==": return str_a == str_b
+        elif op == "!=": return str_a != str_b
+        elif op == "<": return str_a < str_b
+        elif op == "<=": return str_a <= str_b
+        elif op == ">": return str_a > str_b
+        elif op == ">=": return str_a >= str_b
+        
         return False

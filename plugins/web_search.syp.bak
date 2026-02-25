@@ -22,7 +22,6 @@
             "pos_x": 51.0,
             "pos_y": 0.0,
             "properties": {
-                "requirements": "beautifulsoup4\nrequests",
                 "Search Query": "",
                 "Script Body": "import requests\nfrom bs4 import BeautifulSoup\nimport urllib.parse\n\n### Auto-Input Vars ###\nquery = bridge.get(f'{node_id}_Search Query')\nmax_results = bridge.get(f'{node_id}_Max Results')\n### End of Auto-Input Vars ###\n\nif not query:\n    print(f\"[{name}] Error: No search query provided.\")\n    bridge.set(f\"{node_id}_Status\", \"Error: No query\", \"WebSearch\")\n    bridge.set(f\"{node_id}_Result List\", [], \"WebSearch\")\n    # return False\n\nsearch_term = query\ncount = int(max_results or 5)\n\nprint(f\"Searching Web for: {search_term} (Count: {count})\")\n\n# Target Lite version which is easier to scrape and less likely to block\nurl = \"https://lite.duckduckgo.com/lite/\"\n# Key payload parameters for Lite backend\ndata = {\n    \"q\": search_term,\n    \"kl\": \"us-en\",\n    \"b\": \"\" # Crucial parameter for Lite backend to accept POST\n}\nheaders = {\n    \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\",\n    \"Referer\": \"https://lite.duckduckgo.com/\",\n    \"Sec-Fetch-User\": \"?1\",\n    \"Content-Type\": \"application/x-www-form-urlencoded\"\n}\n\ntry:\n    resp = requests.post(url, data=data, headers=headers, timeout=15)\n    resp.raise_for_status()\n    \n    soup = BeautifulSoup(resp.text, 'html.parser')\n    results = []\n    \n    # Lite version uses tables. Main results are in tr.\n    links = soup.select('a.result-link')\n    snippets = soup.select('td.result-snippet')\n\n    print(f\"DEBUG: Found {len(links)} links\")\n    \n    for i, link_tag in enumerate(links):\n        if i >= count: break\n        \n        title = link_tag.text.strip()\n        href = link_tag.get('href')\n        \n        snippet = \"\"\n        if i < len(snippets):\n            snippet = snippets[i].text.strip()\n            \n        results.append([href, title, snippet])\n\n    bridge.set(f\"{node_id}_Result List\", results, \"WebSearch\")\n    bridge.set(f\"{node_id}_Status\", f\"Success: Found {len(results)} items\", \"WebSearch\")\n    print(f\"Finished. Found {len(results)} results.\")\n\nexcept Exception as e:\n    error_msg = f\"Search Failed: {str(e)}\"\n    print(f\"[ERROR] {error_msg}\")\n    bridge.set(f\"{node_id}_Status\", error_msg, \"WebSearch\")\n    bridge.set(f\"{node_id}_Result List\", [], \"WebSearch\")",
                 "Additional Inputs": [
@@ -32,7 +31,8 @@
                 "Additional Outputs": [
                     "Result List",
                     "Status"
-                ]
+                ],
+                "Requirements": "beautifulsoup4\nrequests"
             }
         },
         {
@@ -63,7 +63,7 @@
             "pos_x": 376.0,
             "pos_y": 204.0,
             "properties": {
-                "header": "Error"
+                "Header": "Error"
             }
         },
         {
@@ -73,7 +73,7 @@
             "pos_x": 617.0,
             "pos_y": 47.0,
             "properties": {
-                "header": "Web Results"
+                "Header": "Web Results"
             }
         }
     ],

@@ -173,8 +173,10 @@ class SubGraphNode(SuperNode):
             except:
                 pass
         
-        # 2. Fallback to Embedded Data (e.g. no file path, or file missing)
-        embedded = self.properties.get("Embedded Data") or self.properties.get("EmbeddedData")
+        # 2. Fallback to Embedded Data
+        embedded = self.properties.get("Embedded Data") or \
+                   self.properties.get("EmbeddedData") or \
+                   self.properties.get("embedded_data")
         if embedded and isinstance(embedded, dict):
             return embedded
             
@@ -189,10 +191,15 @@ class SubGraphNode(SuperNode):
         # Resolve Properties (with Input Overrides)
         graph_path = kwargs.get("Graph Path") or \
                      self.properties.get("Graph Path") or \
-                     self.properties.get("graph_path") or \
                      self.properties.get("GraphPath") or \
+                     self.properties.get("graph_path") or \
                      getattr(self.__class__, "graph_path", "")
-        embedded_data = kwargs.get("Embedded Data") if "Embedded Data" in kwargs else self.properties.get("Embedded Data")
+
+        embedded_data = kwargs.get("Embedded Data") or \
+                        self.properties.get("Embedded Data") or \
+                        self.properties.get("EmbeddedData") or \
+                        self.properties.get("embedded_data")
+
         isolated = kwargs.get("Isolated") if "Isolated" in kwargs else self.properties.get("Isolated", False)
         
         import json, os
@@ -270,7 +277,7 @@ class SubGraphNode(SuperNode):
             sub_id = f"{parent_sub_id} > {self.name}" if parent_sub_id else self.name
             child_bridge.set("_SYNP_SUBGRAPH_ID", sub_id, "Parent_Injection")
 
-            system_props = ["graph_path", "embedded_data", "node_id", "name"]
+            system_props = ["Graph Path", "GraphPath", "graph_path", "Embedded Data", "EmbeddedData", "embedded_data", "node_id", "name"]
             for k, v in self.properties.items():
                 if k not in system_props:
                     child_bridge.set(k, v, "Parent_Property_Injection")
@@ -315,10 +322,21 @@ class SubGraphNode(SuperNode):
             if gui_label and gui_label != "Flow":
                  prefix = f"{gui_label}: "
             
+            # Track which ports were actually updated
+            captured_ports = set()
             for k, v in results.items():
-                full_key = f"{prefix}{k}"
-                # Write using both UUID and legacy keys for full compatibility
-                self.set_output(full_key, v)
+                self.set_output(k, v)
+                captured_ports.add(k)
+            
+            # [PORT MISMATCH REPORTING]
+            # Check if any expected data ports were NOT provided by the child's Return Node
+            for expected_port in self.output_schema.keys():
+                if expected_port in ["Flow", "Error Flow"]: continue
+                if expected_port not in captured_ports:
+                    error_msg = f"[PORT MISMATCH] SubGraph '{self.name}' expected output '{expected_port}' but child graph '{os.path.basename(graph_path)}' returned: {list(results.keys()) or 'No Data'}"
+                    self.logger.error(error_msg)
+                    # Also set LastError for the node so it highlights in UI
+                    self.bridge.set(f"{self.node_id}_LastError", error_msg, self.name)
                 
             active_ports = [gui_label] if gui_label else ["Flow"]
             self.bridge.set(f"{self.node_id}_ActivePorts", active_ports, self.name)

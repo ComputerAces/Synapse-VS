@@ -69,9 +69,9 @@
             "pos_x": -586.8000000000002,
             "pos_y": 184.1,
             "properties": {
-                "a": 0,
-                "b": 0,
-                "Compare Type": "=="
+                "Compare Type": "==",
+                "A": 0,
+                "B": 0
             }
         },
         {
@@ -81,7 +81,7 @@
             "pos_x": -1353.3395094534076,
             "pos_y": -204.9671241947464,
             "properties": {
-                "path": ""
+                "Path": ""
             }
         },
         {
@@ -91,9 +91,9 @@
             "pos_x": 1026.6643187514264,
             "pos_y": -146.05331237344072,
             "properties": {
-                "path": "data.txt",
                 "Start Offset": 0,
-                "End Offset": -1
+                "End Offset": -1,
+                "Path": "data.txt"
             }
         },
         {
@@ -103,13 +103,13 @@
             "pos_x": 772.2310187514265,
             "pos_y": 22.926287626559315,
             "properties": {
-                "path": "output.txt",
-                "mode": "Overwrite",
                 "Mode Options": [
                     "Overwrite",
                     "Append"
                 ],
-                "Start Pos": 0
+                "Start Pos": 0,
+                "Path": "output.txt",
+                "Mode": "Overwrite"
             }
         },
         {
@@ -119,9 +119,9 @@
             "pos_x": -1112.3395094534073,
             "pos_y": -199.9671241947464,
             "properties": {
-                "a": 0,
-                "b": 1,
-                "Compare Type": "=="
+                "Compare Type": "==",
+                "A": 0,
+                "B": 1
             }
         },
         {
@@ -131,11 +131,11 @@
             "pos_x": 1635.6818181818178,
             "pos_y": -137.34545454545452,
             "properties": {
-                "label": "",
                 "Data": "",
                 "Additional Inputs": [
                     "Data"
-                ]
+                ],
+                "Label": ""
             }
         },
         {

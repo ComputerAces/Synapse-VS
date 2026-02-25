@@ -1,0 +1,40 @@
+{
+    "project_name": "Prune Test",
+    "version": "2.1.0",
+    "nodes": [
+        {
+            "id": "start_0",
+            "type": "Start Node",
+            "name": "Start Node",
+            "pos_x": 0,
+            "pos_y": 0,
+            "properties": {
+                "label": "Start",
+                "Dead Property": "Remove Me",
+                "Additional Inputs": ["Dynamic Input"],
+                "Dynamic Input": "Value",
+                "Provider_Flow_ID": "Legacy ID"
+            }
+        },
+        {
+            "id": "return_0",
+            "type": "Return Node",
+            "name": "Return Node",
+            "pos_x": 400,
+            "pos_y": 0,
+            "properties": {
+                "Additional Outputs": ["Result"],
+                "Result": "Success",
+                "Obsolete": "Delete"
+            }
+        }
+    ],
+    "wires": [
+        {
+            "from_node": "start_0",
+            "from_port": "Flow",
+            "to_node": "return_0",
+            "to_port": "In"
+        }
+    ]
+}
