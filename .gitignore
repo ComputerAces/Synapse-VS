@@ -32,6 +32,7 @@ temp_run.json
 .speed_*.txt
 .pause_*.flag
 *.log
+*.log.*
 *.cache
 logs/
 sub_graphs/

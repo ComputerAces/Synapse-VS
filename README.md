@@ -20,6 +20,32 @@
     * **Session Restore**: Reopens previous tabs, layout, and viewports on launch.
 * **Extensible Plugin System**: Easily add new nodes and providers in Python.
 
+## 🖼️ Visual Overview
+
+### The Architect UI
+
+<img src="media/images/Screenshot_Base.png" width="800" alt="Synapse VS Architect Base UI">
+
+The **Architect** is the primary workspace for building and debugging graphs. It consists of several key areas:
+
+* **Toolbar**: Quick access to File operations (New, Open, Save), Execution controls (Run, Pause, Step, Stop), and UI toggles like the Speed Slider and Magnifier.
+* **Node Library (Quick Links)**: A searchable catalog of all available nodes, organized by category.
+* **Properties & Project Panel**: Configure settings for the selected node or manage global project metadata.
+* **Console Panel**: Displays real-time logs and standard output from your running nodes.
+* **Debug Panel**: Precise inspection of data flow, variable states, and error messages.
+
+### Minimap Navigation
+
+<img src="media/images/Screenshot_Minimap.png" width="400" alt="Synapse VS Minimap">
+
+The **Minimap** provides a high-level bird's-eye view of your entire graph. It allows for rapid navigation through large, complex logic flows by clicking or dragging the view rectangle. It also visualizes active node execution "pulses" in real-time.
+
+### Miniworld: Mission Control
+
+<img src="media/images/Screenshot_Miniworld.png" width="400" alt="Synapse VS Miniworld">
+
+The **Miniworld** is a unique multi-viewport system that allows you to monitor up to 6 different graphs or subgraph instances simultaneously. Each slot provides a live preview of execution, making it the central "mission control" for complex, interconnected automation systems.
+
 ## 🚀 Getting Started
 
 ### 1. Installation

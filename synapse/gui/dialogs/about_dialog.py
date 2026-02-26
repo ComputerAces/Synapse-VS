@@ -37,7 +37,7 @@ class AboutDialog(QDialog):
         layout.addSpacing(10)
         
         # Website Link
-        link_label = QLabel('<a href="http://compaces.com">http://compaces.com</a>')
+        link_label = QLabel('<a href="https://compaces.com">https://compaces.com</a>')
         link_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         link_label.setOpenExternalLinks(True)
         layout.addWidget(link_label)

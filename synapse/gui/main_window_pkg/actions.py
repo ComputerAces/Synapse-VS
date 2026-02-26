@@ -364,9 +364,6 @@ class ActionsMixin:
             self.toggle_wire_legend_action.setChecked(True)
 
     def show_about(self):
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.about(self, "About Synapse VS",
-                          "<h3>Synapse VS Architect</h3>"
-                          "<p>Visual Scripting Environment for AI & Logic Flows.</p>"
-                          "<p>Version: 0.2.0 (Refactored)</p>"
-                          "<p>(c) 2026 Synapse Team</p>")
+        from synapse.gui.dialogs.about_dialog import AboutDialog
+        dlg = AboutDialog(self)
+        dlg.exec()
