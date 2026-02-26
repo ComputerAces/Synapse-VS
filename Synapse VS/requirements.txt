@@ -1,5 +1,0 @@
-
-pygrabber
-pyaudio
-langdetect
-vaderSentiment
