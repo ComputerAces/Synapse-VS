@@ -1,5 +1,7 @@
 import time
 import os
+import threading
+import copy
 from synapse.utils.logger import setup_logger
 from synapse.core.flow_controller import FlowController
 from synapse.core.context_manager import ContextManager
@@ -50,6 +52,14 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             graph_name = os.path.splitext(os.path.basename(self.source_file))[0]
             # Sanitize name for bridge keys
             safe_name = graph_name.replace(" ", "_").replace(":", "_").replace("-", "_")
+            
+            # [FIX] Randomize Scope for Child Engines to prevent parallel clobbering
+            if self.parent_bridge:
+                # Use part of the parent node ID and current time for a unique instance scope
+                import time
+                instance_suffix = f"{str(self.parent_node_id)[:6]}_{int(time.time()*1000) % 1000000}"
+                safe_name = f"{safe_name}_{instance_suffix}"
+                
             self.bridge.default_scope = safe_name
             logger.info(f"Execution Scope set to: {safe_name}")
         
@@ -72,6 +82,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.scope_pulse_counts = {} # {scope_id: active_pulse_count}
         self.pending_terminations = {} # {scope_id: (stack, prio, delay)}
         self.current_pulse_stack = None # [NEW] Pulse currently being processed
+        self._lock = threading.RLock() # [NEW] Protect pulse counts and terminations (Reentrant)
         
         # [NEW] Runaway Train Guard
         self._max_pulses_per_scope = 10000
@@ -204,7 +215,21 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.bridge.set("_SYSTEM_RUN_ID", run_id, "Engine")
         
         try:
-            while self.flow.has_next():
+            # [BARRIER] Block until ALL pulses (including parallel branches) are finished
+            while True:
+                has_work = self.flow.has_next()
+                with self._lock:
+                    active_count = self.scope_pulse_counts.get("ROOT", 0)
+                
+                if not has_work and active_count <= 0:
+                    break # Everything is finished
+                
+                if not has_work:
+                    # Waiting for parallel branches to finish or push back to master
+                    self._check_scope_terminations()
+                    time.sleep(0.01)
+                    continue
+
                 # Check for Global Stop Signal
                 if self._check_stop_signal():
                     logger.info("Stop signal detected. Terminating execution.")
@@ -232,351 +257,21 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                     if self._check_hot_reload():
                         self.hot_reload_graph()
                     self._last_reload_check = now
-
+                
                 # 1. Get Next Node
-                current_node_id, pulse_stack, trigger_port = self.flow.pop()
-                self.current_pulse_stack = pulse_stack
-            
-                # [NEW] Runaway Train Guard Detection
-                active_scope = pulse_stack[-1] if pulse_stack else "ROOT"
-                self._scope_execution_totals[active_scope] = self._scope_execution_totals.get(active_scope, 0) + 1
-                if self._scope_execution_totals[active_scope] > self._max_pulses_per_scope:
-                    raise RuntimeError(f"RUNAWAY TRAIN: Scope '{active_scope}' exceeded {self._max_pulses_per_scope} pulses without yielding.")
-
-                # [FIX] Handle Delayed Queue Waiting
-                if current_node_id is None:
-                    # Flow has pending items (delayed) but none are ready.
-                    # [NEW] still check scope finishes during waits
+                node_id, pulse_stack, trigger_port = self.flow.pop()
+                
+                # Check for Delayed Queue Waiting
+                if node_id is None:
                     self._check_scope_terminations()
                     time.sleep(0.01)
                     continue
 
-                # Decrement popped hierarchy
-                if "ROOT" in self.scope_pulse_counts:
-                    self.scope_pulse_counts["ROOT"] -= 1
-                
-                if pulse_stack:
-                    for s_id in pulse_stack:
-                        if s_id in self.scope_pulse_counts:
-                            self.scope_pulse_counts[s_id] -= 1
-
-                # Context stack priority: Pulse Stack > Engine Default
-                context_stack = pulse_stack if pulse_stack is not None else []
-                
-                node = self.nodes.get(current_node_id)
-                if not node:
-                    logger.error(f"Node {current_node_id} not found!")
+                # 2. Execute Step
+                should_continue = self._execute_step(node_id, pulse_stack, trigger_port, self.flow)
+                if not should_continue:
+                    # ReturnNode barrier or another terminal condition
                     continue
-
-                # [BARRIER] Pulse Synchronization for Return Nodes
-                # If this is a Return Node, but there are other flow pulses pending in the queue,
-                # defer this return until they finish. This ensures parallel branches complete.
-                node_type = type(node).__name__
-                is_return = "ReturnNode" in node_type or "Return" in node_type
-                if is_return:
-                    has_other_pulses = False
-                    
-                    # 1. Check Main Queue
-                    for _, _, q_node_id, q_stack, _ in self.flow.queue:
-                        # Only wait for pulses in the SAME or NESTED scope
-                        if q_stack[:len(context_stack)] == context_stack:
-                            q_node = self.nodes.get(q_node_id)
-                            if q_node:
-                                q_node_type = type(q_node).__name__
-                                if not ("ReturnNode" in q_node_type or "Return" in q_node_type):
-                                    has_other_pulses = True
-                                    break
-                    
-                    # 2. Check Delayed Queue (e.g. Wait nodes in same scope)
-                    if not has_other_pulses:
-                        for _, (_, _, q_node_id, q_stack, _) in self.flow.delayed_queue:
-                            if q_stack[:len(context_stack)] == context_stack:
-                                q_node = self.nodes.get(q_node_id)
-                                if q_node:
-                                    q_node_type = type(q_node).__name__
-                                    if not ("ReturnNode" in q_node_type or "Return" in q_node_type):
-                                        has_other_pulses = True
-                                        break
-
-                    if has_other_pulses:
-                        # Defer Return execution
-                        # [FIX] Must increment scope count when pushing back
-                        self.flow.push(current_node_id, context_stack, trigger_port)
-                        self._increment_scope_count(context_stack, 1)
-                        self.current_pulse_stack = None
-                        continue
-                
-                # Speed/Pause Control
-                self._handle_controls()
-                
-                # Check Step Back AGAIN after controls (user might have stepped back while paused)
-                if not self.headless and self.bridge.get("_SYSTEM_STEP_BACK"):
-                    self.bridge.set("_SYSTEM_STEP_BACK", False, "Engine")
-                    # We popped the node, we must restore flow to put it back
-                    # Ideally we should have stepped back BEFORE pop.
-                    # But if we step back here, history has the state BEFORE pop.
-                    # So restoring history will put the node back in flow queue.
-                    self._step_back()
-                    self.current_pulse_stack = None
-                    self.current_pulse_stack = None
-                    continue
-                
-                # 2. Data Transfer (Inputs) & Validation
-                # [NEW] Check Provider Dependencies
-                try:
-                    self._validate_provider_context(node, context_stack)
-                except RuntimeError as e:
-                    # Provider Check Failed
-                    logger.error(f"Provider Validation Error in {node.name}: {e}")
-                     # Notify UI of Error State (Red Highlight)
-                    print(f"[NODE_ERROR] {current_node_id} | {e}", flush=True)
-                    
-                    # Handle as standard error
-                    handler_info = self.context_manager.handle_error(e, node, context_stack, self.wires)
-                    if handler_info:
-                        handler_id, parent_stack, catch_wires = handler_info[:3]
-
-                        for w in catch_wires:
-                            self.flow.push(w["to_node"], parent_stack, w["to_port"])
-                            self._increment_scope_count(parent_stack, 1)
-                    else:
-                        # If unhandled, we can either stop or panic. 
-                        # For visual feedback, we want the node to stay red.
-                        # We trigger the panic handler which might stop the engine or just log.
-                        self._handle_panic(e, node, context_stack, start_node_id, inputs=None)
-                    
-                    self.current_pulse_stack = None
-                    continue
-
-                node_inputs = self._gather_inputs(current_node_id, trigger_port)
-                
-                if node_inputs is None:
-                    # strict validation failed. Error Flow triggered in _gather_inputs.
-                    logger.warning(f"Skipping {node.name} due to Validation Failure.")
-                    
-                    # Check if Local Error Flow is wired
-                    local_error_wired = False
-                    for w in self.wires:
-                        if w["from_node"] == current_node_id and w["from_port"] in ["Error Flow", "Error", "Panic"]:
-                            local_error_wired = True
-                            break
-                    
-                    if local_error_wired:
-                        # 4a. Local Route Output Flow (Error Flow only)
-                        triggered = self.flow.route_outputs(
-                            current_node_id, 
-                            self.wires, 
-                            self.bridge, 
-                            context_stack,
-                            headless=self.headless
-                        )
-                        self._increment_scope_count(context_stack, sum(triggered.values()))
-                    else:
-                        # 4b. Global Panic Fallback
-                        error = ValueError(f"Validation Failed in {node.name}")
-                        self._handle_panic(error, node, context_stack, start_node_id, inputs=node_inputs)
-                        
-                    self.current_pulse_stack = None
-                    continue
-                
-                # Update Stack (Entering/Exiting Try/Catch or Provider Scopes)
-                context_stack = self.context_manager.update_stack(node, context_stack, trigger_port)
-
-                # [STEP DEBUGGING]
-                skip_execution = False 
-                if not self.headless:
-                    step_mode = self.bridge.get("_SYSTEM_STEP_MODE")
-                    if step_mode:
-                        # Signal UI that we are paused at this node
-                        self.bridge.set("_SYSTEM_NEXT_NODE", current_node_id, "Engine")
-                        
-                        # Wait for Trigger
-                        while self.bridge.get("_SYSTEM_STEP_MODE"):
-                            # Check Step Back in loop
-                            if self.bridge.get("_SYSTEM_STEP_BACK"):
-                                self.bridge.set("_SYSTEM_STEP_BACK", False, "Engine")
-                                self.bridge.set("_SYSTEM_NEXT_NODE", None, "Engine")
-                                # We popped context/node, so stepping back restores state before this.
-                                self._step_back()
-                                # We need to break to 'continue' outer loop
-                                # But we can't easily jump to outer loop continue from here.
-                                # Use flag or structured control
-                                skip_execution = "STEP_BACK" 
-                                break
-
-                            if self.bridge.get("_SYSTEM_STEP_TRIGGER"):
-                                # Consumable Trigger
-                                self.bridge.set("_SYSTEM_STEP_TRIGGER", False, "Engine")
-                                self.bridge.set("_SYSTEM_NEXT_NODE", None, "Engine") 
-                                
-                                # Check for Skip
-                                if self.bridge.get("_SYSTEM_SKIP_NEXT"):
-                                    skip_execution = True
-                                    self.bridge.set("_SYSTEM_SKIP_NEXT", False, "Engine")
-                                break
-                            
-                            if self._check_hot_reload():
-                                self.hot_reload_graph()
-                            time.sleep(0.05)
-                
-                if skip_execution == "STEP_BACK":
-                    continue
-
-                # 3. Execution (Trace Signals for UI)
-                if self.trace and not self.headless:
-                    print(f"[NODE_START] {current_node_id}", flush=True)
-
-                # [Fix ForEach Leakage] Explicitly clear stale triggers
-                self.bridge.set(f"{current_node_id}_ActivePorts", None, "Engine_Sanitize")
-                self.bridge.set(f"{current_node_id}_Condition", None, "Engine_Sanitize")
-                
-                logger.info(f"Executing {node.name} (Context: {len(context_stack)})...")
-                
-                # Initialize result container
-                exec_result = None
-                
-                try:
-                    # Trigger Bubble-up
-                    if self.parent_bridge and self.parent_node_id:
-                        self.parent_bridge.set(f"{self.parent_node_id}_SubGraphActivity", True, "ChildEngine")
-                        print(f"[SYNP_SUBGRAPH_ACTIVITY] {self.parent_node_id}")
-                    
-                    # Dispatch
-                    if not skip_execution:
-                        node.context_stack = context_stack
-                        result_future = self.dispatcher.dispatch(node, node_inputs, context_stack)
-                        exec_result = result_future.wait() 
-                        
-                        # [IPC OPTIMIZATION] Hold handles to any new SHM blocks from workers
-                        self.bridge.pin_all() # Note: internally skips if not dirty
-                    else:
-                        logger.info(f"Skipping execution of {node.name}")
-                        exec_result = None
-                    
-                    # Notify UI
-                    if self.trace and not self.headless:
-                        print(f"[NODE_STOP] {current_node_id}", flush=True)
-                    
-                    # Store result
-                    if exec_result is not None:
-                        self.bridge.set(f"{current_node_id}_Condition", exec_result, "Engine_Sync")
-                    
-                    # Wireless Routing
-                    self._handle_wireless(node, context_stack)
-
-                except Exception as e:
-                    # Error Handling
-                    handler_info = self.context_manager.handle_error(e, node, context_stack, self.wires)
-                    
-                    if handler_info:
-                        handler_id, parent_stack, catch_wires = handler_info[:3]
-                        
-                        # [SAFETY NET] Auto-Cleanup Dropped Scopes
-                        self._auto_cleanup_scopes(context_stack, parent_stack)
-                        
-                        for w in catch_wires:
-                            self.flow.push(w["to_node"], parent_stack, w["to_port"])
-                            self._increment_scope_count(parent_stack, 1)
-                    else:
-                        panic_handled = self._handle_panic(e, node, context_stack, start_node_id, inputs=node_inputs)
-                        if not panic_handled:
-                            raise RuntimeError(f"Unhandled graph error in '{node.name}': {e}") from e
-
-                # [YIELD HANDLING] Check for Special Yield Signals in Result
-                # Nodes can return ("_YSWAIT", ms) or ("_YSYIELD",) to pause/defer
-                
-                # Use local result variable instead of round-tripping to Bridge
-                cond_result = exec_result 
-                
-                # Debug Logging
-                if isinstance(cond_result, tuple) and len(cond_result) > 0 and str(cond_result[0]).startswith("_YS"):
-                     logger.info(f"Yield Signal Detected: {cond_result}")
-
-                # Check priority from node (set during execute)
-                node_priority = self.bridge.get(f"{current_node_id}_Priority")
-                current_prio = int(node_priority) if node_priority is not None else 0
-
-                # 4. Route Output Flow
-                # [NEW] Safe Provider Termination Logic
-                is_provider = hasattr(node, "register_provider_context")
-                provider_type = node.register_provider_context() if is_provider else None
-                
-                # We only delay termination for NON-ROOT providers (Start Node is a Root Provider)
-                is_delayable_provider = is_provider and provider_type != "Flow Provider"
-                
-                provider_flow_wired = any(w["from_port"] == "Provider Flow" for w in self.wires if w["from_node"] == current_node_id)
-                
-                # Ports that shouldn't fire until Provider Flow is done
-                completion_ports = ["Flow", "Out", "Done", "Success", "True", "False"]
-
-                stack_overrides = {}
-                if is_delayable_provider and provider_flow_wired:
-                    stack_overrides["Provider Flow"] = context_stack + [current_node_id]
-                    if current_node_id not in self.scope_pulse_counts:
-                        self.scope_pulse_counts[current_node_id] = 0
-                
-                # Check for special signals from cond_result
-                delay_ms = 0
-                if isinstance(cond_result, tuple) and len(cond_result) >= 2 and cond_result[0] == "_YSWAIT":
-                    delay_ms = cond_result[1]
-                    # Check for Pulse Flag (Index 2)
-                    should_pulse = False
-                    if len(cond_result) > 2:
-                        should_pulse = bool(cond_result[2])
-                    
-                    if should_pulse:
-                        print(f"[NODE_WAITING_PULSE] {current_node_id} | {delay_ms}", flush=True)
-                    else:
-                        print(f"[NODE_WAITING_START] {current_node_id} | {delay_ms}", flush=True)
-
-                # Route with exclusions if it's a sub-graph starting
-                port_counts = self.flow.route_outputs(
-                    current_node_id, 
-                    self.wires, 
-                    self.bridge, 
-                    context_stack,
-                    headless=self.headless,
-                    trace=self.trace,
-                    priority=current_prio,
-                    delay=delay_ms,
-                    stack_override_map=stack_overrides,
-                    port_exclude=completion_ports if is_delayable_provider and provider_flow_wired else None
-                )
-                
-                # Update pulse counts
-                for port, count in port_counts.items():
-                    target_stack = stack_overrides.get(port, context_stack)
-                    self._increment_scope_count(target_stack, count)
-
-                # If we delayed completion, save metadata for later
-                if is_delayable_provider and provider_flow_wired:
-                    sub_pulse_count = port_counts.get("Provider Flow", 0)
-                    if sub_pulse_count > 0:
-                        self.pending_terminations[current_node_id] = (context_stack, current_prio, delay_ms)
-                    else:
-                        # Sub-graph was wired but didn't fire (conditional).
-                        # Fire the completion ports now!
-                        triggered = self.flow.route_outputs(
-                            current_node_id, self.wires, self.bridge, context_stack,
-                            port_include=completion_ports,
-                            priority=current_prio, delay=delay_ms,
-                            headless=self.headless, trace=self.trace,
-                            force_trigger=True
-                        )
-                        self._increment_scope_count(context_stack, sum(triggered.values()))
-                
-                # [Refined] Handle Scope Termination at end of step
-                self._check_scope_terminations()
-                self.current_pulse_stack = None
-
-                # Handle Service Persistence
-                if node.is_service:
-                    if node.node_id not in self.service_registry:
-                        logger.info(f"Persistent Service Registered: {node.name}")
-                        self.service_registry[node.node_id] = node
-                        self.bridge.set(f"{node.node_id}_IsServiceRunning", True, "Engine")
-                        print(f"[SERVICE_START] {node.node_id}")
-                        
             logger.info("Execution finished.")
             
             # Notify Parent
@@ -585,8 +280,336 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                 print(f"[SYNP_SUBGRAPH_FINISHED] {self.parent_node_id}")
 
         finally:
-            self.stop_all_services()
-            self.dispatcher.shutdown()
+            with self._lock:
+                # Only root thread should shutdown services if it's truly the end
+                # but for simplicity, we let the finish flag handle it.
+                pass
+            
+            # If root thread, shutdown dispatcher
+            # Actually, we should only shutdown if we are the MASTER thread.
+            # Master thread is the one that started with START_NODE.
+            # branches should just exit.
+            pass
+            
+    def _run_branch(self, start_node_id, initial_stack, trigger_port, priority, delay):
+        """
+        Isolated execution for a parallel branch.
+        Uses its own FlowController but shares the bridge and dispatcher.
+        """
+        logger.info(f"Branch Started: {start_node_id} (Priority: {priority})")
+        
+        # 1. Isolated Flow Controller
+        # We don't push start_node_id in __init__ because we want to pass custom prio/delay
+        branch_flow = FlowController(None, initial_stack=initial_stack, trace=self.trace)
+        branch_flow.queue = [] # Clear the default ROOT push if it happened (it shouldn't if None is passed)
+        branch_flow.push(start_node_id, initial_stack, trigger_port, priority=priority, delay=delay)
+        
+        # 2. Scope Safety: Clone the stack to prevent mutation interference
+        # context_stack = list(initial_stack) # Not needed here, pulse_stack is passed to _execute_step
+        
+        # 3. Mini execution loop
+        try:
+            while branch_flow.has_next():
+                # Check for Global Stop Signal
+                if self._check_stop_signal(): return
+
+                # Check for yield
+                if self.bridge.get("_SYNP_YIELD"):
+                    logger.info(f"Branch {start_node_id} yielding.")
+                    return
+
+                # Get Next Node
+                node_id, pulse_stack, t_port = branch_flow.pop()
+                if node_id is None:
+                    # Still check scope completions during branch waits!
+                    self._check_scope_terminations()
+                    time.sleep(0.01)
+                    continue
+
+                # Execute Cycle
+                should_continue = self._execute_step(node_id, pulse_stack, t_port, branch_flow)
+                if not should_continue:
+                    return # Thread terminates
+        finally:
+            logger.info(f"Branch Thread Finished: {start_node_id}")
+
+    def _execute_step(self, node_id, pulse_stack, trigger_port, flow_controller):
+        """
+        Executes a single node pulse cycle. 
+        Thread-safe and shared between main thread and parallel branches.
+        Returns: True if iteration should continue, False if thread should terminate.
+        """
+        # 0. Setup
+        context_stack = list(pulse_stack) if pulse_stack else []
+        node = self.nodes.get(node_id)
+
+        # 0. [NEW] Cancellation Check
+        # If any scope in the stack is marked as canceled in the bridge, drop this pulse.
+        for scope_id in context_stack:
+            if self.bridge.get(f"SYNAPSE_CANCEL_SCOPE_{scope_id}"):
+                # Node might be None if it was removed by hot reload, so check before accessing .name
+                node_name = node.name if node else node_id
+                logger.info(f"Cancellation: Dropping pulse for {node_name} (Scope {scope_id} terminated)")
+                self._decrement_scope_counts(pulse_stack)
+                self._check_scope_terminations()
+                return False
+
+        if not node:
+            logger.error(f"Node {node_id} not found!")
+            # Decrement pulse count for this "failed" pulse
+            self._decrement_scope_counts(pulse_stack)
+            return True
+
+        # [NEW] Runaway Train Guard Detection
+        active_scope = context_stack[-1] if context_stack else "ROOT"
+        self._scope_execution_totals[active_scope] = self._scope_execution_totals.get(active_scope, 0) + 1
+        if self._scope_execution_totals[active_scope] > self._max_pulses_per_scope:
+            # Decrement pulse count for this "failed" pulse before raising
+            self._decrement_scope_counts(pulse_stack)
+            raise RuntimeError(f"RUNAWAY TRAIN: Scope '{active_scope}' exceeded {self._max_pulses_per_scope} pulses without yielding.")
+
+        # 1. Barrier/Return check
+        node_type = type(node).__name__
+        is_return = "ReturnNode" in node_type or "Return" in node_type
+        if is_return:
+            active_scope = context_stack[-1] if context_stack else "ROOT"
+            with self._lock:
+                other_pulses = self.scope_pulse_counts.get(active_scope, 0)
+            if other_pulses > 1:
+                logger.info(f"Terminating parallel branch at ReturnNode. (Other pulses in {active_scope}: {other_pulses})")
+                
+                # [FIX] Final Decrement for this pulse before termination!
+                # Otherwise, the scope will never reach 0 and will hang.
+                self._decrement_scope_counts(pulse_stack)
+                self._check_scope_terminations()
+                return False
+
+        # 2. Controls (Speed/Pause)
+        self._handle_controls()
+        if not self.headless and self.bridge.get("_SYSTEM_STEP_BACK"):
+            # Master thread handles step back; branches just wait or skip
+            if threading.current_thread() == threading.main_thread():
+                self.bridge.set("_SYSTEM_STEP_BACK", False, "Engine")
+                self._step_back()
+                # If main thread steps back, it means the current node was put back in queue.
+                # So this pulse didn't "complete" its execution cycle.
+                # We should NOT decrement its count here.
+                return True
+            else:
+                # Branch threads just wait for the main thread to resolve the step back
+                while self.bridge.get("_SYSTEM_STEP_BACK"): time.sleep(0.1)
+
+        # 3. Validation & Update Stack
+        try:
+            self._validate_provider_context(node, context_stack)
+        except RuntimeError as e:
+            logger.error(f"Provider Validation Error in {node.name}: {e}")
+            # Notify UI of Error State (Red Highlight)
+            print(f"[NODE_ERROR] {node_id} | {e}", flush=True)
+            
+            # Handle as standard error
+            handler_info = self.context_manager.handle_error(e, node, context_stack, self.wires)
+            if handler_info:
+                handler_id, parent_stack, catch_wires = handler_info[:3]
+
+                for w in catch_wires:
+                    flow_controller.push(w["to_node"], parent_stack, w["to_port"])
+                    self._increment_scope_count(parent_stack, 1)
+            else:
+                # If unhandled, we can either stop or panic. 
+                # For visual feedback, we want the node to stay red.
+                # We trigger the panic handler which might stop the engine or just log.
+                self._handle_panic(e, node, context_stack, None, inputs=None)
+            
+            # Final Decrement for this pulse
+            self._decrement_scope_counts(pulse_stack)
+            return True
+
+        node_inputs = self._gather_inputs(node_id, trigger_port)
+        if node_inputs is None:
+            # strict validation failed. Error Flow triggered in _gather_inputs.
+            logger.warning(f"Skipping {node.name} due to Validation Failure.")
+            
+            # Check if Local Error Flow is wired
+            local_error_wired = False
+            for w in self.wires:
+                if w["from_node"] == node_id and w["from_port"] in ["Error Flow", "Error", "Panic"]:
+                    local_error_wired = True
+                    break
+            
+            if local_error_wired:
+                # 4a. Local Route Output Flow (Error Flow only)
+                triggered = flow_controller.route_outputs(
+                    node_id, 
+                    self.wires, 
+                    self.bridge, 
+                    context_stack,
+                    headless=self.headless
+                )
+                self._increment_scope_count(context_stack, sum(triggered.values()))
+            else:
+                # 4b. Global Panic Fallback
+                error = ValueError(f"Validation Failed in {node.name}")
+                self._handle_panic(error, node, context_stack, None, inputs=node_inputs)
+            
+            # Final Decrement for this pulse
+            self._decrement_scope_counts(pulse_stack)
+            return True
+
+        context_stack = self.context_manager.update_stack(node, context_stack, trigger_port)
+
+        # 4. Dispatch & Execute
+        if self.trace and not self.headless: print(f"[NODE_START] {node_id}", flush=True)
+        # Sanitize
+        self.bridge.set(f"{node_id}_ActivePorts", None, "Engine_Sanitize")
+        self.bridge.set(f"{node_id}_Condition", None, "Engine_Sanitize")
+
+        logger.info(f"Executing {node.name} (Context: {len(context_stack)})...")
+        exec_result = None
+        # Trigger Bubble-up
+        if self.parent_bridge and self.parent_node_id:
+            self.parent_bridge.set(f"{self.parent_node_id}_SubGraphActivity", True, "ChildEngine")
+            print(f"[SYNP_SUBGRAPH_ACTIVITY] {self.parent_node_id}")
+
+        # [FIX] Thread-Safe Context Passing
+        # We pass it in inputs so handlers can access it, and to the dispatcher explicitly.
+        # We NO LONGER set node.context_stack = context_stack here because nodes are singletons
+        # and parallel pulses would overwrite each other.
+        node_inputs["_context_stack"] = context_stack
+        
+        try:
+            result_future = self.dispatcher.dispatch(node, node_inputs, context_stack)
+            exec_result = result_future.wait()
+            self.bridge.pin_all()
+        except Exception as e:
+            # Error Handling
+            handler_info = self.context_manager.handle_error(e, node, context_stack, self.wires)
+            if handler_info:
+                handler_id, parent_stack, catch_wires = handler_info[:3]
+                self._auto_cleanup_scopes(context_stack, parent_stack)
+                for w in catch_wires:
+                    flow_controller.push(w["to_node"], parent_stack, w["to_port"])
+                    self._increment_scope_count(parent_stack, 1)
+            else:
+                self._handle_panic(e, node, context_stack, None, inputs=node_inputs)
+            
+            # Final Decrement for this pulse
+            self._decrement_scope_counts(pulse_stack)
+            return True
+
+        if self.trace and not self.headless: print(f"[NODE_STOP] {node_id}", flush=True)
+        if exec_result is not None: self.bridge.set(f"{node_id}_Condition", exec_result, "Engine_Sync")
+        self._handle_wireless(node, context_stack)
+
+        # [YIELD HANDLING] Check for Special Yield Signals in Result
+        # Nodes can return ("_YSWAIT", ms) or ("_YSYIELD",) to pause/defer
+        cond_result = exec_result 
+        
+        # Debug Logging
+        if isinstance(cond_result, tuple) and len(cond_result) > 0 and str(cond_result[0]).startswith("_YS"):
+             logger.info(f"Yield Signal Detected: {cond_result}")
+
+        # Check priority from node (set during execute)
+        node_priority = self.bridge.get(f"{node_id}_Priority")
+        current_prio = int(node_priority) if node_priority is not None else 0
+
+        # 5. Routing
+        is_provider = hasattr(node, "register_provider_context")
+        provider_type = node.register_provider_context() if is_provider else None
+        is_delayable_provider = is_provider and provider_type != "Flow Provider"
+        prov_wired = any(w["from_port"] == "Provider Flow" for w in self.wires if w["from_node"] == node_id)
+        completion_ports = ["Flow", "Out", "Done", "Success", "True", "False"]
+
+        stack_overrides = {}
+        # 1. Provider Scoping (Native)
+        if is_delayable_provider and prov_wired:
+            stack_overrides["Provider Flow"] = context_stack + [node_id]
+            with self._lock:
+                if node_id not in self.scope_pulse_counts: self.scope_pulse_counts[node_id] = 0
+        
+        # 2. General Scoping (Bridge-driven)
+        user_overrides = self.bridge.get(f"{node_id}_StackOverrides")
+        if isinstance(user_overrides, dict):
+            stack_overrides.update(user_overrides)
+
+        delay_ms = 0
+        if isinstance(cond_result, tuple) and len(cond_result) >= 2 and cond_result[0] == "_YSWAIT":
+            delay_ms = cond_result[1]
+            # Check for Pulse Flag (Index 2)
+            should_pulse = False
+            if len(cond_result) > 2:
+                should_pulse = bool(cond_result[2])
+            
+            if should_pulse:
+                print(f"[NODE_WAITING_PULSE] {node_id} | {delay_ms}", flush=True)
+            else:
+                print(f"[NODE_WAITING_START] {node_id} | {delay_ms}", flush=True)
+
+        triggered = flow_controller.route_outputs(
+            node_id, self.wires, self.bridge, context_stack,
+            headless=self.headless, trace=self.trace,
+            priority=current_prio,
+            delay=delay_ms,
+            stack_override_map=stack_overrides,
+            port_exclude=completion_ports if is_delayable_provider and prov_wired else None,
+            push_directly=False
+        )
+
+        if triggered:
+            # Primary continues in current thread
+            primary = triggered[0]
+            if delay_ms > 0:
+                logger.info(f"Delaying primary flow -> {primary['to_node']} by {delay_ms}ms")
+            flow_controller._push_flow_intent(primary, self.headless, self.trace)
+            self._increment_scope_count(primary["stack"], 1)
+            
+            # Spawn threads for additional branches
+            for i in range(1, len(triggered)):
+                bp = triggered[i]
+                if delay_ms > 0:
+                    logger.info(f"Delaying branch flow -> {bp['to_node']} by {delay_ms}ms")
+                self._increment_scope_count(bp["stack"], 1)
+                threading.Thread(
+                    target=self._run_branch,
+                    args=(bp["to_node"], bp["stack"], bp["to_port"], bp["priority"], bp["delay"]),
+                    daemon=True
+                ).start()
+
+        if is_delayable_provider and prov_wired:
+            sub_count = sum(1 for p in triggered if p["from_port"] == "Provider Flow")
+            if sub_count > 0:
+                with self._lock: self.pending_terminations[node_id] = (context_stack, current_prio, delay_ms)
+            else:
+                # Immediate completion
+                triggered_comp = flow_controller.route_outputs(
+                    node_id, self.wires, self.bridge, context_stack,
+                    port_include=completion_ports, priority=current_prio, delay=delay_ms,
+                    headless=self.headless, trace=self.trace,
+                    force_trigger=False, push_directly=True
+                )
+                self._increment_scope_count(context_stack, len(triggered_comp))
+
+        # 6. Step Cleanup
+        self._decrement_scope_counts(pulse_stack) # Use original pulse stack for decrement
+        self._check_scope_terminations()
+        
+        if node.is_service and node.node_id not in self.service_registry:
+            logger.info(f"Persistent Service Registered: {node.name}")
+            self.service_registry[node.node_id] = node
+            self.bridge.set(f"{node.node_id}_IsServiceRunning", True, "Engine")
+            print(f"[SERVICE_START] {node.node_id}")
+
+        return True
+
+    def _decrement_scope_counts(self, stack):
+        """Helper to safely decrement pulse hierarchy."""
+        with self._lock:
+            if "ROOT" in self.scope_pulse_counts:
+                self.scope_pulse_counts["ROOT"] -= 1
+            if stack:
+                for s_id in stack:
+                    if s_id in self.scope_pulse_counts:
+                        self.scope_pulse_counts[s_id] -= 1
 
     def _handle_wireless(self, node, context_stack):
         node_type_name = type(node).__name__
@@ -719,17 +742,18 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         """Helper to safely increment pulse count for all scopes in the stack hierarchy."""
         if count <= 0: return
         
-        # Always increment ROOT
-        if "ROOT" not in self.scope_pulse_counts:
-            self.scope_pulse_counts["ROOT"] = 0
-        self.scope_pulse_counts["ROOT"] += count
-        
-        # Increment named scopes in stack
-        if stack:
-            for s_id in stack:
-                if s_id not in self.scope_pulse_counts:
-                    self.scope_pulse_counts[s_id] = 0
-                self.scope_pulse_counts[s_id] += count
+        with self._lock:
+            # Always increment ROOT
+            if "ROOT" not in self.scope_pulse_counts:
+                self.scope_pulse_counts["ROOT"] = 0
+            self.scope_pulse_counts["ROOT"] += count
+            
+            # Increment named scopes in stack
+            if stack:
+                for s_id in stack:
+                    if s_id not in self.scope_pulse_counts:
+                        self.scope_pulse_counts[s_id] = 0
+                    self.scope_pulse_counts[s_id] += count
 
     def _auto_cleanup_scopes(self, current_stack, target_stack):
         """
@@ -770,60 +794,66 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         Deep check for any scopes that have zero pulses remaining.
         Triggers their final 'Flow' output.
         """
-        if not self.scope_pulse_counts:
-            return
+        with self._lock:
+            if not self.scope_pulse_counts:
+                return
 
-        changed = True
-        while changed:
-            changed = False
-            # Identify scopes that hit zero active pulses.
-            # We must account for the pulse currently being processed (current_pulse_stack).
-            finished_scopes = []
-            for s, count in self.scope_pulse_counts.items():
-                if s == "ROOT": continue
+            changed = True
+            while changed:
+                changed = False
+                finished_scopes = []
+                for s, count in self.scope_pulse_counts.items():
+                    if s == "ROOT": continue
+                    
+                    # In a multi-threaded model, we rely purely on scope_pulse_counts.
+                    # The current_pulse_stack logic for the single thread is no longer viable
+                    # across threads, so we assume if count is 0, no thread is handling it.
+                    if count <= 0:
+                        finished_scopes.append(s)
                 
-                # Check if this scope is in the current in-flight pulse stack
-                in_flight_count = 0
-                if self.current_pulse_stack and s in self.current_pulse_stack:
-                    in_flight_count = 1
-                
-                if count + in_flight_count <= 0:
-                    finished_scopes.append(s)
-            
-            # Sort finished scopes by deepest nesting level (if possible to infer)
-            # Actually, the re-check inside the loop is the most robust way.
-            
-            for scope_id in finished_scopes:
-                # [FIX] Re-verify count hasn't been incremented by a child termination in this same pass
-                if self.scope_pulse_counts.get(scope_id, 0) > 0:
-                    continue
+                for scope_id in finished_scopes:
+                    if self.scope_pulse_counts.get(scope_id, 1) > 0:
+                        continue
 
-                if scope_id in self.pending_terminations:
-                    # Retrieve original context to resume completion flow
-                    stack, prio, delay = self.pending_terminations[scope_id]
-                    completion_ports = ["Flow", "Out", "Done", "Success", "True", "False"]
+                    if scope_id in self.pending_terminations:
+                        stack, prio, delay = self.pending_terminations[scope_id]
+                        completion_ports = ["Flow", "Out", "Done", "Success", "True", "False"]
+                        
+                        logger.info(f"Provider Scope {scope_id} finished. Resuming completion flow.")
+                        
+                        # Trigger the completion ports
+                        # We use the isolated FlowController of the caller if possible?
+                        # No, we can just use self.flow (Master Flow) or a dummy.
+                        # Actually, self.flow is safer for convergence back to master.
+                        triggered_list = self.flow.route_outputs(
+                            scope_id, self.wires, self.bridge, stack,
+                            port_include=completion_ports,
+                            priority=prio, delay=delay,
+                            headless=self.headless, trace=self.trace,
+                            force_trigger=True, push_directly=True
+                        )
+                        
+                        # Increment the count of the parent scope for any pulses created
+                        # Note: _increment_scope_count already has a lock, but we are inside one.
+                        # We should either use a reentrant lock or manual increment here.
+                        # Let's assume we need manual increment to avoid deadlocks if Lock is not reentrant.
+                        # threading.Lock is NOT reentrant. RLock is.
+                        # Let's change self._lock to RLock.
+                        
+                        # [Refactor] Using RLock below for safety.
+                        self._increment_scope_count_locked(stack, len(triggered_list))
+                        
+                        del self.pending_terminations[scope_id]
                     
-                    logger.info(f"Provider Scope {scope_id} finished. Resuming completion flow.")
-                    
-                    # Trigger the completion ports
-                    triggered_map = self.flow.route_outputs(
-                        scope_id, self.wires, self.bridge, stack,
-                        port_include=completion_ports,
-                        priority=prio, delay=delay,
-                        headless=self.headless, trace=self.trace,
-                        force_trigger=True
-                    )
-                    
-                    # Increment the count of the parent scope for any pulses created
-                    self._increment_scope_count(stack, sum(triggered_map.values()))
-                    
-                    del self.pending_terminations[scope_id]
-                else:
-                    pass
-                
-                # Cleanup scope tracking
-                if scope_id in self.scope_pulse_counts:
-                    # Only delete if it's still <= 0 after everything
-                    if self.scope_pulse_counts[scope_id] <= 0:
-                        del self.scope_pulse_counts[scope_id]
-                        changed = True
+                    if scope_id in self.scope_pulse_counts:
+                        if self.scope_pulse_counts[scope_id] <= 0:
+                            del self.scope_pulse_counts[scope_id]
+                            changed = True
+
+    def _increment_scope_count_locked(self, stack, count):
+        """Variant of increment that assumes lock is already held."""
+        if count <= 0: return
+        self.scope_pulse_counts["ROOT"] = self.scope_pulse_counts.get("ROOT", 0) + count
+        if stack:
+            for s_id in stack:
+                self.scope_pulse_counts[s_id] = self.scope_pulse_counts.get(s_id, 0) + count

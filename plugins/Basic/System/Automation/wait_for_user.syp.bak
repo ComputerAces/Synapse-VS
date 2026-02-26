@@ -4,8 +4,8 @@
             "id": "b35b985a-8071-4d9c-8f23-83f1c0f57783",
             "type": "Project Var Get",
             "name": "Project Var Get",
-            "pos_x": -165.52411225585573,
-            "pos_y": 227.80051092637552,
+            "pos_x": -167.97774516055614,
+            "pos_y": 144.37699216656188,
             "properties": {
                 "Name": "Wait User Image"
             }
@@ -14,8 +14,8 @@
             "id": "8d477117-dabf-4856-af65-b981754add22",
             "type": "Project Var Set",
             "name": "Project Var Set",
-            "pos_x": -402.3233166595661,
-            "pos_y": 438.4080653924534,
+            "pos_x": -652.593872939007,
+            "pos_y": -8.15312326301952,
             "properties": {
                 "Name": "Wait User Image",
                 "Value": ""
@@ -81,8 +81,8 @@
             "id": "0db1ef0a-0cd9-43af-953f-03fa64b9319a",
             "type": "Start Node",
             "name": "Start Node",
-            "pos_x": -824.4092349423586,
-            "pos_y": 11.296361054618217,
+            "pos_x": -942.1836143679781,
+            "pos_y": 72.63718367212826,
             "properties": {
                 "SingletonScope": false,
                 "Singleton Scope": false,
@@ -122,6 +122,7 @@
             "properties": {
                 "Continue": null,
                 "Break": null,
+                "End": null,
                 "Condition": true
             }
         },
@@ -135,8 +136,8 @@
                 "Graph Path": "",
                 "Embedded Data": null,
                 "Isolated": false,
-                "Last Image": null,
-                "Camera Index": "1"
+                "Camera Index": "1",
+                "Last Image": null
             }
         },
         {
@@ -164,8 +165,8 @@
             "id": "bdcd929a-6b15-4746-91dc-9a1f3b3ee009",
             "type": "Debug Node",
             "name": "Debug Node",
-            "pos_x": -386.7856100569128,
-            "pos_y": 287.51521664434546,
+            "pos_x": -524.1890527201352,
+            "pos_y": 304.6906469772482,
             "properties": {
                 "Header": "Last Image Debug",
                 "Data": "test"
@@ -276,12 +277,6 @@
             "to_port": "A"
         },
         {
-            "from_node": "0db1ef0a-0cd9-43af-953f-03fa64b9319a",
-            "from_port": "Flow",
-            "to_node": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
-            "to_port": "Flow"
-        },
-        {
             "from_node": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
             "from_port": "Flow",
             "to_node": "12f3107e-4643-45c1-a054-bf6808381a17",
@@ -316,13 +311,19 @@
             "from_port": "Flow",
             "to_node": "bdcd929a-6b15-4746-91dc-9a1f3b3ee009",
             "to_port": "Flow"
+        },
+        {
+            "from_node": "8d477117-dabf-4856-af65-b981754add22",
+            "from_port": "Flow",
+            "to_node": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
+            "to_port": "Flow"
         }
     ],
     "frames": [],
     "viewport": {
-        "center_x": 427.7405277106766,
-        "center_y": 185.19034341496726,
-        "zoom": 0.6101830036936323
+        "center_x": 323.87954342045293,
+        "center_y": 76.06262004571244,
+        "zoom": 0.40755892948953754
     },
     "embedded_subgraphs": {},
     "project_name": "Wait For No User Interaction",

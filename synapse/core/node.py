@@ -132,6 +132,9 @@ class BaseNode(abc.ABC):
         """
         final_args = {}
         
+        # [FIX] Prefer context from arguments for thread safety
+        runtime_context = runtime_inputs.get("_context_stack", self.context_stack)
+
         # 1. Normalize Properties (Case-Insensitive Match)
         for k, v in self.properties.items():
             if k in self.inputs or k in self.input_types: 
@@ -153,19 +156,14 @@ class BaseNode(abc.ABC):
         
         # 3. [AUTOMATIC HIJACKING] 
         # If a required input is missing, check the context_stack for a provider that can supply it.
-        if self.context_stack:
+        if runtime_context:
             for input_name, input_type in self.input_types.items():
                 if final_args.get(input_name) is None:
                     # Look for provider context matching this input name or type
-                    # Mapping logic: Input "Connection" -> "ProviderID_Connection"
-                    # Input "Database" -> "ProviderID_Database"
-                    # Input "Provider" -> "ProviderID_Provider"
-                    # Input "SceneList" -> "ProviderID_SceneList"
-                    
-                    for ctx in reversed(self.context_stack):
+                    for ctx in reversed(runtime_context):
                         if isinstance(ctx, str):
                             provider_id = ctx
-                            provider_type = "Generic" # We don't know type easily here without lookup
+                            provider_type = "Generic"
                         else:
                             provider_id = ctx.get("provider_id")
                             provider_type = ctx.get("type", "")
@@ -175,7 +173,6 @@ class BaseNode(abc.ABC):
                         val = self.bridge.get(potential_key)
                         if val is not None:
                             final_args[input_name] = val
-                            # self.logger.info(f"Auto-Hijacked input '{input_name}' from Provider {provider_id} ({provider_type})")
                             break
         
         # 4. Auto-Cast Inputs
@@ -196,6 +193,9 @@ class BaseNode(abc.ABC):
         try:
             self.logger.info(f"Starting execution...")
             
+            # [FIX] Restore context_stack for this pulse thread-safely
+            self.context_stack = kwargs.get("_context_stack", self.context_stack)
+
             # Use shared preparation logic
             exec_args = self.prepare_execution_args(kwargs)
             
@@ -207,7 +207,6 @@ class BaseNode(abc.ABC):
             hijack_node_id = None
             if self.context_stack:
                 # We check for an override of either the node's specific name (e.g. "Add") 
-                # or a generic category override if applicable.
                 hijack_node_id = self.bridge.get_hijack_handler(self.context_stack, self.name)
             
             if hijack_node_id:

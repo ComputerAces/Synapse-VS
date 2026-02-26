@@ -2,6 +2,7 @@ from synapse.core.super_node import SuperNode
 from synapse.nodes.registry import NodeRegistry
 from synapse.core.types import DataType
 import time
+import threading
 
 @NodeRegistry.register("Barrier", "Logic/Control Flow")
 class BarrierNode(SuperNode):
@@ -29,6 +30,7 @@ class BarrierNode(SuperNode):
         self._trigger_count = 0
         self._triggered_ports = set()
         self._run_id = None
+        self._lock = threading.Lock()
         
         self.define_schema()
         self.register_handlers()
@@ -54,51 +56,52 @@ class BarrierNode(SuperNode):
         Called each time a flow arrives at this node.
         Only proceeds when all expected flows have arrived.
         """
-        # Get current run ID to reset state between graph runs
-        current_run_id = self.bridge.get("_SYSTEM_RUN_ID")
-        if current_run_id != self._run_id:
-            self._run_id = current_run_id
-            self._trigger_count = 0
-            self._triggered_ports = set()
-            self._start_time = time.time()
-        
-        # Determine which port triggered this call (Engine passes this as _trigger)
-        trigger_port = kwargs.get("_trigger", "Flow")
-        
-        # Prevent double-counting same port in same run
-        if trigger_port in self._triggered_ports:
-            return
+        with self._lock:
+            # Get current run ID to reset state between graph runs
+            current_run_id = self.bridge.get("_SYSTEM_RUN_ID")
+            if current_run_id != self._run_id:
+                self._run_id = current_run_id
+                self._trigger_count = 0
+                self._triggered_ports = set()
+                self._start_time = time.time()
             
-        self._triggered_ports.add(trigger_port)
-        self._trigger_count += 1
-        
-        # Determine expected count based on wired inputs
-        wired_ports = self._get_wired_flow_ports()
-        expected = len(wired_ports)
-        if expected == 0: expected = 1 # Minimum 1
-        
-        timeout = float(Timeout) if Timeout is not None else float(self.properties.get("Timeout", 0))
-        
-        self.logger.info(f"Barrier: {self._trigger_count}/{expected} paths arrived ({trigger_port})")
-        self.bridge.set(f"{self.node_id}_Progress", f"{self._trigger_count}/{expected}", self.name)
-        
-        # Check if we should proceed (either all arrived or timeout)
-        all_arrived = self._trigger_count >= expected
-        timed_out = timeout > 0 and (time.time() - self._start_time) >= timeout
-        
-        if all_arrived or timed_out:
-            if timed_out and not all_arrived:
-                self.logger.warning(f"Barrier TIMEOUT reached ({timeout}s). Proceeding with {self._trigger_count}/{expected} paths.")
+            # Determine which port triggered this call
+            trigger_port = kwargs.get("_trigger", "Flow")
+            
+            # Prevent double-counting same port in same run
+            if trigger_port in self._triggered_ports:
+                return True
+                
+            self._triggered_ports.add(trigger_port)
+            self._trigger_count += 1
+            
+            # Determine expected count based on wired inputs
+            wired_ports = self._get_wired_flow_ports()
+            expected = len(wired_ports)
+            if expected == 0: expected = 1 # Minimum 1
+            
+            timeout = float(Timeout) if Timeout is not None else float(self.properties.get("Timeout", 0))
+            
+            self.logger.info(f"Barrier: {self._trigger_count}/{expected} paths arrived ({trigger_port})")
+            self.bridge.set(f"{self.node_id}_Progress", f"{self._trigger_count}/{expected}", self.name)
+            
+            # Check if we should proceed (either all arrived or timeout)
+            all_arrived = self._trigger_count >= expected
+            timed_out = timeout > 0 and (time.time() - self._start_time) >= timeout
+            
+            if all_arrived or timed_out:
+                if timed_out and not all_arrived:
+                    self.logger.warning(f"Barrier TIMEOUT reached ({timeout}s). Proceeding with {self._trigger_count}/{expected} paths.")
+                else:
+                    self.logger.info(f"✓ All paths arrived, proceeding!")
+                
+                self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+                # Reset for potential re-entry in same run (loops)
+                self._triggered_ports = set()
+                self._trigger_count = 0
             else:
-                self.logger.info(f"✓ All paths arrived, proceeding!")
-            
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-            # Reset for potential re-entry in same run (loops)
-            self._triggered_ports = set()
-            self._trigger_count = 0
-        else:
-            self.bridge.set(f"{self.node_id}_ActivePorts", [], self.name)
-        return True
+                self.bridge.set(f"{self.node_id}_ActivePorts", [], self.name)
+            return True
     
     def _get_wired_flow_ports(self):
         """Get list of Flow input ports that are actually wired."""

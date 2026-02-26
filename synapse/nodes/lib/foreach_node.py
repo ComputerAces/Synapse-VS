@@ -11,6 +11,7 @@ class ForEachNode(LoopNode):
     - Flow: Start the iteration from the first item.
     - Continue: Move to the next item in the list.
     - Break: Terminate the loop immediately.
+    - End: Terminate the iteration and kill all active parallel branches.
     - List: The collection of items to iterate over.
     
     Outputs:

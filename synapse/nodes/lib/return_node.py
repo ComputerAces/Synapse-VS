@@ -21,6 +21,7 @@ class ReturnNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.hidden_outputs = ["Flow"]
         
         self.define_schema()

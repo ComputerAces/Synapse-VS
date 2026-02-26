@@ -1,5 +1,6 @@
 import heapq
 import time
+import threading
 from synapse.utils.logger import setup_logger
 
 class FlowController:
@@ -23,24 +24,27 @@ class FlowController:
         
         self.executed_nodes = set()
         self.trace = trace
+        self._lock = threading.Lock() # Thread safety for queue operations
         
         # Initial push
         self.push(start_node_id, initial_stack or [], "Flow", priority=0)
         
     def has_next(self):
-        # Check if any delayed items are ready
-        self._process_delayed()
-        return len(self.queue) > 0 or len(self.delayed_queue) > 0
+        with self._lock:
+            # Check if any delayed items are ready
+            self._process_delayed_locked()
+            return len(self.queue) > 0 or len(self.delayed_queue) > 0
         
     def pop(self):
-        self._process_delayed()
-        
-        if self.queue:
-            # Item: (neg_prio, count, node_id, stack, port)
-            _, _, node_id, stack, port = heapq.heappop(self.queue)
-            return node_id, stack, port
+        with self._lock:
+            self._process_delayed_locked()
             
-        return None, None, None
+            if self.queue:
+                # Item: (neg_prio, count, node_id, stack, port)
+                _, _, node_id, stack, port = heapq.heappop(self.queue)
+                return node_id, stack, port
+                
+            return None, None, None
         
     def push(self, node_id, context_stack, trigger_port="Flow", priority=0, delay=0):
         """
@@ -48,92 +52,73 @@ class FlowController:
         :param priority: Higher numbers run first.
         :param delay: Milliseconds to wait before making eligible.
         """
-        if delay > 0:
-            wake_time = time.time() + (delay / 1000.0)
-            item = (-priority, self.counter, node_id, context_stack, trigger_port)
-            self.counter += 1
-            heapq.heappush(self.delayed_queue, (wake_time, item))
-            # self.logger.debug(f"Delayed {node_id} for {delay}ms")
-        else:
-            # Immediate Push
-            heapq.heappush(self.queue, (-priority, self.counter, node_id, context_stack, trigger_port))
-            self.counter += 1
+        with self._lock:
+            if delay > 0:
+                wake_time = time.time() + (delay / 1000.0)
+                item = (-priority, self.counter, node_id, context_stack, trigger_port)
+                self.counter += 1
+                heapq.heappush(self.delayed_queue, (wake_time, item))
+                # self.logger.debug(f"Delayed {node_id} for {delay}ms")
+            else:
+                # Immediate Push
+                heapq.heappush(self.queue, (-priority, self.counter, node_id, context_stack, trigger_port))
+                self.counter += 1
             
-    def _process_delayed(self):
-        """Moves ready items from delayed_queue to main queue."""
+    def _process_delayed_locked(self):
+        """Moves ready items from delayed_queue to main queue. ASSUMES LOCK IS HELD."""
         if not self.delayed_queue: return
         
         now = time.time()
-        # delayed_queue is a heap sorted by wake_time effectively if we push right
-        # But we pushed tuples (wake_time, item). 
-        # So heappush ensures earliest wake_time is at [0].
-        
         while self.delayed_queue and self.delayed_queue[0][0] <= now:
             _, item = heapq.heappop(self.delayed_queue)
             heapq.heappush(self.queue, item)
 
-    def route_outputs(self, node_id, wires, bridge, context_stack, headless=False, trace=None, priority=0, delay=0, stack_override_map=None, port_exclude=None, port_include=None, force_trigger=False):
+    def route_outputs(self, node_id, wires, bridge, context_stack, headless=False, trace=None, priority=0, delay=0, stack_override_map=None, port_exclude=None, port_include=None, force_trigger=False, push_directly=True):
         """
         Determines which wires to activate based on node output state.
-        Now supports Priority, Delay, Stack Overrides, Filtering, and Force Trigger.
-        Returns a dict of {port_name: count} for all triggered pulses.
+        Returns a list of triggered pulses (dicts): [{"to_node": id, "stack": s, "port": p, "prio": pr, "delay": d}]
         """
         trace_active = trace if trace is not None else self.trace
         
-        # [NEW] Force Trigger bypasses bridge signals
         if force_trigger:
             active_ports = None
             condition_result = None
         else:
-            # [IPC OPTIMIZATION] Fetch signals in batch
             signals = bridge.get_batch([f"{node_id}_ActivePorts", f"{node_id}_Condition", f"{node_id}_Priority"])
             active_ports = signals.get(f"{node_id}_ActivePorts")
             condition_result = signals.get(f"{node_id}_Condition")
-        # priority_override = signals.get(f"{node_id}_Priority") # Already passed as arg from Engine
 
         flow_priority = priority
-        
-        # Legacy Flow Ports
         legacy_flow_names = [
             "Flow", "True", "False", "Out", "Exec", "Then", "Else", "Loop", 
             "Try", "Catch", "Finished Flow", "Done", "Success", "Failure"
         ]
         
         relevant_wires = [w for w in wires if w["from_node"] == node_id]
+        triggered_pulses = []
         
-        port_counts = {}
         for w in relevant_wires:
             port = w["from_port"]
-            
-            # Apply Filters
             if port_exclude and port in port_exclude: continue
             if port_include and port not in port_include: continue
 
             should_trigger = False
             
             # 1. PRIMARY: Explicit Active Ports
-            # If the node explicitly declared which ports are active, we follow ONLY that.
             if active_ports is not None:
                 if port in active_ports:
                     should_trigger = True
                 
                 if should_trigger:
                     target_stack = stack_override_map.get(port, context_stack) if stack_override_map else context_stack
-                    self._push_flow(w, target_stack, headless, trace_active, flow_priority, delay)
-                    port_counts[port] = port_counts.get(port, 0) + 1
-                continue # Strictly skip all fallbacks for this wire
+                    pulse = self._build_pulse(w, target_stack, flow_priority, delay)
+                    if push_directly:
+                        self._push_flow_intent(pulse, headless, trace_active)
+                    triggered_pulses.append(pulse)
+                continue
 
             # 2. SECONDARY: Condition Result
-            # If no active_ports, check for True/False branching.
             if condition_result is not None:
-                # Check for special signals, ignore for routing decision logic (handled delay passing already)
-                # But we need to ensure we don't treat ("_YSWAIT", 500) as "True".
-                if isinstance(condition_result, tuple) and len(condition_result) > 0 and str(condition_result[0]).startswith("_YS"):
-                    pass # It's a signal, treat as "Flow" basically implies standard flow? 
-                    # Usually Wait Node returns True or Signal. 
-                    # If it returns Signal, we assume Success/Flow.
-                
-                # Check if this node even HAS condition ports before we commit to this routing path
                 has_true_false = any(pw["from_port"] in ("True", "False") for pw in relevant_wires)
                 
                 if port == "True" and condition_result is True: should_trigger = True
@@ -141,33 +126,46 @@ class FlowController:
                 
                 if should_trigger:
                     target_stack = stack_override_map.get(port, context_stack) if stack_override_map else context_stack
-                    self._push_flow(w, target_stack, headless, trace_active, flow_priority, delay)
-                    port_counts[port] = port_counts.get(port, 0) + 1
+                    pulse = self._build_pulse(w, target_stack, flow_priority, delay)
+                    if push_directly:
+                        self._push_flow_intent(pulse, headless, trace_active)
+                    triggered_pulses.append(pulse)
                 
-                # ONLY skip legacy fallback if the result was a boolean AND the node has conditional ports
                 if isinstance(condition_result, bool) and has_true_false:
                     continue 
 
             # 3. FALLBACK: Legacy Name Convention
-            # Only reached if both active_ports and condition_result are None.
-            # OR if condition_result was a Signal tuple (Wait Node)
             if port in legacy_flow_names:
                 should_trigger = True
             
             if should_trigger:
                 target_stack = stack_override_map.get(port, context_stack) if stack_override_map else context_stack
-                self._push_flow(w, target_stack, headless, trace_active, flow_priority, delay)
-                port_counts[port] = port_counts.get(port, 0) + 1
+                pulse = self._build_pulse(w, target_stack, flow_priority, delay)
+                if push_directly:
+                    self._push_flow_intent(pulse, headless, trace_active)
+                triggered_pulses.append(pulse)
         
-        return port_counts
+        return triggered_pulses
 
-    def _push_flow(self, wire, context_stack, headless, trace=True, priority=0, delay=0):
+    def _build_pulse(self, wire, context_stack, priority, delay):
+        """Creates a pulse dictionary."""
+        return {
+            "from_node": wire["from_node"],
+            "from_port": wire["from_port"],
+            "to_node": wire["to_node"],
+            "to_port": wire["to_port"],
+            "stack": list(context_stack), # Clone stack
+            "priority": priority,
+            "delay": delay
+        }
+
+    def _push_flow_intent(self, pulse, headless, trace=True):
         """Helper to push to queue and print debug info."""
         if trace and not headless:
-            prio_str = f" [P:{priority}]" if priority != 0 else ""
-            delay_str = f" [D:{delay}ms]" if delay > 0 else ""
-            print(f"[FLOW] {wire['from_node']}:{wire['from_port']} -> {wire['to_node']}:{wire['to_port']}{prio_str}{delay_str}", flush=True)
-        self.push(wire["to_node"], context_stack, wire["to_port"], priority=priority, delay=delay)
+            prio_str = f" [P:{pulse['priority']}]" if pulse['priority'] != 0 else ""
+            delay_str = f" [D:{pulse['delay']}ms]" if pulse['delay'] > 0 else ""
+            print(f"[FLOW] {pulse['from_node']}:{pulse['from_port']} -> {pulse['to_node']}:{pulse['to_port']}{prio_str}{delay_str}", flush=True)
+        self.push(pulse["to_node"], pulse["stack"], pulse["to_port"], priority=pulse["priority"], delay=pulse["delay"])
         return 1
 
     def route_wireless(self, tag, all_nodes, context_stack, headless=False, trace=True):

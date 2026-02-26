@@ -20,6 +20,7 @@ class BooleanFlipNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.properties["Value"] = False
         self.define_schema()
         self.register_handlers()
@@ -63,6 +64,7 @@ class AndNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         if "AdditionalInputs" not in self.properties and "additional_inputs" not in self.properties:
             self.properties["AdditionalInputs"] = ["Item 0", "Item 1"]
         elif "additional_inputs" in self.properties:
@@ -116,6 +118,7 @@ class OrNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.define_schema()
         self.register_handlers()
 
@@ -163,6 +166,7 @@ class XorNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.define_schema()
         self.register_handlers()
 
@@ -207,6 +211,7 @@ class NotNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.properties["In"] = False
         self.define_schema()
         self.register_handlers()
@@ -251,6 +256,7 @@ class NandNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.define_schema()
         self.register_handlers()
 
@@ -294,6 +300,7 @@ class NorNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.define_schema()
         self.register_handlers()
 
@@ -337,6 +344,7 @@ class XnorNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.define_schema()
         self.register_handlers()
 

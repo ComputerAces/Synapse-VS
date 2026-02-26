@@ -529,40 +529,49 @@ class CameraImageCaptureNode(SuperNode):
         cam_idx = resolve_camera_index(cam_idx_in, self.logger)
         self.logger.info(f"Resolved Camera Index: {cam_idx} (Input: {cam_idx_in})")
         
-        try:
-            # Priority on Windows: DSHOW -> MSMF -> Default
-            cap = cv2.VideoCapture(cam_idx, cv2.CAP_DSHOW)
-            if not cap.isOpened():
-                cap = cv2.VideoCapture(cam_idx, cv2.CAP_MSMF)
-            if not cap.isOpened():
-                cap = cv2.VideoCapture(cam_idx)
+        # [LOCK] Ensure exclusive access to the hardware camera index
+        lock_id = f"CAMERA_INDEX_{cam_idx}"
+        camera_lock = self.bridge.get_provider_lock(lock_id)
+        
+        with camera_lock:
+            try:
+                # Priority on Windows: DSHOW -> MSMF -> Default
+                cap = cv2.VideoCapture(cam_idx, cv2.CAP_DSHOW)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(cam_idx, cv2.CAP_MSMF)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(cam_idx)
 
-            if not cap.isOpened():
-                self.logger.error(f"Cannot open camera {cam_idx}. Check connection or index.")
-                self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-                return True
-            
-            # Increased warm-up for high-res/slow cameras
-            ret = False
-            for _ in range(10):
-                ret, frame = cap.read()
-                if ret: break
-                time.sleep(0.1)
+                if not cap.isOpened():
+                    self.logger.error(f"Cannot open camera {cam_idx}. Check connection or index.")
+                    self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+                    return True
                 
-            if ret:
-                # Convert BGR (OpenCV) to RGB (PIL)
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(rgb_frame)
-                img_obj = ImageObject(pil_img)
+                # Extended warm-up wait
+                time.sleep(0.5) 
                 
-                self.bridge.set(f"{self.node_id}_Image", img_obj, self.name)
-            else:
-                self.logger.error("Failed to capture frame after warm-up.")
+                # Increased warm-up frames for high-res/slow cameras
+                ret = False
+                for _ in range(10):
+                    ret, frame = cap.read()
+                    if ret: break
+                    time.sleep(0.1)
+                    
+                if ret:
+                    # Convert BGR (OpenCV) to RGB (PIL)
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    pil_img = Image.fromarray(rgb_frame)
+                    img_obj = ImageObject(pil_img)
+                    
+                    self.bridge.set(f"{self.node_id}_Image", img_obj, self.name)
+                else:
+                    self.logger.error("Failed to capture frame after warm-up.")
+                    
+                cap.release()
                 
-            cap.release()
-            
-        except Exception as e:
-            self.logger.error(f"Capture Error: {e}")
+            except Exception as e:
+                self.logger.error(f"Capture Error: {e}")
+                if 'cap' in locals() and cap: cap.release()
 
         self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         return True

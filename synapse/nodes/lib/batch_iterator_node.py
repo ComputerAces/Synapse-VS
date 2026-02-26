@@ -62,7 +62,7 @@ class BatchIteratorNode(SuperNode):
     def do_work(self, **kwargs):
         Path = kwargs.get("Path") or self.properties.get("Path", "")
         Pattern = kwargs.get("Pattern") or self.properties.get("Pattern", "*")
-        _trigger = kwargs.get("Trigger")
+        _trigger = kwargs.get("_trigger", "Flow")
         
         index_key = f"{self.node_id}_internal_index"
         files_key = f"{self.node_id}_internal_files"

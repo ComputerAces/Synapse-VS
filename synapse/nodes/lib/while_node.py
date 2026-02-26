@@ -11,6 +11,7 @@ class WhileNode(LoopNode):
     - Flow: Start the while loop evaluation.
     - Continue: Trigger the next check of the loop.
     - Break: Immediately terminate the loop.
+    - End: Terminate the loop and kill all active parallel branches.
     - Condition: A boolean value determining if the loop should continue.
     
     Outputs:

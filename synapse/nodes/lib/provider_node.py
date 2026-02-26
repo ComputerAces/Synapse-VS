@@ -23,6 +23,7 @@ class ProviderNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_service = True 
+        self.is_native = True
         self.provider_type = getattr(self, "provider_type", "Base Provider")
         self._is_initialized = False
         self.define_schema()

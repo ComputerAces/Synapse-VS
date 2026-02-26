@@ -224,7 +224,14 @@ class SubGraphNode(SuperNode):
         
         # Prepare Child Bridge
         import multiprocessing
-        manager = multiprocessing.Manager()
+        # [OPTIMIZATION] Reuse parent manager if available to avoid expensive process spawn
+        manager = getattr(self.bridge, "manager", None)
+        local_manager = False
+        
+        if manager is None:
+            manager = multiprocessing.Manager()
+            local_manager = True
+            
         try:
             child_bridge = SynapseBridge(manager)
 
@@ -243,23 +250,19 @@ class SubGraphNode(SuperNode):
                 stop_file=stop_file,
                 pause_file=pause_file,
                 source_file=graph_path,
-                initial_context=self.context_stack if not isolated else []
+                initial_context=kwargs.get("_context_stack", []) if not isolated else []
             )
             
             from synapse.core.loader import load_graph_data
             load_graph_data(data, child_bridge, child_engine)
                 
-            self._bridge_cache = child_bridge
-            self._engine_cache = child_engine
-            self._cached_data = data
-
             # Find Start Node ID first — needed for bridge key injection
             start_id = None
             for n_data in data["nodes"]:
                 if n_data["type"] == "Start Node":
                     start_id = n_data["id"]
                     break
-
+            
             # Inject parent kwargs into child bridge
             child_registry = child_engine.port_registry
             for k, v in kwargs.items():
@@ -318,10 +321,6 @@ class SubGraphNode(SuperNode):
             
             gui_label = label_to_gui.get(raw_label, raw_label)
             
-            prefix = ""
-            if gui_label and gui_label != "Flow":
-                 prefix = f"{gui_label}: "
-            
             # Track which ports were actually updated
             captured_ports = set()
             for k, v in results.items():
@@ -329,20 +328,17 @@ class SubGraphNode(SuperNode):
                 captured_ports.add(k)
             
             # [PORT MISMATCH REPORTING]
-            # Check if any expected data ports were NOT provided by the child's Return Node
             for expected_port in self.output_schema.keys():
                 if expected_port in ["Flow", "Error Flow"]: continue
                 if expected_port not in captured_ports:
-                    error_msg = f"[PORT MISMATCH] SubGraph '{self.name}' expected output '{expected_port}' but child graph '{os.path.basename(graph_path)}' returned: {list(results.keys()) or 'No Data'}"
+                    error_msg = f"[PORT MISMATCH] SubGraph '{self.name}' expected output '{expected_port}' but child graph returned: {list(results.keys()) or 'No Data'}"
                     self.logger.error(error_msg)
-                    # Also set LastError for the node so it highlights in UI
                     self.bridge.set(f"{self.node_id}_LastError", error_msg, self.name)
                 
             active_ports = [gui_label] if gui_label else ["Flow"]
             self.bridge.set(f"{self.node_id}_ActivePorts", active_ports, self.name)
             return True
         finally:
-            # CRITICAL: Clean up the Manager process to prevent leaks
-            manager.shutdown()
-            if hasattr(self, "_bridge_cache"): del self._bridge_cache
-            if hasattr(self, "_engine_cache"): del self._engine_cache
+            # CRITICAL: Clean up the Manager process to prevent leaks (ONLY if we created it)
+            if local_manager:
+                manager.shutdown()

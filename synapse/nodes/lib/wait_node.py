@@ -23,6 +23,7 @@ class WaitNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.properties["Milliseconds"] = 1000
         
         self.define_schema()
@@ -68,6 +69,7 @@ class ThrottleNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.properties["Delay MS"] = 0
         
         self.define_schema()
@@ -122,6 +124,7 @@ class YieldNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         self.define_schema()
         self.register_handlers()
 

@@ -12,10 +12,11 @@ class SynapseBridge:
     It manages shared variables, locks, and Zero-Copy Shared Memory for large data.
     """
     def __init__(self, manager):
+        self.manager = manager # Store for reuse by child engines
         self._variables_registry = manager.dict() # Metadata registry
         self._identities = manager.dict()         # ISM: App ID -> Identity (dict)
-        self._locks = [manager.Lock() for _ in range(32)]
-        self._provider_locks = [manager.Lock() for _ in range(128)]
+        self._locks = [manager.RLock() for _ in range(32)]
+        self._provider_locks = [manager.RLock() for _ in range(128)]
         self._lock_owners = manager.dict()
         self._hijack_registry = manager.dict() # provider_id -> {func_name: handler_node_id}
         
@@ -29,6 +30,18 @@ class SynapseBridge:
         # Only the "Master" process (Engine) needs to fill this.
         self._pinned_shm = {} # shm_name -> SharedMemory object
         self._shm_dirty = False # [OPTIMIZATION] Flag to skip pin_all if no new blocks
+
+    def __getstate__(self):
+        """Standard pickle cleanup to allow transfer across processes."""
+        state = self.__dict__.copy()
+        # AuthenticationString inside manager can't be pickled
+        state['manager'] = None 
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # manager remains None in child processes unless re-initialized
+        # This is fine as child processes don't typically need to spawn child managers
 
 
     # --- Identity & Session Manager (ISM) ---
@@ -309,30 +322,42 @@ class SynapseBridge:
             data_bytes = pickle.dumps(value)
             
             with self._get_lock(scoped_key):
-                # 2. Manage SHM persistence
+                # 2. Get Deterministic SHM Name (Reuse block)
+                import hashlib
+                shm_name = f"syn_{hashlib.md5(scoped_key.encode()).hexdigest()[:16]}"
+                
+                # 3. Manage SHM
                 old_metadata = self._variables_registry.get(scoped_key)
                 new_version = (old_metadata[1] + 1) if old_metadata else 1
                 
-                # Cleanup old SHM block if it exists
-                if old_metadata:
+                try:
+                    # Try to reuse existing shm if possible
+                    shm = shared_memory.SharedMemory(name=shm_name)
+                    if shm.size < len(data_bytes):
+                        # Too small, must recreate
+                        shm.close()
+                        try: shm.unlink()
+                        except: pass
+                        shm = shared_memory.SharedMemory(create=True, size=len(data_bytes), name=shm_name)
+                except (FileNotFoundError, Exception):
+                    # Doesn't exist or failed to open, try to create
                     try:
-                        old_shm = shared_memory.SharedMemory(name=old_metadata[0])
-                        old_shm.close()
-                        old_shm.unlink()
-                    except: pass
-
-                # 3. Create New Block
-                import uuid
-                shm_name = f"syn_shm_{uuid.uuid4().hex[:12]}"
-                shm = shared_memory.SharedMemory(create=True, size=len(data_bytes), name=shm_name)
+                        shm = shared_memory.SharedMemory(create=True, size=len(data_bytes), name=shm_name)
+                    except (FileExistsError, Exception):
+                        # Race condition: someone created it between the try and here
+                        shm = shared_memory.SharedMemory(name=shm_name)
+                        # If the one someone else created is too small, we have a problem, 
+                        # but usually keys have consistent types/sizes per pulse.
+                
                 try:
                     shm.buf[:len(data_bytes)] = data_bytes
                     # 4. PIN IMMEDIATELY (Keep handle alive)
                     self._pinned_shm[shm_name] = shm 
-                except:
+                except Exception as b_err:
                     shm.close()
-                    shm.unlink()
-                    raise
+                    try: shm.unlink()
+                    except: pass
+                    raise b_err
                 
                 # 5. Update Registry (Atomic)
                 # metadata format: (shm_name, version, timestamp)
@@ -350,6 +375,23 @@ class SynapseBridge:
                 pass
             else:
                 logger.error(f"Failed to set Shared Memory for '{scoped_key}': {e}")
+
+    def increment(self, key, amount=1, scope_id=None):
+        """Atomsically increments a numeric variable in the bridge."""
+        target_scope = scope_id or self.default_scope
+        scoped_key = f"{target_scope}:{key}"
+        with self._get_lock(scoped_key):
+            val = self.get(key, 0, scope_id=target_scope)
+            try:
+                new_val = val + amount
+                self.set(key, new_val, "BridgeAtomic", scope_id=target_scope)
+                return new_val
+            except:
+                return val
+
+    def decrement(self, key, amount=1, scope_id=None):
+        """Atomsically decrements a numeric variable in the bridge."""
+        return self.increment(key, -amount, scope_id=scope_id)
 
     def get_scoped(self, key, scope_id):
         """Force retrieval from specific scope, no fallback."""
