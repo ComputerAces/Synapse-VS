@@ -42,8 +42,11 @@ class MultiplyNode(SuperNode):
         self.register_handler("Flow", self.multiply)
         
     def multiply(self, A=None, B=None, **kwargs):
-        val_a = A if A is not None else self.properties.get("A", 1)
-        val_b = B if B is not None else self.properties.get("B", 1)
+        val_a = A if A is not None else kwargs.get("A")
+        if val_a is None: val_a = self.properties.get("A", 1)
+        
+        val_b = B if B is not None else kwargs.get("B")
+        if val_b is None: val_b = self.properties.get("B", 1)
         
         try:
             result = float(val_a) * float(val_b)

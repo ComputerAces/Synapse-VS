@@ -49,7 +49,7 @@ class NodeActionsMixin:
             self.rem_py_in = menu.addAction("Remove Input Pin")
             self.add_py_out = menu.addAction("Add Output Pin")
             self.rem_py_out = menu.addAction("Remove Output Pin")
-        elif "Template Injector" in self.node_type:
+        elif self.node_type in ("Template Injector", "String Combine"):
             self.add_tmpl_in = menu.addAction("Add New Input")
             self.rem_tmpl_in = menu.addAction("Remove Input")
         elif self.node_type in ("List", "List Node", "AND", "OR", "XOR", "NAND", "NOR", "XNOR"):
@@ -216,7 +216,7 @@ class NodeActionsMixin:
             elif action == self.rem_py_out:
                 self._remove_port_dialog([p.name for p in self.outputs if p.name not in ["Flow", "Finished Flow"]], "additional_outputs", sync_py=True)
 
-        elif "Template Injector" in self.node_type:
+        elif self.node_type in ("Template Injector", "String Combine"):
             if action == self.add_tmpl_in:
                 self._add_port_dialog("Add New Input", self.add_input, "additional_inputs")
             elif action == self.rem_tmpl_in:

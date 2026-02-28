@@ -90,4 +90,5 @@ class FlaskNode(ProviderNode):
         app = self.bridge.get(service_id)
         if app:
             self.bridge.set(f"{self.node_id}_Provider", app, self.name)
+        return self.provider_type
 

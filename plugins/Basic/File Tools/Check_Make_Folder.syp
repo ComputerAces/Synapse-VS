@@ -7,11 +7,11 @@
             "pos_x": 1855.3313492934676,
             "pos_y": -354.0531365616258,
             "properties": {
+                "Label": "",
+                "Success": "1",
                 "Additional Inputs": [
                     "Success"
-                ],
-                "Label": "",
-                "Success": "1"
+                ]
             }
         },
         {
@@ -160,5 +160,5 @@
     "project_category": "File System/Folders",
     "project_version": "1.0.0",
     "project_vars": {},
-    "version": "2.2.0"
+    "version": "2.3.0"
 }

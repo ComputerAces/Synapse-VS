@@ -70,7 +70,7 @@ class DebugNode(SuperNode):
             print(f"[DEBUG] {safe_output}", flush=True)
             
         # Standard Behavior
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        self.bridge.bubble_set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         return True
 
 

@@ -127,9 +127,9 @@ def run_sandbox(namespaced_id, node_cls, is_os_mode=False, render_cb=None):
             node.properties["RunAsService"] = False
             node.properties["Command"] = "echo Sandbox Shell Executed."
 
-    if not is_os_mode: print(f"\n{Colors.YELLOW}Firing Node Execution in 10s Watchdog Thread...{Colors.RESET}")
+    if not is_os_mode: print(f"\n{Colors.YELLOW}Firing Node Execution...{Colors.RESET}")
     
-    result = {"status": "Timeout"}
+    result = {"status": "Pending"}
     
     if "Body" in node.output_schema and node.output_schema["Body"] == DataType.FLOW:
          bridge.set("sand_1_ActivePorts", ["Body", "Loop Flow", "Flow"], "Sandbox") 
@@ -344,7 +344,7 @@ def _run_sub_sandbox(namespaced_id, node_cls, engine, bridge, provided_data):
         bridge.set(f"sand_sub_{key}", val, "Sandbox")
         
     print(f"\n{Colors.YELLOW}Firing Sub-Node Execution...{Colors.RESET}")
-    result = {"status": "Timeout"}
+    result = {"status": "Pending"}
     def _sub_sandbox_run():
         try:
             from synapse.core.node_dispatcher import NodeDispatcher
@@ -373,7 +373,7 @@ def _run_sub_sandbox(namespaced_id, node_cls, engine, bridge, provided_data):
                     break
                     
         # Instead of thread.is_alive(), wait until result gets populated 
-        if result["status"] != "Timeout":
+        if result["status"] != "Pending":
             break
             
         time.sleep(0.1)

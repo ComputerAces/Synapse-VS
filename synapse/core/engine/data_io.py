@@ -20,8 +20,17 @@ class DataMixin:
         legacy_keys = []       # Old-style keys for fallback
         wire_map = {}          # bridge_key → (port_name, source_id, source_port, legacy_key)
         
+        # [NUCLEAR] Internal UI keywords to NEVER pull into the data flow
+        blocked_keywords = ["color", "additional", "schema", "label", "context", "provider"]
+
         for wire in incoming_wires:
             port_name = wire["to_port"]
+            
+            # Aggressive Filter for UI Metadata (Skip immediately)
+            pn_lower = port_name.lower()
+            if any(kw in pn_lower for kw in blocked_keywords):
+                continue
+                
             if port_name not in flow_ports:
                 source_id = wire["from_node"]
                 source_port = wire["from_port"]
@@ -73,7 +82,18 @@ class DataMixin:
                     pull_val = None
                     search_key = source_port.lower()
                     for p_key, p_val in source_node.properties.items():
-                        if p_key.lower() == search_key:
+                        pk_low = p_key.lower()
+                        if pk_low == search_key:
+                            pull_val = p_val
+                            break
+                        # Base Data Node Fallbacks 
+                        if search_key == "result" and pk_low == "value":
+                            pull_val = p_val
+                            break
+                        if search_key == "result" and pk_low == "string":
+                            pull_val = p_val
+                            break
+                        if search_key == "string" and pk_low == "data":
                             pull_val = p_val
                             break
                     
@@ -90,19 +110,47 @@ class DataMixin:
         if mirror_updates:
             self.bridge.set_batch(mirror_updates, source_node_id="Engine")
             
-        # [NEW] Universal Property Fallback for unwired ports
+        # 2. Multi-Graph / Context Mirroring & Property Fallbacks
         if node:
+            # [NUCLEAR] Internal UI keywords to NEVER pull into the data flow
+            blocked_keywords = ["color", "additional", "schema", "label", "context", "provider"]
+            
             for port_name in node.input_types:
-                if port_name in flow_ports: continue
+                # Skip Flow ports or already gathered data
+                if port_name in flow_ports or port_name in node_inputs: 
+                    continue
+                
+                # Aggressive Filter for UI Metadata 
+                pn_lower = port_name.lower()
+                if any(kw in pn_lower for kw in blocked_keywords):
+                    continue
+                
+                # Phase A: Mirroring from Parent Bridge
+                if self.parent_bridge:
+                    pull_val = self.parent_bridge.get(port_name)
+                    if pull_val is None and self.parent_node_id:
+                        pull_val = self.parent_bridge.get(f"{self.parent_node_id}_{port_name}")
+
+                    if pull_val is not None:
+                        recv_uuid = registry.bridge_key(node_id, port_name, "input")
+                        mirror_updates[recv_uuid] = pull_val
+                        node_inputs[port_name] = pull_val
+                        continue # Found it
+                
+                # Phase B: Universal Property Fallback
+                # Only fallback if we don't already have an explicitly gathered value
                 if port_name not in node_inputs:
-                    # Check properties (case-insensitive)
                     search_key = port_name.lower()
-                    for p_key, p_val in node.properties.items():
-                        if p_key.lower() == search_key:
-                            node_inputs[port_name] = p_val
-                            break
-                 
-        # Type Validation
+                for p_key, p_val in node.properties.items():
+                    if p_key.lower() == search_key:
+                        node_inputs[port_name] = p_val
+                        break
+
+        # Bulk Mirror Update
+        if mirror_updates:
+            self.bridge.set_batch(mirror_updates, source_node_id="Engine")
+            
+        # 3. Type Validation
         if node and hasattr(node, "input_types") and node.input_types:
              try:
                  for port, val in node_inputs.items():

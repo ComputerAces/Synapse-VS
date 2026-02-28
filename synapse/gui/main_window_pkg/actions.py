@@ -73,6 +73,9 @@ class ActionsMixin:
         self.toggle_wire_legend_action.setCheckable(True)
         self.toggle_wire_legend_action.triggered.connect(self.toggle_wire_legend)
         
+        self.new_minimap_action = QAction("New Minimap Window...", self)
+        self.new_minimap_action.triggered.connect(self.spawn_minimap_window)
+        
         self.zoom_fit_action = QAction("Zoom to Fit", self)
         self.zoom_fit_action.setShortcut("F2")
         self.zoom_fit_action.triggered.connect(self.zoom_to_fit)
@@ -112,15 +115,15 @@ class ActionsMixin:
         self.step_action.setToolTip("Step In (Execute Next Node) - F10")
 
         self.step_back_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_ArrowBack), "Step Back", self)
-        self.step_back_action.setShortcut("Shift+F11")
+        self.step_back_action.setShortcut("Shift+F9")
         self.step_back_action.triggered.connect(self.step_back_graph)
-        self.step_back_action.setToolTip("Step Back (Rewind One State) - Shift+F11")
+        self.step_back_action.setToolTip("Step Back (Rewind One State) - Shift+F9")
         self.step_back_action.setEnabled(False)
 
         self.step_over_action = QAction("Step Over", self)
-        self.step_over_action.setShortcut("F11")
+        self.step_over_action.setShortcut("F9")
         self.step_over_action.triggered.connect(self.step_over_graph)
-        self.step_over_action.setToolTip("Step Over (Skip Next Node) - F11")
+        self.step_over_action.setToolTip("Step Over (Skip Next Node) - F9")
 
         self.stop_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_MediaStop), "Stop", self)
         self.stop_action.setShortcut("Shift+F5")
@@ -140,6 +143,15 @@ class ActionsMixin:
         graph = self.get_current_graph()
         if graph and hasattr(graph, 'canvas') and hasattr(graph.canvas, 'set_magnifier_enabled'):
             graph.canvas.set_magnifier_enabled(checked)
+
+    def spawn_minimap_window(self):
+        from synapse.gui.minimap_window import StandaloneMinimapWindow
+        if not hasattr(self, 'minimap_windows'):
+            self.minimap_windows = []
+            
+        win = StandaloneMinimapWindow(self)
+        win.show()
+        self.minimap_windows.append(win)
 
     def on_magnifier_size_changed(self, value):
         graph = self.get_current_graph()
@@ -196,11 +208,6 @@ class ActionsMixin:
         selected = graph.canvas.scene.selectedItems()
         if not selected: return
         
-        if len(selected) > 1:
-            res = QMessageBox.question(self, "Delete Items", f"Are you sure you want to delete {len(selected)} items?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            if res != QMessageBox.StandardButton.Yes: return
-            
         graph.delete_selection()
         if hasattr(self, 'statusBar'):
             self.statusBar().showMessage(f"Deleted {len(selected)} objects", 3000)

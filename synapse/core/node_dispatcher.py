@@ -149,14 +149,14 @@ class FutureResult:
         self._error = e
         self._event.set()
         
-    def wait(self, timeout=None):
-        self._event.wait(timeout)
+    def wait(self):
+        self._event.wait()
         if self._error:
             raise self._error
         return self._result
 
-    def result(self, timeout=None):
-        return self.wait(timeout)
+    def result(self):
+        return self.wait()
 
 class PooledFuture:
     """

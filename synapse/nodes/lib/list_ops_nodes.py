@@ -240,3 +240,53 @@ class ListReverseNode(BaseListOpNode):
         result = list(reversed(input_list))
         self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         return self._set_outputs(result)
+
+@NodeRegistry.register("List Count", "Data/Lists")
+class ListCountNode(SuperNode):
+    """
+    Returns the number of items in a list.
+    
+    Inputs:
+    - Flow: Execution trigger.
+    - List: The list to count.
+    
+    Outputs:
+    - Flow: Triggered after the count is calculated.
+    - Count: The number of items in the list.
+    """
+    version = "2.1.0"
+    
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.properties["List"] = []
+        self.define_schema()
+        self.register_handlers()
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "List": DataType.LIST
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Count": DataType.INTEGER
+        }
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.count_list)
+
+    def count_list(self, List=None, **kwargs):
+        input_list = List if List is not None else self.properties.get("List", [])
+        if not isinstance(input_list, list): 
+            if input_list is None:
+                input_list = []
+            elif hasattr(input_list, "__iter__") and not isinstance(input_list, (str, bytes)):
+                input_list = list(input_list)
+            else:
+                input_list = [input_list]
+                
+        count = len(input_list)
+        self.set_output("Count", count)
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True

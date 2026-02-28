@@ -132,10 +132,10 @@
             "pos_y": -137.34545454545452,
             "properties": {
                 "Data": "",
-                "Additional Inputs": [
+                "Label": "",
+                "additional_inputs": [
                     "Data"
-                ],
-                "Label": ""
+                ]
             }
         },
         {
@@ -147,7 +147,7 @@
             "properties": {
                 "JSON Path": "F:\\My Programs\\Synapse VS\\sub_graphs\\Bot\\data\\bots.json",
                 "Add Root Key": "\"bots\" : {}",
-                "Additional Outputs": [
+                "additional_outputs": [
                     "JSON Path",
                     "Add Root Key"
                 ]
@@ -363,5 +363,5 @@
     "project_category": "Data/JSON",
     "project_version": "1.0.0",
     "project_vars": {},
-    "version": "2.1.0"
+    "version": "2.3.0"
 }

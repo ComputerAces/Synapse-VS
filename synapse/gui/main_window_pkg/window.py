@@ -204,6 +204,13 @@ class MainWindow(QMainWindow, LayoutMixin, ActionsMixin, MenusMixin, FileOperati
             # 1. Update Current Minimap for animations
             if hasattr(self, 'minimap'):
                 self.minimap.update_minimap()
+                
+            # [NEW] Update Standalone Minimaps
+            if hasattr(self, 'minimap_windows'):
+                # Prune dead windows
+                self.minimap_windows = [w for w in self.minimap_windows if w.isVisible()]
+                for w in self.minimap_windows:
+                    w.minimap_widget.update_minimap()
             
             # 2. Update Miniworld Slots
             if hasattr(self, 'miniworld'):

@@ -83,7 +83,7 @@ class ProviderNode(SuperNode):
 
     def register_provider_context(self):
         """Override to register specific super-functions."""
-        pass
+        return self.provider_type
 
     def cleanup_provider_context(self):
         """Cleanup logic before final flow out."""

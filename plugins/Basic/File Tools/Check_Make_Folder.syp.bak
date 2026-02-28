@@ -7,11 +7,11 @@
             "pos_x": 1855.3313492934676,
             "pos_y": -354.0531365616258,
             "properties": {
-                "Additional Inputs": [
-                    "Success"
-                ],
                 "Label": "",
-                "Success": "1"
+                "Success": "1",
+                "additional_inputs": [
+                    "Success"
+                ]
             }
         },
         {
@@ -22,7 +22,7 @@
             "pos_y": -326.1350736467497,
             "properties": {
                 "Path": "F:\\My Programs\\Synapse VS\\sub_graphs",
-                "Additional Outputs": [
+                "additional_outputs": [
                     "Path"
                 ]
             }
@@ -66,7 +66,7 @@
             "pos_x": 1588.6918470171715,
             "pos_y": -356.17879818912894,
             "properties": {
-                "Additional Inputs": [
+                "additional_inputs": [
                     "Item 0",
                     "Item 1"
                 ]
@@ -160,5 +160,5 @@
     "project_category": "File System/Folders",
     "project_version": "1.0.0",
     "project_vars": {},
-    "version": "2.1.0"
+    "version": "2.3.0"
 }

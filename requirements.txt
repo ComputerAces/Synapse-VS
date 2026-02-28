@@ -3,3 +3,4 @@ pygrabber
 pyaudio
 langdetect
 vaderSentiment
+playwright

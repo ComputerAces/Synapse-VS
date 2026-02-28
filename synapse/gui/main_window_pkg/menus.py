@@ -43,6 +43,7 @@ class MenusMixin:
         self.view_menu.addAction(self.zoom_out_action)
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.toggle_wire_legend_action)
+        self.view_menu.addAction(self.new_minimap_action)
         self.view_menu.addSeparator()
         
         # Tools Menu

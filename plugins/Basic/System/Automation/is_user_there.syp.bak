@@ -1,0 +1,285 @@
+{
+    "nodes": [
+        {
+            "id": "467fc05f-940e-4124-b01e-b1170cc4bf36",
+            "type": "Subtract Image",
+            "name": "Subtract Image",
+            "pos_x": 2393.623545976825,
+            "pos_y": -9.200997754687108,
+            "properties": {
+                "additional_inputs": []
+            }
+        },
+        {
+            "id": "806ca7cc-8967-4a76-8937-c89c65e77f73",
+            "type": "Camera Image Capture",
+            "name": "Camera Image Capture",
+            "pos_x": 2006.5932867027727,
+            "pos_y": 60.08043401232709,
+            "properties": {
+                "Camera Index": 0
+            }
+        },
+        {
+            "id": "e27b6d84-e613-4aa5-99bc-0b6237c9d15c",
+            "type": "Start Node",
+            "name": "Start Node",
+            "pos_x": 272.2787265191147,
+            "pos_y": 93.14908092719385,
+            "properties": {
+                "SingletonScope": false,
+                "Singleton Scope": false,
+                "Last Image": "",
+                "Provider Flow Id": "",
+                "Provider Flow ID": "",
+                "Camera Index": "1",
+                "additional_outputs": []
+            }
+        },
+        {
+            "id": "ff18e721-38d7-44c3-8c5e-f62ff1a3ae8f",
+            "type": "Return Node",
+            "name": "Return Node",
+            "pos_x": 4021.8642877938582,
+            "pos_y": -6.355855442866805,
+            "properties": {
+                "Label": "",
+                "label": "",
+                "Last Image": "",
+                "User Present": "",
+                "additional_inputs": []
+            }
+        },
+        {
+            "id": "6cfb2e67-2416-4b45-845b-cc1ea5a51555",
+            "type": "Average Image Pixels",
+            "name": "Average Image Pixels",
+            "pos_x": 2764.2410851707095,
+            "pos_y": -18.374193750234014,
+            "properties": {
+                "Image Data": null
+            }
+        },
+        {
+            "id": "6316547c-3078-4ab5-9d78-82785a668ff2",
+            "type": "Compare",
+            "name": "Compare",
+            "pos_x": 3097.393563437425,
+            "pos_y": -93.65805549169527,
+            "properties": {
+                "Compare Type": ">",
+                "A": 0,
+                "B": 0.04
+            }
+        },
+        {
+            "id": "2e518f70-8ffd-495f-a145-9221ee97c1f2",
+            "type": "User Activity",
+            "name": "User Activity",
+            "pos_x": 774.9781932492772,
+            "pos_y": 236.41582864555306,
+            "properties": {}
+        },
+        {
+            "id": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "type": "OR",
+            "name": "OR",
+            "pos_x": 3390.425133857823,
+            "pos_y": 90.54621141101849,
+            "properties": {
+                "Item 0": null,
+                "Item 1": null,
+                "Item 2": null,
+                "additional_inputs": [
+                    "Item 0",
+                    "Item 1"
+                ]
+            }
+        },
+        {
+            "id": "ee41975f-15a8-40e7-96a3-58437b2a5bd5",
+            "type": "Compare",
+            "name": "Compare",
+            "pos_x": 1134.373275510576,
+            "pos_y": 295.46173988292844,
+            "properties": {
+                "Compare Type": "<",
+                "A": 0,
+                "B": 4000.0
+            }
+        },
+        {
+            "id": "f5d0f1e5-476a-482d-b248-65763a6725a4",
+            "type": "Compare",
+            "name": "Compare",
+            "pos_x": 1541.0553509357824,
+            "pos_y": 444.8541873030889,
+            "properties": {
+                "Compare Type": "<",
+                "A": 0,
+                "B": 4000.0
+            }
+        }
+    ],
+    "wires": [
+        {
+            "from_node": "f5d0f1e5-476a-482d-b248-65763a6725a4",
+            "from_port": "False",
+            "to_node": "806ca7cc-8967-4a76-8937-c89c65e77f73",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6316547c-3078-4ab5-9d78-82785a668ff2",
+            "from_port": "True",
+            "to_node": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6cfb2e67-2416-4b45-845b-cc1ea5a51555",
+            "from_port": "Flow",
+            "to_node": "6316547c-3078-4ab5-9d78-82785a668ff2",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "e27b6d84-e613-4aa5-99bc-0b6237c9d15c",
+            "from_port": "Last Image",
+            "to_node": "467fc05f-940e-4124-b01e-b1170cc4bf36",
+            "to_port": "Image B"
+        },
+        {
+            "from_node": "e27b6d84-e613-4aa5-99bc-0b6237c9d15c",
+            "from_port": "Camera Index",
+            "to_node": "806ca7cc-8967-4a76-8937-c89c65e77f73",
+            "to_port": "Camera Index"
+        },
+        {
+            "from_node": "806ca7cc-8967-4a76-8937-c89c65e77f73",
+            "from_port": "Flow",
+            "to_node": "467fc05f-940e-4124-b01e-b1170cc4bf36",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "806ca7cc-8967-4a76-8937-c89c65e77f73",
+            "from_port": "Image",
+            "to_node": "467fc05f-940e-4124-b01e-b1170cc4bf36",
+            "to_port": "Image A"
+        },
+        {
+            "from_node": "806ca7cc-8967-4a76-8937-c89c65e77f73",
+            "from_port": "Image",
+            "to_node": "ff18e721-38d7-44c3-8c5e-f62ff1a3ae8f",
+            "to_port": "Last Image"
+        },
+        {
+            "from_node": "467fc05f-940e-4124-b01e-b1170cc4bf36",
+            "from_port": "Flow",
+            "to_node": "6cfb2e67-2416-4b45-845b-cc1ea5a51555",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "467fc05f-940e-4124-b01e-b1170cc4bf36",
+            "from_port": "Result Image",
+            "to_node": "6cfb2e67-2416-4b45-845b-cc1ea5a51555",
+            "to_port": "Image Data"
+        },
+        {
+            "from_node": "6316547c-3078-4ab5-9d78-82785a668ff2",
+            "from_port": "Compare Result",
+            "to_node": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "to_port": "Item 1"
+        },
+        {
+            "from_node": "6cfb2e67-2416-4b45-845b-cc1ea5a51555",
+            "from_port": "Average",
+            "to_node": "6316547c-3078-4ab5-9d78-82785a668ff2",
+            "to_port": "A"
+        },
+        {
+            "from_node": "2e518f70-8ffd-495f-a145-9221ee97c1f2",
+            "from_port": "Flow",
+            "to_node": "ee41975f-15a8-40e7-96a3-58437b2a5bd5",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "2e518f70-8ffd-495f-a145-9221ee97c1f2",
+            "from_port": "Mouse Idle Time",
+            "to_node": "ee41975f-15a8-40e7-96a3-58437b2a5bd5",
+            "to_port": "A"
+        },
+        {
+            "from_node": "ee41975f-15a8-40e7-96a3-58437b2a5bd5",
+            "from_port": "Compare Result",
+            "to_node": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "to_port": "Item 0"
+        },
+        {
+            "from_node": "2e518f70-8ffd-495f-a145-9221ee97c1f2",
+            "from_port": "Keyboard Idle Time",
+            "to_node": "f5d0f1e5-476a-482d-b248-65763a6725a4",
+            "to_port": "A"
+        },
+        {
+            "from_node": "f5d0f1e5-476a-482d-b248-65763a6725a4",
+            "from_port": "Compare Result",
+            "to_node": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "to_port": "Item 2"
+        },
+        {
+            "from_node": "e27b6d84-e613-4aa5-99bc-0b6237c9d15c",
+            "from_port": "Flow",
+            "to_node": "2e518f70-8ffd-495f-a145-9221ee97c1f2",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "f5d0f1e5-476a-482d-b248-65763a6725a4",
+            "from_port": "True",
+            "to_node": "806ca7cc-8967-4a76-8937-c89c65e77f73",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6316547c-3078-4ab5-9d78-82785a668ff2",
+            "from_port": "False",
+            "to_node": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "from_port": "Flow",
+            "to_node": "ff18e721-38d7-44c3-8c5e-f62ff1a3ae8f",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "b8e8aad0-d17c-4886-a8f5-4e361dc04d61",
+            "from_port": "Result",
+            "to_node": "ff18e721-38d7-44c3-8c5e-f62ff1a3ae8f",
+            "to_port": "User Present"
+        },
+        {
+            "from_node": "ee41975f-15a8-40e7-96a3-58437b2a5bd5",
+            "from_port": "False",
+            "to_node": "f5d0f1e5-476a-482d-b248-65763a6725a4",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "ee41975f-15a8-40e7-96a3-58437b2a5bd5",
+            "from_port": "True",
+            "to_node": "f5d0f1e5-476a-482d-b248-65763a6725a4",
+            "to_port": "Flow"
+        }
+    ],
+    "frames": [],
+    "viewport": {
+        "center_x": 2237.9294403822273,
+        "center_y": 295.3279320152499,
+        "zoom": 0.3047459797854564
+    },
+    "embedded_subgraphs": {},
+    "project_name": "Is User There",
+    "project_description": "Check the User's camera, mouse, keyboard to see if the user is still there.",
+    "project_type": "",
+    "project_category": "System/Automation",
+    "project_version": "1.0.0",
+    "project_vars": {},
+    "version": "2.3.0",
+    "variables": {}
+}

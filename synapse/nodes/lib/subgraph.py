@@ -229,11 +229,21 @@ class SubGraphNode(SuperNode):
         local_manager = False
         
         if manager is None:
+            # Fallback for isolated contexts or mock bridges
+            import multiprocessing
             manager = multiprocessing.Manager()
             local_manager = True
             
         try:
-            child_bridge = SynapseBridge(manager)
+            # [FIX] Surgical state passing. 
+            # SubGraphs should share parent "System State" (hardware locks) to avoid OpenCV crashes,
+            # but MUST have isolated "Data State" (registries) to avoid Global Variable collisions.
+            system_state = self.bridge.get_system_state()
+            child_bridge = SynapseBridge(manager, system_state=system_state)
+
+            # [FIX] Protect parent context by injecting identifying node ID
+            # This allows ReturnNode to write to a scoped key SUBGRAPH_RETURN_{node_id}
+            child_bridge.set("_SYNP_PARENT_NODE_ID", self.node_id, "Parent_Injection")
 
             # Inherit control files from parent bridge (set by parent engine)
             stop_file = self.bridge.get("_SYSTEM_STOP_FILE")
@@ -307,12 +317,29 @@ class SubGraphNode(SuperNode):
                         inputs={k:v for k,v in kwargs.items() if not k.startswith("_")},
                         error_details={"message": str(e), "type": type(e).__name__}
                     )
-                    self.bridge.set(f"{self.node_id}_LastError", error_obj, self.name)
+                    self.bridge.bubble_set(f"{self.node_id}_LastError", error_obj, self.name)
                     
-                    self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
+                    self.bridge.bubble_set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
                     return False
 
-            results = child_bridge.get("SUBGRAPH_RETURN") or {}
+            # [DEBUG] Check child bridge keys
+            all_child_keys = child_bridge.get_all_keys()
+            self.logger.info(f"Child bridge keys at termination: {all_child_keys}")
+
+            # [FIX] Retrieve results from instance-specific scoped key
+            scoped_return_key = f"SUBGRAPH_RETURN_{self.node_id}"
+            results = child_bridge.get(scoped_return_key) or {}
+            self.logger.info(f"Retrieved results from {scoped_return_key}: {list(results.keys())}")
+            # [NUCLEAR SCRUB] Final safety pass before setting parent outputs.
+            # This ensures that NO UI metadata survives the child-to-parent transfer.
+            reserved = ["Flow", "Exec", "In", "_trigger", "_bridge", "_engine", "_context_stack", "_context_pulse"]
+            blocked_keywords = ["color", "additional", "schema", "label", "context", "provider"]
+            
+            # Step A: Remove blocked keys from results
+            to_delete = [k for k in results if any(kw in k.lower() for kw in blocked_keywords) or k in reserved]
+            for k in to_delete:
+                del results[k]
+
             raw_label = child_bridge.get("__RETURN_NODE_LABEL__")
 
             # Use subgraph_utils to get the SAME mapping used by the GUI

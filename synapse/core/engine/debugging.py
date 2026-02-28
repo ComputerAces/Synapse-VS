@@ -27,12 +27,12 @@ class DebugMixin:
             error_details=str(error)
         )
         
-        self.bridge.set("_SYSTEM_LAST_ERROR_OBJECT", error_obj, "Engine")
+        self.bridge.bubble_set("_SYSTEM_LAST_ERROR_OBJECT", error_obj, "Engine")
         
-        self.bridge.set("_SYSTEM_LAST_ERROR_CODE", error_code, "Engine")
-        self.bridge.set("_SYSTEM_LAST_ERROR_MESSAGE", str(error), "Engine")
-        self.bridge.set("_SYSTEM_LAST_ERROR_NODE", failing_node.node_id, "Engine")
-        self.bridge.set("_SYSTEM_LAST_ERROR_NODE_NAME", failing_node.name, "Engine")
+        self.bridge.bubble_set("_SYSTEM_LAST_ERROR_CODE", error_code, "Engine")
+        self.bridge.bubble_set("_SYSTEM_LAST_ERROR_MESSAGE", str(error), "Engine")
+        self.bridge.bubble_set("_SYSTEM_LAST_ERROR_NODE", failing_node.node_id, "Engine")
+        self.bridge.bubble_set("_SYSTEM_LAST_ERROR_NODE_NAME", failing_node.name, "Engine")
         
         # Explicit Console Error Output
         print("\n" + "="*60)

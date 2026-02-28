@@ -77,7 +77,7 @@ class GraphWidget(QWidget):
             "project_category": "",
             "project_version": "1.0.0",
             "project_vars": {},
-            "version": "2.1.0" # Schema Version
+            "version": "2.3.0" # Schema Version
         }
         
         # Viewport State Tracking
@@ -146,7 +146,7 @@ class GraphWidget(QWidget):
                 props = item.node.properties
                 node_path = props.get("Graph Path") or props.get("graph_path") or props.get("GraphPath")
                 
-                if node_path and os.path.abspath(node_path) == abs_saved_path:
+                if node_path and os.path.normcase(os.path.abspath(node_path)) == os.path.normcase(abs_saved_path):
                     # 1. Refresh logical structure
                     item.node.rebuild_ports()
                     
@@ -215,7 +215,7 @@ class GraphWidget(QWidget):
             self.project_metadata["project_category"] = data.get("project_category", "")
             self.project_metadata["project_version"] = data.get("project_version", "1.0.0")
             self.project_metadata["project_vars"] = data.get("project_vars", {})
-            self.project_metadata["version"] = data.get("version", "2.1.0")
+            self.project_metadata["version"] = data.get("version", "2.3.0")
             
             # [VIEWPORT] Capture saved state for restoration on tab activate
             if "viewport" in data:
@@ -356,6 +356,9 @@ class GraphWidget(QWidget):
             
         stop_file = self._get_stop_file_path()
         args += ["--stop-file", stop_file]
+        
+        speed_control_file = self._get_speed_file_path()
+        args += ["--speed-file", speed_control_file]
         
         self.set_speed(delay)
         

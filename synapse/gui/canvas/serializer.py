@@ -67,7 +67,8 @@ class GraphSerializer:
         embedded_subgraphs = {}
         self._collect_embedded_subgraphs(nodes, embedded_subgraphs, set())
                     
-        return {"nodes": nodes, "wires": wires, "frames": frames, "viewport": viewport, "embedded_subgraphs": embedded_subgraphs}
+        from synapse.core.schema import GRAPH_SCHEMA_VERSION
+        return {"version": GRAPH_SCHEMA_VERSION, "nodes": nodes, "wires": wires, "frames": frames, "viewport": viewport, "embedded_subgraphs": embedded_subgraphs}
 
     def serialize_selection(self):
         selection = self.scene.selectedItems()
@@ -144,6 +145,9 @@ class GraphSerializer:
                     except: pass
 
     def deserialize(self, data):
+        from synapse.core.schema import migrate_graph
+        data, _ = migrate_graph(data)
+
         self.scene.clear()
         node_map = {}
         was_pruned = False

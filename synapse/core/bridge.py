@@ -11,25 +11,89 @@ class SynapseBridge:
     The Bridge acts as the middleware for Inter-Process Communication (IPC).
     It manages shared variables, locks, and Zero-Copy Shared Memory for large data.
     """
-    def __init__(self, manager):
+    def __init__(self, manager, system_state=None, data_state=None):
         self.manager = manager # Store for reuse by child engines
-        self._variables_registry = manager.dict() # Metadata registry
-        self._identities = manager.dict()         # ISM: App ID -> Identity (dict)
-        self._locks = [manager.RLock() for _ in range(32)]
-        self._provider_locks = [manager.RLock() for _ in range(128)]
-        self._lock_owners = manager.dict()
-        self._hijack_registry = manager.dict() # provider_id -> {func_name: handler_node_id}
         
+        # 1. System State (Shared across whole process tree for hardware sync)
+        if system_state:
+            self._locks = system_state["locks"]
+            self._provider_locks = system_state["provider_locks"]
+            self._identities = system_state["identities"]
+            self._hijack_registry = system_state["hijack_registry"]
+            self.root_registry = system_state.get("root_registry") # Inherit root from parent
+        else:
+            self._locks = manager.list([manager.RLock() for _ in range(32)])
+            self._provider_locks = manager.list([manager.RLock() for _ in range(128)])
+            self._identities = manager.dict()
+            self._hijack_registry = manager.dict()
+            self.root_registry = None # Will be set to self._variables_registry below
+
+        # 2. Data State (Usually isolated per SubGraph instance to avoid collisions)
+        if data_state:
+            self._variables_registry = data_state["variables_registry"]
+            self._lock_owners = data_state["lock_owners"]
+        else:
+            self._variables_registry = manager.dict()
+            self._lock_owners = manager.dict()
+        
+        # If we are the root, our own registry is the root registry
+        if self.root_registry is None:
+            self.root_registry = self._variables_registry
+
         # [NEW] Default scoping for collision-safe variable names
         self.default_scope = "Global"
         
         # Local Process State (per-instance, per-process)
         self._local_cache = {} # key -> (obj, version)
+        self._local_objects = {} # [NEW] Non-picklable live objects (Browser handles, etc.)
         
         # [WINDOWS PERSISTENCE] Persistent handles to SHM blocks
         # Only the "Master" process (Engine) needs to fill this.
         self._pinned_shm = {} # shm_name -> SharedMemory object
         self._shm_dirty = False # [OPTIMIZATION] Flag to skip pin_all if no new blocks
+
+    def get_system_state(self):
+        """Returns only the hardware locks and system registries."""
+        return {
+            "locks": self._locks,
+            "provider_locks": self._provider_locks,
+            "identities": self._identities,
+            "hijack_registry": self._hijack_registry,
+            "root_registry": self.root_registry # Ensure children know the root
+        }
+
+    def bubble_set(self, key, value, source_node_id="System", scope_id=None):
+        """
+        Sets a value in the local registry AND bubbles it up to the root registry.
+        Used for status updates (highlights, error states) that must reach the GUI.
+        """
+        # 1. Update Local Registry (Standard set)
+        self.set(key, value, source_node_id, scope_id)
+        
+        # 2. Update Root Registry if it's different (Cross-SubGraph propagation)
+        if self.root_registry is not self._variables_registry:
+            target_scope = scope_id or self.default_scope
+            scoped_key = f"{target_scope}:{key}"
+            
+            # Note: We reuse the SAME SHM block created by self.set()
+            # We just need to inject the metadata into the root registry.
+            metadata = self._variables_registry.get(scoped_key)
+            if metadata:
+                try:
+                    self.root_registry[scoped_key] = metadata
+                except (BrokenPipeError, EOFError, ConnectionResetError):
+                    pass
+                except Exception as e:
+                    logger.debug(f"Bubble Set failed to reach root: {e}")
+
+    def get_internal_state(self):
+        """Returns the full shared registries and locks (deprecated for subgraphs)."""
+        state = self.get_system_state()
+        state.update({
+            "variables_registry": self._variables_registry,
+            "lock_owners": self._lock_owners
+        })
+        return state
 
     def __getstate__(self):
         """Standard pickle cleanup to allow transfer across processes."""
@@ -222,6 +286,14 @@ class SynapseBridge:
         except Exception as e:
             logger.error(f"Failed to read Shared Memory for '{final_key}': {e}")
             return default
+            
+    def set_object(self, key, obj):
+        """Sets a live, non-picklable object in the local process registry."""
+        self._local_objects[key] = obj
+        
+    def get_object(self, key, default=None):
+        """Retrieves a live object from the local process registry."""
+        return self._local_objects.get(key, default)
 
     def pin_all(self):
         """

@@ -23,7 +23,7 @@ class BrowserNavigateNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
-        self.properties["Wait Until"] = "load"
+        self.properties["Wait Until"] = "networkidle"
         self.properties["Timeout"] = 30000
         
         self.define_schema()
@@ -45,11 +45,11 @@ class BrowserNavigateNode(SuperNode):
 
     def do_work(self, URL=None, Timeout=None, **kwargs):
         url = URL or self.properties.get("URL", "about:blank")
-        wait = kwargs.get("Wait Until") or self.properties.get("Wait Until", "load")
+        wait = kwargs.get("Wait Until") or self.properties.get("Wait Until", "networkidle")
         timeout = int(Timeout) if Timeout is not None else int(self.properties.get("Timeout", 30000))
 
         handle_id = self.get_provider_id("Browser Provider")
-        handle = self.bridge.get(f"{handle_id}_Handle") if handle_id else None
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
 
         if not handle or not isinstance(handle, BrowserHandle):
              raise RuntimeError(f"[{self.name}] No active Browser Handle/Provider found.")
@@ -106,7 +106,7 @@ class BrowserClickNode(SuperNode):
         sel = Selector or self.properties.get("Selector", "")
         
         handle_id = self.get_provider_id("Browser Provider")
-        handle = self.bridge.get(f"{handle_id}_Handle") if handle_id else None
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
         
         if not handle or not isinstance(handle, BrowserHandle):
              raise RuntimeError(f"[{self.name}] No active Browser Handle/Provider found.")
@@ -118,8 +118,8 @@ class BrowserClickNode(SuperNode):
                 handle.page.mouse.click(px, py)
                 self.logger.info(f"Clicked point ({px}, {py})")
             elif sel:
-                # Try smarter selector if needed
-                handle.page.click(sel)
+                # [MAGIC FIND INTEGRATION]
+                handle.magic_find(sel, True) # True triggers Click
             else:
                 self.logger.warning("No selector or point provided for click.")
         except Exception as e:
@@ -169,7 +169,7 @@ class BrowserTypeNode(SuperNode):
         txt = Text or self.properties.get("Text", "")
         
         handle_id = self.get_provider_id("Browser Provider")
-        handle = self.bridge.get(f"{handle_id}_Handle") if handle_id else None
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
         
         if not handle or not isinstance(handle, BrowserHandle):
              raise RuntimeError(f"[{self.name}] No active Browser Handle/Provider found.")
@@ -179,9 +179,806 @@ class BrowserTypeNode(SuperNode):
              return True
 
         try:
-            handle.page.fill(sel, txt)
+            # [MAGIC FIND INTEGRATION]
+            handle.magic_find(sel, txt) # String triggers Type/Fill
         except Exception as e:
             self.logger.error(f"Browser Error: {e}")
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Get Tab List", "Browser")
+class BrowserGetTabListNode(SuperNode):
+    """
+    Retrieves a list of all currently open tabs/pages in the browser.
+    
+    Outputs:
+    - Flow: Pulse triggered after retrieval.
+    - Names: List of page titles.
+    - URLs: List of page URLs.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = { "Flow": DataType.FLOW }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Names": DataType.LIST,
+            "URLs": DataType.LIST
+        }
+
+    def do_work(self, **kwargs):
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        # Sync local list with actual context pages
+        handle.pages = handle.context.pages
+        
+        names = [p.title() for p in handle.pages]
+        urls = [p.url for p in handle.pages]
+        
+        self.set_output("Names", names)
+        self.set_output("URLs", urls)
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Open Tab", "Browser")
+class BrowserOpenTabNode(SuperNode):
+    """
+    Opens a new browser tab and optionally navigates to a URL.
+    
+    Inputs:
+    - Flow: Trigger to open the tab.
+    - URL: Optional web address to navigate to.
+    
+    Outputs:
+    - Flow: Triggered after the tab is opened.
+    - Tab Index: The index of the newly created tab.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "URL": DataType.STRING
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Tab Index": DataType.INTEGER
+        }
+
+    def do_work(self, URL=None, **kwargs):
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        new_page = handle.context.new_page()
+        if URL:
+            new_page.goto(URL)
+            
+        handle.pages = handle.context.pages
+        new_index = len(handle.pages) - 1
+        handle.active_page_index = new_index
+        
+        self.set_output("Tab Index", new_index)
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Select Tab", "Browser")
+class BrowserSelectTabNode(SuperNode):
+    """
+    Switches the focus to a specific browser tab by its index.
+    
+    Inputs:
+    - Flow: Trigger the switch.
+    - Index: The numerical index of the tab to select (0-based).
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Index": DataType.INTEGER
+        }
+        self.output_schema = { "Flow": DataType.FLOW }
+
+    def do_work(self, Index=0, **kwargs):
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        handle.pages = handle.context.pages
+        if not handle.switch_page(int(Index)):
+            self.logger.warning(f"Failed to switch to tab index {Index}. Staying on {handle.active_page_index}")
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Close Tab", "Browser")
+class BrowserCloseTabNode(SuperNode):
+    """
+    Closes the currently active browser tab.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = { "Flow": DataType.FLOW }
+        self.output_schema = { "Flow": DataType.FLOW }
+
+    def do_work(self, **kwargs):
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        if handle.page:
+            handle.page.close()
+            handle.pages = handle.context.pages
+            if handle.active_page_index >= len(handle.pages):
+                handle.active_page_index = max(0, len(handle.pages) - 1)
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Strip Data", "Browser")
+class BrowserStripDataNode(SuperNode):
+    """
+    Extracts text, HTML, or attributes from elements on the page.
+    
+    Inputs:
+    - Flow: Trigger extraction.
+    - Selector: CSS/XPath selector (e.g., 'h1', '.price').
+    - Mode: Extraction mode ('Text', 'HTML', 'Attribute', 'Count').
+    - Attribute: Name of the attribute to extract (if in 'Attribute' mode).
+    
+    Outputs:
+    - Flow: Triggered after extraction.
+    - Data: The extracted string or list of strings.
+    - Count: Number of elements found.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.properties["Mode"] = "Text"
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Selector": DataType.STRING
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Data": DataType.ANY,
+            "Count": DataType.INTEGER
+        }
+
+    def do_work(self, Selector=None, **kwargs):
+        sel = Selector if Selector is not None else self.properties.get("Selector", "")
+        if not sel or str(sel).strip() == "" or str(sel).strip() == "/":
+            sel = "body *" # Default to all elements in body if empty or slash
+            
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        try:
+            js_script = """
+            (selector) => {
+                const elements = Array.from(document.querySelectorAll(selector));
+                
+                let results = {};
+                for (let el of elements) {
+                    const tag = el.tagName.toLowerCase();
+                    if (['script', 'style', 'meta', 'link', 'noscript'].includes(tag)) continue;
+                    
+                    let textContent = el.innerText || el.value || '';
+                    let hasId = !!el.id;
+                    let hasClass = !!el.className;
+                    let isInteractive = ['input', 'textarea', 'select', 'button', 'a', 'form'].includes(tag);
+                    
+                    if (selector === 'body *') {
+                        if (!hasId && !hasClass && !textContent.trim() && !isInteractive) {
+                            continue;
+                        }
+                    }
+
+                    const getPath = (n) => {
+                        let path = [];
+                        while (n.nodeType === Node.ELEMENT_NODE) {
+                            let sel = n.nodeName.toLowerCase();
+                            // Do not use ID as the root fallback since we want the hierarchical path
+                            if (n.id) {
+                                sel += '#' + n.id;
+                            }
+                            let sib = n, nth = 1;
+                            while (sib = sib.previousElementSibling) {
+                                if (sib.nodeName.toLowerCase() === sel.split('#')[0]) nth++;
+                            }
+                            if (nth !== 1) sel += "[" + nth + "]";
+                            
+                            path.unshift(sel);
+                            n = n.parentNode;
+                        }
+                        return path.join('.');
+                    };
+                    
+                    let path = getPath(el);
+                    
+                    let data = {
+                        tag: tag,
+                        id: el.id || '',
+                        class: el.className || '',
+                        text: textContent
+                    };
+                    
+                    // Dynamically map all attributes
+                    if (el.attributes) {
+                        for (let attr of el.attributes) {
+                            if (attr.name !== 'id' && attr.name !== 'class') {
+                                data[attr.name] = attr.value || '';
+                            }
+                        }
+                    }
+                    
+                    // Clean up empty attributes
+                    for (let key in data) {
+                        try {
+                            if (data[key] === '' || data[key] === null || data[key] === undefined) {
+                                delete data[key];
+                            } else {
+                                // Ensure strict string type to avoid SVGAnimatedString objects
+                                data[key] = String(data[key]);
+                            }
+                        } catch(e) {}
+                    }
+                    
+                    results[path] = data;
+                }
+                return JSON.stringify(results);
+            }
+            """
+            
+            json_results = handle.page.evaluate(js_script, sel)
+            import json
+            results = json.loads(json_results)
+            
+            self.set_output("Count", len(results.keys()))
+            self.set_output("Data", results) # Always returns a single JSON Object (dictionary)
+
+        except Exception as e:
+            self.logger.error(f"Extraction Error: {e}")
+            self.set_output("Data", {})
+            self.set_output("Count", 0)
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Wait for Element", "Browser")
+class BrowserWaitNode(SuperNode):
+    """
+    Pauses execution until a specific element appears on the page.
+    
+    Inputs:
+    - Flow: Start waiting.
+    - Selector: CSS/XPath selector of the element.
+    - State: Condition ('attached', 'detached', 'visible', 'hidden').
+    - Timeout: Max wait time in ms.
+    
+    Outputs:
+    - Flow: Triggered when condition is met or timeout occurs.
+    - Found: Boolean indicating if the element was found.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.properties["State"] = "visible"
+        self.properties["Timeout"] = 30000
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Selector": DataType.STRING,
+            "State": DataType.STRING,
+            "Timeout": DataType.NUMBER
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Found": DataType.BOOLEAN
+        }
+
+    def do_work(self, Selector=None, State=None, Timeout=None, **kwargs):
+        sel = Selector or self.properties.get("Selector", "")
+        state = State or self.properties.get("State", "visible")
+        timeout = int(Timeout) if Timeout is not None else int(self.properties.get("Timeout", 30000))
+        
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        found = False
+        try:
+            handle.page.wait_for_selector(sel, state=state, timeout=timeout)
+            found = True
+        except Exception as e:
+            self.logger.warning(f"Wait for element '{sel}' failed: {e}")
+
+        self.set_output("Found", found)
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Scroll", "Browser")
+class BrowserScrollNode(SuperNode):
+    """
+    Scrolls the page by a specific amount or to an element.
+    
+    Inputs:
+    - Flow: Trigger scroll.
+    - Selector: Optional element to scroll into view.
+    - X, Y: Pixel amounts to scroll.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Selector": DataType.STRING,
+            "X": DataType.INTEGER,
+            "Y": DataType.INTEGER
+        }
+        self.output_schema = { "Flow": DataType.FLOW }
+
+    def do_work(self, Selector=None, X=None, Y=None, **kwargs):
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        try:
+            if Selector:
+                handle.page.locator(Selector).scroll_into_view_if_needed()
+            else:
+                handle.page.mouse.wheel(X or 0, Y or 0)
+        except Exception as e:
+            self.logger.error(f"Scroll Error: {e}")
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Hover", "Browser")
+class BrowserHoverNode(SuperNode):
+    """
+    Moves the mouse hover over a specific element.
+    
+    Inputs:
+    - Flow: Trigger hover.
+    - Selector: Element to hover on.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Selector": DataType.STRING
+        }
+        self.output_schema = { "Flow": DataType.FLOW }
+
+    def do_work(self, Selector=None, **kwargs):
+        sel = Selector or self.properties.get("Selector", "")
+        
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        try:
+            if sel:
+                handle.page.hover(sel)
+        except Exception as e:
+            self.logger.error(f"Hover Error: {e}")
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Close", "Browser")
+class BrowserCloseNode(SuperNode):
+    """
+    Closes the entire browser instance associated with the provider.
+    
+    Inputs:
+    - Flow: Trigger to close the browser.
+    
+    Outputs:
+    - Flow: Triggered after the browser is shut down.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = { "Flow": DataType.FLOW }
+        self.output_schema = { "Flow": DataType.FLOW }
+
+    def do_work(self, **kwargs):
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        try:
+            self.logger.info(f"Closing browser instance for provider: {handle_id}")
+            handle.close()
+        except Exception as e:
+            self.logger.error(f"Error closing browser: {e}")
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Magic Find", "Browser")
+class BrowserMagicFindNode(SuperNode):
+    """
+    Experimental context-aware resolution node.
+    Finds elements by dot-notation, text, or fuzzy matching and returns their path/data.
+    
+    Inputs:
+    - Flow: Trigger execution.
+    - Target: Smart string (e.g., 'search', '*.button', 'login.email').
+    
+    Outputs:
+    - Flow: Triggered after discovery.
+    - Path: The resolved XPath or identifier.
+    - Data: The current value or text of the element.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Target": DataType.STRING
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Path": DataType.STRING,
+            "Data": DataType.ANY
+        }
+
+    def do_work(self, Target=None, **kwargs):
+        target = Target or self.properties.get("Target", "")
+        
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        result = handle.magic_find(target, None) # Read mode
+        
+        if result:
+            self.set_output("Path", result.get("path"))
+            self.set_output("Data", result.get("data"))
+        else:
+            self.set_output("Path", None)
+            self.set_output("Data", None)
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Text Value", "Browser")
+class BrowserTextValueNode(SuperNode):
+    """
+    Extracts purely the text or inner value of a single element using Magic Find.
+    
+    Inputs:
+    - Flow: Trigger extraction.
+    - Target: Smart string to find the element (e.g., 'search', '#header').
+    
+    Outputs:
+    - Flow: Triggered after discovery.
+    - Text: The extracted text or value of the element.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.properties["Target"] = ""
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Target": DataType.STRING
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Text": DataType.STRING
+        }
+
+    def do_work(self, Target=None, **kwargs):
+        target = Target or self.properties.get("Target", "")
+        
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        result = handle.magic_find(target, None) # Read mode
+        
+        if result and "data" in result:
+            self.set_output("Text", result["data"])
+        else:
+            self.set_output("Text", "")
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Data Search", "Browser")
+class BrowserDataSearchNode(SuperNode):
+    """
+    Locates an element by XPath, Value, or both.
+    If both are provided, both must match.
+    
+    Inputs:
+    - Flow: Trigger search.
+    - XPath: Formal XPath selector.
+    - Value: Text content or value to match.
+    
+    Outputs:
+    - Flow: Triggered after search.
+    - Found: True if a match was found.
+    - Value: The actual text or value of the element.
+    - Path: The formal XPath of the resolved element.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.properties["XPath"] = ""
+        self.properties["Value"] = ""
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "XPath": DataType.STRING,
+            "Value": DataType.STRING
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Found": DataType.BOOLEAN,
+            "Value": DataType.STRING,
+            "Path": DataType.STRING
+        }
+
+    def do_work(self, XPath=None, Value=None, **kwargs):
+        xpath = XPath or self.properties.get("XPath", "")
+        value = Value or self.properties.get("Value", "")
+        
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        found_element = None
+        
+        # 1. Resolve by XPath if provided
+        if xpath:
+            sel = xpath if ("xpath=" in xpath or "/" not in xpath) else f"xpath={xpath}"
+            try:
+                elements = handle.page.query_selector_all(sel)
+                # Try to find visible first
+                for el in elements:
+                    if el.is_visible():
+                        found_element = el
+                        break
+                if not found_element and elements:
+                    found_element = elements[0]
+            except: pass
+            
+            # If Value is also provided, we verify the match
+            if found_element and value:
+                actual_val = found_element.evaluate("el => el.value || el.innerText || ''")
+                if value.lower() not in actual_val.lower():
+                    found_element = None
+        
+        # 2. Resolve by Value only if XPath wasn't provided
+        elif value:
+            try:
+                loc = handle.page.locator(f"text='{value}'").first
+                if loc.count() > 0:
+                    found_element = loc.element_handle()
+            except: pass
+
+        if found_element:
+            js_xpath = """
+            (el) => {
+                let path = "";
+                for (; el && el.nodeType == 1; el = el.parentNode) {
+                    let index = 1;
+                    for (let sib = el.previousSibling; sib; sib = sib.previousSibling) {
+                        if (sib.nodeType == 1 && sib.tagName == el.tagName) index++;
+                    }
+                    let tagName = el.tagName.toLowerCase();
+                    path = "/" + tagName + "[" + index + "]" + path;
+                }
+                return path;
+            }
+            """
+            actual_xpath = found_element.evaluate(js_xpath)
+            actual_value = found_element.evaluate("el => el.value || el.innerText || ''")
+            
+            self.set_output("Found", True)
+            self.set_output("Value", actual_value)
+            self.set_output("Path", actual_xpath)
+        else:
+            self.set_output("Found", False)
+            self.set_output("Value", "")
+            self.set_output("Path", "")
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+@NodeRegistry.register("Browser Element Visible", "Browser")
+class BrowserElementVisibleNode(SuperNode):
+    """
+    Checks if a specific element is currently visible on the page.
+    Supports XPath or Smart Search strings.
+    
+    Inputs:
+    - Flow: Trigger check.
+    - Path: XPath or Smart Search string.
+    
+    Outputs:
+    - Flow: Triggered after check.
+    - Visible: True if the element exists and is visible.
+    """
+    version = "2.1.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.properties["Path"] = ""
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Path": DataType.STRING
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Visible": DataType.BOOLEAN
+        }
+
+    def do_work(self, Path=None, **kwargs):
+        path = Path or self.properties.get("Path", "")
+        
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        result = handle.magic_find(path, None) # Read mode returns metadata
+        
+        visible = False
+        if result and result.get("visible"):
+            visible = True
+            
+        self.set_output("Visible", visible)
 
         self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         return True

@@ -149,7 +149,6 @@ class Wire(QGraphicsPathItem):
         # Check all INPUT Flow ports of this node
         # We need to find wires connected to imports that qualify.
         for input_port in node.inputs:
-            # [CRITICAL UPDATE]
             # We must ignore the "Provider End" input (and Exit) because it represents the 
             # *end* of this provider's internal scope. Connecting back to it should not 
             # color the *output* Flow of this provider (unless the provider is itself nested).
@@ -157,8 +156,16 @@ class Wire(QGraphicsPathItem):
                 continue
 
             # Is it a flow input?
-            # Start strict: checking if input port type is flow or provider_flow
-            # Actually, we just check the WIRES connected to it.
+            # [CRITICAL FIX] Ensure we ONLY traverse upstream through FLOW inputs.
+            # Otherwise data passed from a provider out to the main branch turns the main branch pink.
+            is_input_flow = False
+            if hasattr(input_port, 'port_class') and input_port.port_class == "flow": 
+                is_input_flow = True
+            elif hasattr(input_port, 'data_type') and str(input_port.data_type) == str(DataType.FLOW): 
+                is_input_flow = True
+                
+            if not is_input_flow:
+                continue
             
             for wire in input_port.wires:
                 # If the wire originates from a Provider Flow, we are in scope.

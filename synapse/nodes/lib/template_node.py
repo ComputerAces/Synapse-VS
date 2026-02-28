@@ -91,6 +91,18 @@ class TemplateInjectorNode(SuperNode):
                 values[str(k).replace(" ", "_")] = v
                 values[str(k).lower()] = v
                 values[str(k).lower().replace(" ", "_")] = v
+                
+        # [NEW] Also check explicit dynamic inputs added via the context menu
+        # This handles legacy "Additional Inputs" arrays and auto-wires them if present
+        dynamic_inputs = self.properties.get("additional_inputs") or self.properties.get("Additional Inputs", [])
+        if isinstance(dynamic_inputs, list):
+            for pin_name in dynamic_inputs:
+                if pin_name in kwargs and pin_name not in values:
+                    val = kwargs[pin_name]
+                    values[str(pin_name)] = val
+                    values[str(pin_name).replace(" ", "_")] = val
+                    values[str(pin_name).lower()] = val
+                    values[str(pin_name).lower().replace(" ", "_")] = val
 
         # Apply safe formatting
         result = _safe_format(template, values)

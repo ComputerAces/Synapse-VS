@@ -83,10 +83,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.pending_terminations = {} # {scope_id: (stack, prio, delay)}
         self.current_pulse_stack = None # [NEW] Pulse currently being processed
         self._lock = threading.RLock() # [NEW] Protect pulse counts and terminations (Reentrant)
+        self.deferred_returns = {} # {scope_id: payload_dict} Lockbox for early returns
         
-        # [NEW] Runaway Train Guard
-        self._max_pulses_per_scope = 10000
-        self._scope_execution_totals = {} # {scope_id: total_processed}
 
 
     def register_node(self, node):
@@ -274,16 +272,40 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                     continue
             logger.info("Execution finished.")
             
+            # [LOCKBOX] Final Aggregation: Auto-Flush all remaining stashed returns
+            with self._lock:
+                if self.deferred_returns:
+                    parent_id = self.bridge.get("_SYNP_PARENT_NODE_ID")
+                    return_key = f"SUBGRAPH_RETURN_{parent_id}" if parent_id else "SUBGRAPH_RETURN"
+                    
+                    aggregated_payload = {}
+                    # Combine all stashed returns from all scopes
+                    for scope_id in list(self.deferred_returns.keys()):
+                        payload = self.deferred_returns.pop(scope_id)
+                        if payload:
+                            aggregated_payload.update(payload)
+                    
+                    if aggregated_payload:
+                        # Merge with any existing returns (standard behavior)
+                        existing = self.bridge.get(return_key) or {}
+                        if isinstance(existing, dict):
+                            existing.update(aggregated_payload)
+                            self.bridge.set(return_key, existing, "Engine_Lockbox_FinalAggregation")
+                        else:
+                            self.bridge.set(return_key, aggregated_payload, "Engine_Lockbox_FinalAggregation")
+                        logger.info(f"Final Aggregation of stashed returns flushed to {return_key}")
+
             # Notify Parent
             if self.parent_bridge and self.parent_node_id:
-                self.parent_bridge.set(f"{self.parent_node_id}_SubGraphActivity", False, "ChildEngine")
+                self.parent_bridge.bubble_set(f"{self.parent_node_id}_SubGraphActivity", False, "ChildEngine")
                 print(f"[SYNP_SUBGRAPH_FINISHED] {self.parent_node_id}")
 
         finally:
             with self._lock:
                 # Only root thread should shutdown services if it's truly the end
-                # but for simplicity, we let the finish flag handle it.
-                pass
+                # Note: SubGraphs should not stop master services, only their own.
+                # stop_all_services only cleans up nodes registered to *this engine's* registry.
+                self.stop_all_services()
             
             # If root thread, shutdown dispatcher
             # Actually, we should only shutdown if we are the MASTER thread.
@@ -360,29 +382,62 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             self._decrement_scope_counts(pulse_stack)
             return True
 
-        # [NEW] Runaway Train Guard Detection
-        active_scope = context_stack[-1] if context_stack else "ROOT"
-        self._scope_execution_totals[active_scope] = self._scope_execution_totals.get(active_scope, 0) + 1
-        if self._scope_execution_totals[active_scope] > self._max_pulses_per_scope:
-            # Decrement pulse count for this "failed" pulse before raising
-            self._decrement_scope_counts(pulse_stack)
-            raise RuntimeError(f"RUNAWAY TRAIN: Scope '{active_scope}' exceeded {self._max_pulses_per_scope} pulses without yielding.")
 
         # 1. Barrier/Return check
         node_type = type(node).__name__
         is_return = "ReturnNode" in node_type or "Return" in node_type
         if is_return:
             active_scope = context_stack[-1] if context_stack else "ROOT"
-            with self._lock:
-                other_pulses = self.scope_pulse_counts.get(active_scope, 0)
-            if other_pulses > 1:
-                logger.info(f"Terminating parallel branch at ReturnNode. (Other pulses in {active_scope}: {other_pulses})")
-                
-                # [FIX] Final Decrement for this pulse before termination!
-                # Otherwise, the scope will never reach 0 and will hang.
-                self._decrement_scope_counts(pulse_stack)
-                self._check_scope_terminations()
-                return False
+            
+            # [FIX] Do NOT apply Return Barrier for Loop Iterations
+            # Loops manage their own continuity via active_ports/stack_overrides.
+            # Terminating them here can break the loop chain.
+            is_loop_scope = str(active_scope).startswith("LO_")
+            
+            if not is_loop_scope:
+                # [LOCKBOX] Gather return data immediately
+                return_data = self._gather_inputs(node_id, trigger_port)
+                if return_data:
+                    # [STRICT WHITELIST] Filter by schema AND aggressive keyword block
+                    reserved = ["Flow", "Exec", "In", "_trigger", "_bridge", "_engine", "_context_stack", "_context_pulse"]
+                    blocked_keywords = ["color", "additional", "schema", "label", "context", "provider"]
+                    
+                    payload = {}
+                    for k, v in return_data.items():
+                        # [FIX] Capture ALL non-reserved, non-UI-blocked ports
+                        # Dynamic Return nodes may not have 'Last Image' in their schema cache yet.
+                        if k in reserved:
+                            continue
+                            
+                        # Allow internal metadata, block everything else containing keywords
+                        if k.startswith("_SYNP_"):
+                            payload[k] = v
+                            continue
+                            
+                        pn_lower = k.lower()
+                        if any(kw in pn_lower for kw in blocked_keywords):
+                            continue
+                        payload[k] = v
+                    
+                    with self._lock:
+                        if active_scope not in self.deferred_returns:
+                            self.deferred_returns[active_scope] = {}
+                        self.deferred_returns[active_scope].update(payload)
+                        
+                        # [LABEL] Stash node name for the parent return path
+                        label = node.name if node.name != "Return Node" else "Flow"
+                        self.deferred_returns[active_scope]["__RETURN_NODE_LABEL__"] = label
+                        
+                        logger.info(f"Stashed return payload and label '{label}' from {node_id} in {active_scope} lockbox.")
+
+                with self._lock:
+                    other_pulses = self.scope_pulse_counts.get(active_scope, 0)
+                if other_pulses > 1:
+                    logger.info(f"Terminating parallel branch at ReturnNode. (Other pulses in {active_scope}: {other_pulses})")
+                    
+                    self._decrement_scope_counts(pulse_stack)
+                    self._check_scope_terminations()
+                    return False
 
         # 2. Controls (Speed/Pause)
         self._handle_controls()
@@ -461,14 +516,14 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         # 4. Dispatch & Execute
         if self.trace and not self.headless: print(f"[NODE_START] {node_id}", flush=True)
         # Sanitize
-        self.bridge.set(f"{node_id}_ActivePorts", None, "Engine_Sanitize")
-        self.bridge.set(f"{node_id}_Condition", None, "Engine_Sanitize")
+        self.bridge.bubble_set(f"{node_id}_ActivePorts", None, "Engine_Sanitize")
+        self.bridge.bubble_set(f"{node_id}_Condition", None, "Engine_Sanitize")
 
         logger.info(f"Executing {node.name} (Context: {len(context_stack)})...")
         exec_result = None
         # Trigger Bubble-up
         if self.parent_bridge and self.parent_node_id:
-            self.parent_bridge.set(f"{self.parent_node_id}_SubGraphActivity", True, "ChildEngine")
+            self.parent_bridge.bubble_set(f"{self.parent_node_id}_SubGraphActivity", True, "ChildEngine")
             print(f"[SYNP_SUBGRAPH_ACTIVITY] {self.parent_node_id}")
 
         # [FIX] Thread-Safe Context Passing
@@ -498,7 +553,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             return True
 
         if self.trace and not self.headless: print(f"[NODE_STOP] {node_id}", flush=True)
-        if exec_result is not None: self.bridge.set(f"{node_id}_Condition", exec_result, "Engine_Sync")
+        if exec_result is not None: self.bridge.bubble_set(f"{node_id}_Condition", exec_result, "Engine_Sync")
         self._handle_wireless(node, context_stack)
 
         # [YIELD HANDLING] Check for Special Yield Signals in Result
@@ -596,7 +651,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         if node.is_service and node.node_id not in self.service_registry:
             logger.info(f"Persistent Service Registered: {node.name}")
             self.service_registry[node.node_id] = node
-            self.bridge.set(f"{node.node_id}_IsServiceRunning", True, "Engine")
+            self.bridge.bubble_set(f"{node.node_id}_IsServiceRunning", True, "Engine")
             print(f"[SERVICE_START] {node.node_id}")
 
         return True
@@ -622,54 +677,69 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         if self.headless:
             return
             
-        now = time.time()
-        # Only poll disk if interval passed OR if we are currently paused (to catch resume)
-        # Actually, if we are paused, we poll more frequently in the while loop anyway.
-        if now - self._last_control_check > self._control_interval:
-            self._last_control_check = now
-            
-            # Speed
-            if self.speed_file and os.path.exists(self.speed_file):
-                try:
-                    with open(self.speed_file, 'r') as f:
-                        val = f.read().strip()
-                        if val: self.delay = float(val)
-                except: pass
-                
-            # [TRACE OPTIMIZATION] Sync Trace Flags
-            trace_enabled = self.bridge.get("_SYSTEM_TRACE_ENABLED", default=True)
-            if self.parent_bridge:
-                # [NEW] Parent Stop Propagation
-                if self.parent_bridge.get("_SYSTEM_STOP"):
-                    self.bridge.set("_SYSTEM_STOP", True, "Parent_Stop_Propagation")
-
-                # We are a sub-graph, check if sub-graph tracing is enabled
-                trace_subgraphs = self.bridge.get("_SYSTEM_TRACE_SUBGRAPHS", default=True)
-                self.trace = trace_enabled and trace_subgraphs
-            else:
-                self.trace = trace_enabled
+        # 1. Immediate Settings Sync
+        self._sync_settings()
         
+        # 2. Variable Delay (Sliced to remain responsive)
         if self.delay > 0:
-            time.sleep(self.delay)
+            start_wait = time.time()
+            while (time.time() - start_wait) < self.delay:
+                # Check for stop signal aggressively
+                if self._check_stop_signal():
+                    return
+                
+                # Periodically re-sync settings (speed/trace) during long sleeps
+                now = time.time()
+                if now - self._last_control_check > self._control_interval:
+                    self._sync_settings()
+                    # If speed was increased (delay decreased) and we've already waited enough, break
+                    if self.delay <= (now - start_wait):
+                        break
+
+                remaining = self.delay - (time.time() - start_wait)
+                if remaining <= 0: break
+                time.sleep(min(0.05, remaining)) # Small slices for maximum responsiveness
         
-        # Pause
+        # 3. Pause Handling
         if self.pause_file and os.path.exists(self.pause_file):
             logger.info("Execution paused...")
             while os.path.exists(self.pause_file):
-                # We check Speed even while paused so we can resume fast/slow
-                if self.speed_file and os.path.exists(self.speed_file):
-                    try:
-                        with open(self.speed_file, 'r') as f:
-                             val = f.read().strip()
-                             if val: self.delay = float(val)
-                    except: pass
-                
-                # [NEW] still check for Stop while paused
+                # Still check for stop/speed signals while paused
+                self._sync_settings()
                 if self._check_stop_signal():
                     return
-
                 time.sleep(0.1)
             logger.info("Execution resumed.")
+
+    def _sync_settings(self):
+        """Polls disk and bridge for runtime configuration changes."""
+        now = time.time()
+        if now - self._last_control_check < self._control_interval:
+            # Check Stop Signal ONLY even if interval not passed (Critical)
+            return
+
+        self._last_control_check = now
+        
+        # Speed Control
+        if self.speed_file and os.path.exists(self.speed_file):
+            try:
+                with open(self.speed_file, 'r') as f:
+                    val = f.read().strip()
+                    if val: self.delay = float(val)
+            except: pass
+            
+        # Trace Flags
+        trace_enabled = self.bridge.get("_SYSTEM_TRACE_ENABLED", default=True)
+        if self.parent_bridge:
+            # Parent Stop Propagation
+            if self.parent_bridge.get("_SYSTEM_STOP"):
+                self.bridge.set("_SYSTEM_STOP", True, "Parent_Stop_Propagation")
+
+            # Sub-graph specific tracing
+            trace_subgraphs = self.bridge.get("_SYSTEM_TRACE_SUBGRAPHS", default=True)
+            self.trace = trace_enabled and trace_subgraphs
+        else:
+            self.trace = trace_enabled
 
     def _check_stop_signal(self):
         """Checks bridge and optional stop file for termination request."""
@@ -845,6 +915,35 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                         
                         del self.pending_terminations[scope_id]
                     
+                    if scope_id in self.pending_terminations:
+                        # ... provider logic ...
+                        pass # (kept same as before)
+
+                    # [LOCKBOX] Flush stashed returns for this scope
+                    if scope_id in self.deferred_returns:
+                        payload = self.deferred_returns.pop(scope_id)
+                        if payload:
+                            parent_id = self.parent_node_id
+                            return_key = f"SUBGRAPH_RETURN_{parent_id}" if parent_id else "SUBGRAPH_RETURN"
+                            logger.info(f"Lockbox Flush: Using return_key {return_key} for scope {scope_id} (Parent ID: {parent_id})")
+                            logger.info(f"Lockbox Flush: Payload keys: {list(payload.keys())}")
+                            
+                            # Merge with existing safely (Scrub stale pollution)
+                            existing = self.bridge.get(return_key) or {}
+                            if isinstance(existing, dict):
+                                # Scrub existing data before merge
+                                reserved = ["Flow", "Exec", "In", "_trigger", "_bridge", "_engine", "_context_stack", "_context_pulse"]
+                                blocked_keywords = ["color", "additional", "schema", "label", "context", "provider"]
+                                
+                                to_delete = [k for k in existing if any(kw in k.lower() for kw in blocked_keywords) or k in reserved]
+                                for k in to_delete: del existing[k]
+                                
+                                existing.update(payload)
+                                self.bridge.set(return_key, existing, "Engine_Lockbox_ScopeFlush")
+                            else:
+                                self.bridge.set(return_key, payload, "Engine_Lockbox_ScopeFlush")
+                            logger.info(f"Auto-flushed stashed returns for scope {scope_id} to {return_key}")
+
                     if scope_id in self.scope_pulse_counts:
                         if self.scope_pulse_counts[scope_id] <= 0:
                             del self.scope_pulse_counts[scope_id]

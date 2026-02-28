@@ -46,8 +46,12 @@ class DivideNode(SuperNode):
         self.register_handler("Flow", self.divide)
         
     def divide(self, A=None, B=None, **kwargs):
-        val_a = A if A is not None else self.properties.get("A", 1)
-        val_b = B if B is not None else self.properties.get("B", 1)
+        val_a = A if A is not None else kwargs.get("A")
+        if val_a is None: val_a = self.properties.get("A", 1)
+        
+        val_b = B if B is not None else kwargs.get("B")
+        if val_b is None: val_b = self.properties.get("B", 1)
+        
         handle_zero = kwargs.get("Handle Div 0") if kwargs.get("Handle Div 0") is not None else self.properties.get("Handle Div 0", False)
         
         try:

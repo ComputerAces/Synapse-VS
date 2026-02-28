@@ -3,7 +3,7 @@ from synapse.nodes.registry import NodeRegistry
 
 logger = logging.getLogger(__name__)
 
-GRAPH_SCHEMA_VERSION = "2.1.0"
+GRAPH_SCHEMA_VERSION = "2.3.0"
 
 def validate_graph(data):
     """

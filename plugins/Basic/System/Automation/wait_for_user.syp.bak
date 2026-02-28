@@ -25,52 +25,19 @@
             "id": "667efea0-771f-41db-82e8-62015c6ff787",
             "type": "Project Var Set",
             "name": "Project Var Set",
-            "pos_x": 685.0403853757196,
-            "pos_y": 258.9387102616357,
+            "pos_x": 750.3845801341213,
+            "pos_y": 215.32729456350575,
             "properties": {
                 "Name": "Wait User Image",
                 "Value": ""
             }
         },
         {
-            "id": "dc90b4c5-00ac-47b5-a91b-df2df76a52ea",
-            "type": "Debug Node",
-            "name": "Debug Node",
-            "pos_x": 1452.7819279263197,
-            "pos_y": 310.63813120418195,
-            "properties": {
-                "Header": "Compare Debug",
-                "Data": "Compare True"
-            }
-        },
-        {
-            "id": "a6ef0d3a-b601-4573-91a8-88452d7b9861",
-            "type": "Debug Node",
-            "name": "Debug Node",
-            "pos_x": 1451.9475058240985,
-            "pos_y": 160.66812281203147,
-            "properties": {
-                "Header": "Compare Debug",
-                "Data": "Compare False"
-            }
-        },
-        {
-            "id": "2c8d2b07-2566-4320-9016-6e5dc60cbdaa",
-            "type": "Debug Node",
-            "name": "Debug Node",
-            "pos_x": -148.40705055253022,
-            "pos_y": -143.35402965982612,
-            "properties": {
-                "Header": "While Debug",
-                "Data": "End While"
-            }
-        },
-        {
             "id": "f26f30fc-b0fe-4fd1-b926-2d64b563ee30",
             "type": "Compare",
             "name": "Compare",
-            "pos_x": 1074.7075907226822,
-            "pos_y": 90.40761953107426,
+            "pos_x": 1073.249014946825,
+            "pos_y": 88.80318617763136,
             "properties": {
                 "Compare Type": "==",
                 "A": 0,
@@ -87,8 +54,9 @@
                 "SingletonScope": false,
                 "Singleton Scope": false,
                 "Provider_Flow_ID": "",
-                "Additional Outputs": [],
-                "Provider Flow ID": ""
+                "Provider Flow ID": "",
+                "Camera Index": "1",
+                "additional_outputs": []
             }
         },
         {
@@ -99,26 +67,15 @@
             "pos_y": -87.09679184535935,
             "properties": {
                 "Label": "",
-                "Additional Inputs": []
-            }
-        },
-        {
-            "id": "6d0089b1-94a1-41cc-9361-de3a9530dcf7",
-            "type": "Debug Node",
-            "name": "Debug Node",
-            "pos_x": 681.6567938177125,
-            "pos_y": 414.6602836760401,
-            "properties": {
-                "Header": "Image Debug",
-                "Data": "test"
+                "additional_inputs": []
             }
         },
         {
             "id": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
             "type": "While Node",
             "name": "While Node",
-            "pos_x": -407.2769500438213,
-            "pos_y": -10.920245398772977,
+            "pos_x": -404.3597984921069,
+            "pos_y": -22.58885160563048,
             "properties": {
                 "Continue": null,
                 "Break": null,
@@ -130,14 +87,14 @@
             "id": "e73b617c-1553-40ae-9107-91f62960680b",
             "type": "Is User There",
             "name": "Is User There",
-            "pos_x": 93.67134472478824,
-            "pos_y": 205.91922614617232,
+            "pos_x": 157.8486788625045,
+            "pos_y": 189.87489261174326,
             "properties": {
                 "Graph Path": "",
-                "Embedded Data": null,
                 "Isolated": false,
                 "Camera Index": "1",
-                "Last Image": null
+                "Last Image": null,
+                "embedded_data": null
             }
         },
         {
@@ -149,40 +106,12 @@
             "properties": {
                 "Milliseconds": 5000.0
             }
-        },
-        {
-            "id": "004ec7a0-e99d-4023-8783-f3b7f2994f7a",
-            "type": "Debug Node",
-            "name": "Debug Node",
-            "pos_x": 687.6567938177125,
-            "pos_y": 582.6602836760401,
-            "properties": {
-                "Header": "User Debug",
-                "Data": "test"
-            }
-        },
-        {
-            "id": "bdcd929a-6b15-4746-91dc-9a1f3b3ee009",
-            "type": "Debug Node",
-            "name": "Debug Node",
-            "pos_x": -524.1890527201352,
-            "pos_y": 304.6906469772482,
-            "properties": {
-                "Header": "Last Image Debug",
-                "Data": "test"
-            }
         }
     ],
     "wires": [
         {
             "from_node": "f26f30fc-b0fe-4fd1-b926-2d64b563ee30",
             "from_port": "True",
-            "to_node": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
-            "to_port": "Break"
-        },
-        {
-            "from_node": "f26f30fc-b0fe-4fd1-b926-2d64b563ee30",
-            "from_port": "False",
             "to_node": "89630fde-e3a9-4ebb-9a20-24ef2eee8be1",
             "to_port": "Flow"
         },
@@ -235,30 +164,6 @@
             "to_port": "Flow"
         },
         {
-            "from_node": "f26f30fc-b0fe-4fd1-b926-2d64b563ee30",
-            "from_port": "True",
-            "to_node": "dc90b4c5-00ac-47b5-a91b-df2df76a52ea",
-            "to_port": "Flow"
-        },
-        {
-            "from_node": "f26f30fc-b0fe-4fd1-b926-2d64b563ee30",
-            "from_port": "False",
-            "to_node": "a6ef0d3a-b601-4573-91a8-88452d7b9861",
-            "to_port": "Flow"
-        },
-        {
-            "from_node": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
-            "from_port": "Flow",
-            "to_node": "2c8d2b07-2566-4320-9016-6e5dc60cbdaa",
-            "to_port": "Flow"
-        },
-        {
-            "from_node": "e73b617c-1553-40ae-9107-91f62960680b",
-            "from_port": "Flow",
-            "to_node": "6d0089b1-94a1-41cc-9361-de3a9530dcf7",
-            "to_port": "Flow"
-        },
-        {
             "from_node": "e73b617c-1553-40ae-9107-91f62960680b",
             "from_port": "Last Image",
             "to_node": "12f3107e-4643-45c1-a054-bf6808381a17",
@@ -283,47 +188,29 @@
             "to_port": "Flow"
         },
         {
-            "from_node": "e73b617c-1553-40ae-9107-91f62960680b",
-            "from_port": "User Present",
-            "to_node": "004ec7a0-e99d-4023-8783-f3b7f2994f7a",
-            "to_port": "Data"
-        },
-        {
-            "from_node": "e73b617c-1553-40ae-9107-91f62960680b",
-            "from_port": "Last Image",
-            "to_node": "6d0089b1-94a1-41cc-9361-de3a9530dcf7",
-            "to_port": "Data"
-        },
-        {
             "from_node": "0db1ef0a-0cd9-43af-953f-03fa64b9319a",
             "from_port": "Camera Index",
             "to_node": "e73b617c-1553-40ae-9107-91f62960680b",
             "to_port": "Camera Index"
         },
         {
-            "from_node": "0db1ef0a-0cd9-43af-953f-03fa64b9319a",
-            "from_port": "Last Camera Image",
-            "to_node": "bdcd929a-6b15-4746-91dc-9a1f3b3ee009",
-            "to_port": "Data"
-        },
-        {
-            "from_node": "0db1ef0a-0cd9-43af-953f-03fa64b9319a",
-            "from_port": "Flow",
-            "to_node": "bdcd929a-6b15-4746-91dc-9a1f3b3ee009",
-            "to_port": "Flow"
-        },
-        {
             "from_node": "8d477117-dabf-4856-af65-b981754add22",
             "from_port": "Flow",
             "to_node": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
             "to_port": "Flow"
+        },
+        {
+            "from_node": "f26f30fc-b0fe-4fd1-b926-2d64b563ee30",
+            "from_port": "False",
+            "to_node": "c9ade539-2edd-4e26-8fbb-579f4462d3d7",
+            "to_port": "Break"
         }
     ],
     "frames": [],
     "viewport": {
-        "center_x": 323.87954342045293,
-        "center_y": 76.06262004571244,
-        "zoom": 0.40755892948953754
+        "center_x": 349.5720576279216,
+        "center_y": 281.84247146251175,
+        "zoom": 0.45770248653655615
     },
     "embedded_subgraphs": {},
     "project_name": "Wait For No User Interaction",
@@ -332,5 +219,5 @@
     "project_category": "System/Automation",
     "project_version": "1.0.0",
     "project_vars": {},
-    "version": "2.2.0"
+    "version": "2.3.0"
 }

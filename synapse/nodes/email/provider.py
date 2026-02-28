@@ -39,13 +39,14 @@ class EmailProviderNode(ProviderNode):
             "Port": DataType.NUMBER
         })
 
-    def register_provider_context(self, **kwargs):
-        host = kwargs.get("Host") or self.properties.get("Host", "smtp.gmail.com")
-        user = kwargs.get("User") or self.properties.get("User", "user@example.com")
-        pw = kwargs.get("Password") or self.properties.get("Password", "")
-        port = kwargs.get("Port") or self.properties.get("Port", 465)
+    def register_provider_context(self):
+        host = self.properties.get("Host", "smtp.gmail.com")
+        user = self.properties.get("User", "user@example.com")
+        pw = self.properties.get("Password", "")
+        port = self.properties.get("Port", 465)
 
         self.bridge.set(f"{self.node_id}_Host", host, self.name)
         self.bridge.set(f"{self.node_id}_User", user, self.name)
         self.bridge.set(f"{self.node_id}_Password", pw, self.name)
         self.bridge.set(f"{self.node_id}_Port", port, self.name)
+        return self.provider_type

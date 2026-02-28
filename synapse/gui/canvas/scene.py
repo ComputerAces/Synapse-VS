@@ -181,10 +181,6 @@ class GraphicScene(QGraphicsScene):
                 self.drag_wire = None
                 self.drag_start_port = None
                 self._emit_modified()
-                super().mouseReleaseEvent(event)                
-                self.drag_wire = None
-                self.drag_start_port = None
-                self._emit_modified()
                 super().mouseReleaseEvent(event)
                 return
 

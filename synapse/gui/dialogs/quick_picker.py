@@ -62,8 +62,10 @@ class QuickPicker(QDialog):
         self.tree.clear()
         
         source_type = getattr(self.source_port, 'data_type', DataType.ANY)
+        port_dir = getattr(self.source_port, 'port_type', "output")
+        
         is_flow_source = False
-        if source_type == DataType.FLOW:
+        if source_type in (DataType.FLOW, DataType.PROVIDER_FLOW):
             is_flow_source = True
         elif hasattr(self.source_port, 'port_class') and self.source_port.port_class == "flow":
             is_flow_source = True
@@ -85,24 +87,57 @@ class QuickPicker(QDialog):
                 
                 if not compatible and node_cls:
                     try:
-                        # Improved compatibility check logic
-                        inputs = None
-                        if isinstance(getattr(node_cls, 'default_inputs', None), property):
-                            temp = node_cls.__new__(node_cls)
-                            try: inputs = temp.default_inputs
-                            except: inputs = None
-                        else:
-                            inputs = getattr(node_cls, 'default_inputs', None)
+                        # Instantiate temporary node to safely execute define_schema
+                        temp = node_cls.__new__(node_cls)
+                        temp.properties = {} # Mock to prevent attr errors
+                        schema_inputs = None
+                        schema_outputs = None
                         
-                        if inputs:
-                            for inp in inputs:
-                                if isinstance(inp, tuple) and len(inp) >= 2:
-                                    inp_type = inp[1]
-                                    if inp_type == DataType.ANY or inp_type == source_type:
-                                        compatible = True; break
-                                else:
-                                    compatible = True; break
-                    except: pass
+                        # Newer Node Syntax (SuperNode)
+                        if hasattr(temp, "define_schema"):
+                            try:
+                                temp.define_schema()
+                                schema_inputs = getattr(temp, "input_schema", None)
+                                schema_outputs = getattr(temp, "output_schema", None)
+                            except: pass
+                            
+                        # Legacy Syntax Fallback
+                        if not schema_inputs and not schema_outputs:
+                            if isinstance(getattr(node_cls, 'default_inputs', None), property):
+                                try: schema_inputs = temp.default_inputs
+                                except: pass
+                            else:
+                                schema_inputs = getattr(node_cls, 'default_inputs', None)
+                                
+                            if isinstance(getattr(node_cls, 'default_outputs', None), property):
+                                try: schema_outputs = temp.default_outputs
+                                except: pass
+                            else:
+                                schema_outputs = getattr(node_cls, 'default_outputs', None)
+                        
+                        target_schema = schema_inputs if port_dir == "output" else schema_outputs
+                        
+                        if target_schema:
+                            # Format handling
+                            if isinstance(target_schema, dict):
+                                # New dictionary schema {"PortName": DataType.STRING}
+                                for port_name, p_type in target_schema.items():
+                                    if p_type == DataType.ANY or p_type == source_type:
+                                        compatible = True
+                                        break
+                            elif isinstance(target_schema, list):
+                                # Legacy list schema [("PortName", DataType.STRING)]
+                                for inp in target_schema:
+                                    if isinstance(inp, tuple) and len(inp) >= 2:
+                                        p_type = inp[1]
+                                        if p_type == DataType.ANY or p_type == source_type:
+                                            compatible = True
+                                            break
+                                    else:
+                                        compatible = True
+                                        break
+                    except Exception as e:
+                        pass
                 
                 if compatible:
                     if not cat_item:

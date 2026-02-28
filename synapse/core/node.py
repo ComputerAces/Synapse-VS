@@ -148,8 +148,9 @@ class BaseNode(abc.ABC):
                     matched = True
                     break
             
-            if not matched:
-                final_args[k] = v
+            # [SECURITY] Do NOT dump unmapped properties into execution args.
+            # This prevents UI noise (header_color, Label, etc.) from leaking into the data flow.
+            pass
 
         # 2. Override with Runtime Inputs
         final_args.update(runtime_inputs)
@@ -176,6 +177,7 @@ class BaseNode(abc.ABC):
                             break
         
         # 4. Auto-Cast Inputs
+        from synapse.core.types import TypeCaster
         for name, val in final_args.items():
             if name in self.input_types:
                 target_type = self.input_types[name]
@@ -184,6 +186,23 @@ class BaseNode(abc.ABC):
                 except Exception as e:
                      self.logger.warning(f"TypeCast failed for '{name}': {e}")
         
+        # [FINAL CLEANUP] Aggressive strip of UI metadata and reserved ports
+        # This ensures that even if something was Promoted to a port, it doesn't leak into logic.
+        blocked_keywords = ["color", "additional", "schema", "label", "context", "provider"]
+        reserved_ports = ["Flow", "Exec", "In", "_context_pulse", "_engine", "_bridge"]
+        
+        to_delete = []
+        for k in final_args:
+            if k in reserved_ports:
+                to_delete.append(k)
+                continue
+            kn_lower = k.lower()
+            if any(kw in kn_lower for kw in blocked_keywords):
+                to_delete.append(k)
+                
+        for k in to_delete:
+            del final_args[k]
+            
         return final_args
 
     def _run_wrapper(self, **kwargs):

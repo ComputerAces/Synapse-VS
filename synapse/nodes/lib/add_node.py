@@ -43,8 +43,11 @@ class AddNode(SuperNode):
 
     def add_values(self, A=None, B=None, **kwargs):
         # Fallback to properties
-        val_a = A if A is not None else self.properties.get("A", 0)
-        val_b = B if B is not None else self.properties.get("B", 0)
+        val_a = A if A is not None else kwargs.get("A")
+        if val_a is None: val_a = self.properties.get("A", 0)
+        
+        val_b = B if B is not None else kwargs.get("B")
+        if val_b is None: val_b = self.properties.get("B", 0)
         
         result = None
         

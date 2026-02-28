@@ -64,7 +64,9 @@ class LoopNode(SuperNode):
                 if active_scope:
                     self.bridge.set(f"SYNAPSE_CANCEL_SCOPE_{active_scope}", True, self.name)
             
-            self.finish_loop()
+            # [FIX] Pulse Flow with target base_stack to restore context
+            base_stack = self.bridge.get(base_stack_key) or curr_context
+            self.finish_loop(base_stack)
             return True
 
         # 2. Determine if starting or continuing

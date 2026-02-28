@@ -32,20 +32,46 @@ class ServiceReturnNode(SuperNode):
         self.output_schema = {}
 
     def yield_service(self, **kwargs):
-        # 1. Package return data
-        results = {}
-        for k, v in kwargs.items():
-            if k != "Flow":
-                results[k] = v
+        # Capture return values
+        return_values = {}
         
-        # 2. Set return metadata on bridge
-        self.bridge.set("SUBGRAPH_RETURN", results, self.name)
+        # Collect all incoming data ports (STRICT WHITELIST + AGGRESSIVE BLOCK)
+        reserved = ["Flow", "Exec", "In", "_trigger", "_bridge", "_engine", "_context_stack", "_context_pulse"]
+        blocked_keywords = ["color", "additional", "schema", "label", "context", "provider"]
+        
+        for k, v in kwargs.items():
+            if k.startswith("_SYNP_") and k not in reserved:
+                return_values[k] = v
+                continue
+                
+            # [FIX] Capture ALL non-reserved, non-UI-blocked ports
+            if k not in reserved:
+                # [NUCLEAR] Check for UI keywords in the port name
+                pn_lower = k.lower()
+                if any(kw in pn_lower for kw in blocked_keywords):
+                    continue
+                return_values[k] = v
+
+        # [FIX] Resolve Scoped Return Key (Instance Protection)
+        parent_id = self.bridge.get("_SYNP_PARENT_NODE_ID")
+        return_key = f"SUBGRAPH_RETURN_{parent_id}" if parent_id else "SUBGRAPH_RETURN"
+        
+        # [FIX] Merge return values safely (Scrub existing data to prevent stale pollution)
+        existing_returns = self.bridge.get(return_key) or {}
+        if isinstance(existing_returns, dict):
+            # Scrub existing data before merge
+            to_delete = [k for k in existing_returns if any(kw in k.lower() for kw in blocked_keywords) or k in reserved]
+            for k in to_delete: del existing_returns[k]
+            
+            existing_returns.update(return_values)
+            self.bridge.set(return_key, existing_returns, self.name)
+        else:
+            self.bridge.set(return_key, return_values, self.name)
+        
         self.bridge.set("__RETURN_NODE_LABEL__", "Flow", self.name)
         
         # 3. Signal Yield to Engine
         print(f"[{self.name}] Service Yielding control to parent...")
         self.bridge.set("_SYNP_YIELD", True, self.name)
         
-        # No propagation of flow (it exits the setup phase)
-        # self.bridge.set(f"{self.node_id}_ActivePorts", [], self.name)
-        return results
+        return return_values

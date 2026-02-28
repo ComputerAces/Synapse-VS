@@ -9,6 +9,9 @@ if exist "environment" goto :SKIP_SETUP
 echo Creating virtual environment...
 python -m venv environment
 
+echo Upgrading pip...
+environment\Scripts\python.exe -m pip install --upgrade pip
+
 echo.
 echo ========================================================
 echo               SYNAPSE VS - FIRST TIME SETUP
@@ -36,9 +39,9 @@ REM Activate the virtual environment
 call environment\Scripts\activate.bat
 
 REM Run the Synapse Architect GUI
-if exist "synapse/gui/main_window.py" (
+if exist "synapse\gui\main_window.py" (
     echo Launching Synapse VS Architect...
-    python synapse/gui/main_window.py %*
+    python "synapse\gui\main_window.py" %*
 ) else (
-    echo Error: synapse/gui/main_window.py not found.
+    echo Error: synapse\gui\main_window.py not found.
 )
