@@ -91,6 +91,22 @@ class MinimapWidget(QWidget):
         # Draw viewport frame
         self._draw_viewport(painter, graph.canvas)
         
+    def _get_fade_multiplier(self, x, y):
+        """Calculate a 0.0-1.0 multiplier based on proximity to widget edges."""
+        fade_zone = 30.0
+        rect = self.rect()
+        
+        dist_x = min(x, rect.width() - x)
+        dist_y = min(y, rect.height() - y)
+        
+        multiplier = 1.0
+        if dist_x < fade_zone:
+            multiplier = min(multiplier, dist_x / fade_zone)
+        if dist_y < fade_zone:
+            multiplier = min(multiplier, dist_y / fade_zone)
+            
+        return max(0.1, multiplier)
+
     def _draw_node(self, painter, node):
         """Draw a single node as a small rectangle."""
         # Use scenePos() for absolute coordinates (handles nodes inside frames)
@@ -175,8 +191,15 @@ class MinimapWidget(QWidget):
             # Dim the original color to indicate fading
             color = color.lighter(130) if color.lightness() < 128 else color.darker(130)
             painter.setPen(QPen(QColor(color.red(), color.green(), color.blue(), 128), 1))
-        else:
-            painter.setPen(QPen(QColor("#000000"), 1))
+        # Apply edge fading
+        fade_multiplier = self._get_fade_multiplier(x + w/2, y + h/2)
+        color.setAlpha(int(color.alpha() * fade_multiplier))
+        
+        pen = painter.pen()
+        pen_color = pen.color()
+        pen_color.setAlpha(int(pen_color.alpha() * fade_multiplier))
+        pen.setColor(pen_color)
+        painter.setPen(pen)
         
         painter.setBrush(QBrush(color))
         painter.drawRect(QRectF(x, y, max(w, 3), max(h, 3)))
@@ -226,10 +249,17 @@ class MinimapWidget(QWidget):
                     if factor <= 0:
                         wire._is_fading = False
 
+        # Calculate fading for the wire (using midpoint)
+        fade_multiplier = self._get_fade_multiplier((x1 + x2) / 2, (y1 + y2) / 2)
+        
         if alpha > 0:
-            painter.setPen(QPen(QColor(0, 255, 0, alpha), 2))
+            painter.setPen(QPen(QColor(0, 255, 0, int(alpha * fade_multiplier)), 2))
         else:
-            painter.setPen(QPen(wire.color if hasattr(wire, 'color') else QColor("#cccccc"), 1))
+            c = wire.color if hasattr(wire, 'color') else QColor("#cccccc")
+            if isinstance(c, str): c = QColor(c)
+            # Standard wires use a naturally thinner/fainter alpha scaled by fade
+            c.setAlpha(int(128 * fade_multiplier))
+            painter.setPen(QPen(c, 1))
             
         painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
         

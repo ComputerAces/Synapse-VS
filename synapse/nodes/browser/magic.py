@@ -77,12 +77,17 @@ class MagicFinder:
                 # 1. Search Main Page
                 for sel in selectors:
                     try:
+                        # [FIX] query_selector_all fails on raw XPaths without /xpath= prefix
+                        # if it starts with / or // but isn't prefixed, we skip it here as it was already handled or prefixed above
+                        if (sel.startswith('/') or sel.startswith('//')) and not (sel.startswith('xpath=') or sel.startswith('css=')):
+                            continue
+
                         found = self.page.query_selector_all(sel)
                         if found: all_found.extend(found)
                     except Exception as e:
                         import threading
                         curr_thread = threading.current_thread().name
-                        logger.error(f"MagicFind Query Failed (Thread: {curr_thread}): {e}")
+                        logger.error(f"MagicFind Query Failed (Thread: {curr_thread}) for '{sel}': {e}")
                 
                 # 2. Search Frames if still searching
                 if not all_found:
@@ -143,10 +148,14 @@ class MagicFinder:
             return None
 
     def _parse_syntax(self, target: str) -> List[Dict[str, Any]]:
-        """Parses 'parent.child[n]' into tokens."""
+        """Parses hierarchical paths (e.g., 'parent.child[n]', 'parent/child', 'parent,child')."""
         tokens = []
-        parts = target.split('.')
+        # [FIX] Remove any leading dots/slashes/commas
+        clean_target = target.lstrip('./,')
+        # [REFINED] Support dot, slash, and comma as interchangeable separators
+        parts = re.split(r'[./,]', clean_target)
         for part in parts:
+            if not part: continue # Skip empty parts from double separators like //
             match = re.match(r"([\*\w\-]+)(?:\[(\d+)\])?", part)
             if match:
                 name = match.group(1)
@@ -292,12 +301,10 @@ class MagicFinder:
                 let n = el;
                 while (n && n.nodeType === Node.ELEMENT_NODE) {
                     let sel = n.nodeName.toLowerCase();
-                    if (n.id) {
-                        sel += '#' + n.id;
-                    }
+                    // We remove the ID-based root shortcut to ensure full tag-based paths
                     let sib = n, nth = 1;
                     while (sib = sib.previousElementSibling) {
-                        if (sib.nodeName.toLowerCase() === sel.split('#')[0]) nth++;
+                        if (sib.nodeName.toLowerCase() === sel) nth++;
                     }
                     if (nth !== 1) sel += "[" + nth + "]";
                     path.unshift(sel);

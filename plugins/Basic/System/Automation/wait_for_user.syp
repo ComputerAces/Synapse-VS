@@ -1,4 +1,5 @@
 {
+    "version": "2.3.0",
     "nodes": [
         {
             "id": "b35b985a-8071-4d9c-8f23-83f1c0f57783",
@@ -7,7 +8,7 @@
             "pos_x": -167.97774516055614,
             "pos_y": 144.37699216656188,
             "properties": {
-                "Name": "Wait User Image"
+                "Var Name": "Last Image of Project"
             }
         },
         {
@@ -17,7 +18,7 @@
             "pos_x": -652.593872939007,
             "pos_y": -8.15312326301952,
             "properties": {
-                "Name": "Wait User Image",
+                "Var Name": "Last Image of Project",
                 "Value": ""
             }
         },
@@ -28,7 +29,7 @@
             "pos_x": 750.3845801341213,
             "pos_y": 215.32729456350575,
             "properties": {
-                "Name": "Wait User Image",
+                "Var Name": "Last Image of Project",
                 "Value": ""
             }
         },
@@ -91,10 +92,10 @@
             "pos_y": 189.87489261174326,
             "properties": {
                 "Graph Path": "",
+                "Embedded Data": null,
                 "Isolated": false,
-                "Camera Index": "1",
                 "Last Image": null,
-                "Embedded Data": null
+                "Camera Index": "1"
             }
         },
         {
@@ -208,9 +209,9 @@
     ],
     "frames": [],
     "viewport": {
-        "center_x": 349.5720576279216,
-        "center_y": 281.84247146251175,
-        "zoom": 0.45770248653655615
+        "center_x": -245.5454422459879,
+        "center_y": 282.1737678848922,
+        "zoom": 0.7371344315919895
     },
     "embedded_subgraphs": {},
     "project_name": "Wait For No User Interaction",
@@ -218,6 +219,5 @@
     "project_type": "",
     "project_category": "System/Automation",
     "project_version": "1.0.0",
-    "project_vars": {},
-    "version": "2.3.0"
+    "project_vars": {}
 }

@@ -2,47 +2,199 @@
     "version": "2.3.0",
     "nodes": [
         {
-            "id": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
-            "type": "Browser Click",
-            "name": "Browser Click",
-            "pos_x": 2237.405404807346,
-            "pos_y": 212.5099736655032,
+            "id": "9ac48ec1-982e-4a9a-b23b-abf4abc52a36",
+            "type": "Debug Node",
+            "name": "Debug Node",
+            "pos_x": 3289.4226503723826,
+            "pos_y": 549.1835607491286,
+            "properties": {
+                "Header": "Eloements Count ",
+                "Data": null
+            }
+        },
+        {
+            "id": "b6c69913-afba-475a-bc4a-4ec2c5aaf316",
+            "type": "Data To String",
+            "name": "Data To String",
+            "pos_x": 4384.039688452554,
+            "pos_y": 697.7679233733512,
+            "properties": {
+                "Data": null,
+                "Indent": true
+            }
+        },
+        {
+            "id": "24c9d5d1-de91-4334-89ef-2de6f022ff6e",
+            "type": "Browser Strip Data",
+            "name": "Browser Strip Data",
+            "pos_x": 4006.7539718169946,
+            "pos_y": 566.5823237884799,
+            "properties": {
+                "Selector": "",
+                "Mode": "Text"
+            }
+        },
+        {
+            "id": "1425a85f-7678-4390-8d0c-f4eade85f609",
+            "type": "Debug Node",
+            "name": "Debug Node",
+            "pos_x": 4748.274961876779,
+            "pos_y": 684.862757680938,
+            "properties": {
+                "Header": "Browser Item Value ",
+                "Data": null
+            }
+        },
+        {
+            "id": "d028ed17-ee73-413b-84e2-82441eb46a92",
+            "type": "Debug Node",
+            "name": "Debug Node",
+            "pos_x": 733.6514705466216,
+            "pos_y": -181.59689865015386,
+            "properties": {
+                "Header": "*",
+                "Data": null
+            }
+        },
+        {
+            "id": "cd20f058-c5e0-4c69-9f58-4402b0b5cd87",
+            "type": "Project Set Var",
+            "name": "Return List Set",
+            "pos_x": 4453.3341131831285,
+            "pos_y": -39.990959031246916,
+            "properties": {
+                "Var Name": "Return List",
+                "Value": null
+            }
+        },
+        {
+            "id": "61828c0b-6ec6-4efe-966e-dd83833e0c2f",
+            "type": "Raise Error",
+            "name": "Raise Error",
+            "pos_x": 3715.005777471189,
+            "pos_y": 328.38431839358674,
+            "properties": {
+                "Message": "Search Results not found!"
+            }
+        },
+        {
+            "id": "d7ac853f-f4a9-4366-bc65-0ec347c42922",
+            "type": "Compare",
+            "name": "Compare",
+            "pos_x": 3308.781598344425,
+            "pos_y": 210.23181918660003,
+            "properties": {
+                "Compare Type": ">",
+                "A": "",
+                "B": "0"
+            }
+        },
+        {
+            "id": "c37b0cd5-b7f1-40dd-8548-6cceabca782e",
+            "type": "String",
+            "name": "Search List",
+            "pos_x": 2527.9315957714684,
+            "pos_y": 416.0924368627835,
+            "properties": {
+                "Value": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section[1]"
+            }
+        },
+        {
+            "id": "8d802384-d36c-45cd-9670-df24910a7a29",
+            "type": "String",
+            "name": "Search Button",
+            "pos_x": 1534.0111952425227,
+            "pos_y": 430.01788185537777,
+            "properties": {
+                "Value": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]"
+            }
+        },
+        {
+            "id": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "type": "Browser Wait for Element",
+            "name": "Browser Wait for Element",
+            "pos_x": 1869.4750198669863,
+            "pos_y": 182.74097848608727,
             "properties": {
                 "Selector": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]",
-                "Use Points": false,
-                "X": 0,
-                "Y": 0
+                "State": "visible",
+                "Timeout": 30000
             }
         },
         {
-            "id": "10395e24-33bf-467a-86a4-3e51a70d90e5",
-            "type": "Wait",
-            "name": "Wait",
-            "pos_x": 2533.984916236777,
-            "pos_y": -3.455160867754543,
+            "id": "7f97651e-d313-4f13-b1b5-14332678aeda",
+            "type": "Browser Strip Data",
+            "name": "Browser Strip Data",
+            "pos_x": 146.4415460855446,
+            "pos_y": 78.26950394086492,
             "properties": {
-                "Milliseconds": 15000.0
+                "Selector": "",
+                "Mode": "Text"
             }
         },
         {
-            "id": "45ddc53a-498a-4c45-b382-da80abcd05ce",
-            "type": "Browser Type",
-            "name": "Browser Type",
-            "pos_x": 1531.1754343304715,
-            "pos_y": 292.34836231140395,
+            "id": "2d604efc-b271-414e-a28e-e4112e2afc2a",
+            "type": "Start Node",
+            "name": "Start Node",
+            "pos_x": -1165.789364769585,
+            "pos_y": -35.0627794612103,
+            "properties": {
+                "Search For": "Meaning of Life",
+                "Additional Outputs": [
+                    "Search For"
+                ]
+            }
+        },
+        {
+            "id": "edf7d6f5-addf-47fb-9dc5-8bba4a1aeb7e",
+            "type": "Return Node",
+            "name": "Return Node",
+            "pos_x": 349.8570016740266,
+            "pos_y": -187.11737283323922,
+            "properties": {
+                "Found Items": "",
+                "Additional Inputs": [
+                    "Found Items"
+                ]
+            }
+        },
+        {
+            "id": "a7cd7e37-9f3b-4728-bf2f-0594e26c43ba",
+            "type": "Browser Provider",
+            "name": "Browser Provider",
+            "pos_x": -595.8719188457553,
+            "pos_y": -33.91505581511393,
+            "properties": {
+                "App ID": "test",
+                "Browser Type": "chromium",
+                "Headless": false,
+                "Devtools": false,
+                "User Profile Path": "F:\\Chrome\\User Data\\Profile",
+                "Executable Path": ""
+            }
+        },
+        {
+            "id": "11fa4dbe-550f-49e4-8dc7-029a2f0bc3e6",
+            "type": "Browser Navigate",
+            "name": "Browser Navigate",
+            "pos_x": -149.40708176576868,
+            "pos_y": 76.74605953014569,
+            "properties": {
+                "URL": "https://duckduckgo.com/",
+                "Wait Until": "networkidle",
+                "Timeout": 30000
+            }
+        },
+        {
+            "id": "85d33686-c24f-4f86-82e5-c694e57c8afa",
+            "type": "Browser Wait for Element",
+            "name": "Browser Wait for Element",
+            "pos_x": 499.2397169574622,
+            "pos_y": 85.27370239373661,
             "properties": {
                 "Selector": "/html/body/div[2]/div[4]/form/div[1]/div[1]/div[1]/div[1]/div[3]/textarea",
-                "Text": "Synapse VS"
-            }
-        },
-        {
-            "id": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
-            "type": "String",
-            "name": "Search Box",
-            "pos_x": 573.3367680936931,
-            "pos_y": 223.29337802178298,
-            "properties": {
-                "Value": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[1]/div/input"
+                "State": "visible",
+                "Timeout": 30000
             }
         },
         {
@@ -59,170 +211,287 @@
             }
         },
         {
-            "id": "85d33686-c24f-4f86-82e5-c694e57c8afa",
-            "type": "Browser Wait for Element",
-            "name": "Browser Wait for Element",
-            "pos_x": 986.3788101180489,
-            "pos_y": 47.42167826301535,
+            "id": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
+            "type": "String",
+            "name": "Search Box",
+            "pos_x": 152.027282116969,
+            "pos_y": 247.97948071573165,
+            "properties": {
+                "Value": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[1]/div/input"
+            }
+        },
+        {
+            "id": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "type": "Browser Type",
+            "name": "Browser Type",
+            "pos_x": 1531.1754343304715,
+            "pos_y": 292.34836231140395,
             "properties": {
                 "Selector": "/html/body/div[2]/div[4]/form/div[1]/div[1]/div[1]/div[1]/div[3]/textarea",
-                "State": "visible",
-                "Timeout": 30000
+                "Text": "Synapse VS"
             }
         },
         {
-            "id": "11fa4dbe-550f-49e4-8dc7-029a2f0bc3e6",
-            "type": "Browser Navigate",
-            "name": "Browser Navigate",
-            "pos_x": 271.90240421095535,
-            "pos_y": 52.05995683619703,
+            "id": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
+            "type": "Browser Click",
+            "name": "Browser Click",
+            "pos_x": 2522.118455877554,
+            "pos_y": 217.4471942042929,
             "properties": {
-                "URL": "https://duckduckgo.com/",
-                "Wait Until": "networkidle",
-                "Timeout": 30000
+                "Selector": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]",
+                "Use Points": false,
+                "X": 0,
+                "Y": 0
             }
         },
         {
-            "id": "a7cd7e37-9f3b-4728-bf2f-0594e26c43ba",
-            "type": "Browser Provider",
-            "name": "Browser Provider",
-            "pos_x": -146.0,
-            "pos_y": -45.0,
+            "id": "053ea396-7696-4d01-b77b-09728d3e6e26",
+            "type": "Compare",
+            "name": "Compare",
+            "pos_x": 2155.9196352715176,
+            "pos_y": 126.72199382893655,
             "properties": {
-                "App ID": "test",
-                "Browser Type": "chromium",
-                "Headless": false,
-                "Devtools": false,
-                "User Profile Path": "F:\\Chrome\\User Data\\Profile",
-                "Executable Path": ""
+                "Compare Type": "==",
+                "A": "",
+                "B": "1"
             }
         },
         {
-            "id": "edf7d6f5-addf-47fb-9dc5-8bba4a1aeb7e",
-            "type": "Return Node",
-            "name": "Return Node",
-            "pos_x": 695.0,
-            "pos_y": -171.0,
-            "properties": {}
-        },
-        {
-            "id": "2d604efc-b271-414e-a28e-e4112e2afc2a",
-            "type": "Start Node",
-            "name": "Start Node",
-            "pos_x": -389.0,
-            "pos_y": -40.0,
-            "properties": {}
-        },
-        {
-            "id": "7f97651e-d313-4f13-b1b5-14332678aeda",
-            "type": "Browser Strip Data",
-            "name": "Browser Strip Data",
-            "pos_x": 567.7510320622687,
-            "pos_y": 53.58340124691627,
+            "id": "8f661afe-2b95-4ad8-8ba1-8b0c12ebaa3d",
+            "type": "Raise Error",
+            "name": "Raise Error",
+            "pos_x": 2516.3367346031664,
+            "pos_y": 102.03589113498765,
             "properties": {
-                "Selector": "",
-                "Mode": "Text"
+                "Message": "Search Button not found!"
             }
         },
         {
-            "id": "b81ebb8f-dd4a-4bf5-885c-2febe0e48e90",
+            "id": "a73345e7-0a22-4ebd-b2d6-6f8a8c621d03",
+            "type": "Raise Error",
+            "name": "Raise Error",
+            "pos_x": 1262.910512362677,
+            "pos_y": 51.64574017959649,
+            "properties": {
+                "Message": "Search Input not found!"
+            }
+        },
+        {
+            "id": "4e7647b0-0b30-4e72-86de-597aedee4446",
+            "type": "Compare",
+            "name": "Compare",
+            "pos_x": 854.7669478227265,
+            "pos_y": 68.10314197556238,
+            "properties": {
+                "Compare Type": "==",
+                "A": "",
+                "B": "1"
+            }
+        },
+        {
+            "id": "d031cd9c-0504-455e-9c38-858bc959c427",
+            "type": "Project Set Var",
+            "name": "Return List Set",
+            "pos_x": -571.6430909773933,
+            "pos_y": -186.60789474433903,
+            "properties": {
+                "Var Name": "Return List",
+                "Value": null
+            }
+        },
+        {
+            "id": "bc1a963d-6a43-409c-b609-f67d76681a6a",
+            "type": "List Node",
+            "name": "List Node",
+            "pos_x": -828.3785589944594,
+            "pos_y": -184.96215456474232,
+            "properties": {
+                "AdditionalInputs": [],
+                "Additional Inputs": []
+            }
+        },
+        {
+            "id": "3f7caaed-5fa3-4661-b245-efba7e81e39b",
+            "type": "Project Get Var",
+            "name": "Return List Get",
+            "pos_x": -62.23890133747059,
+            "pos_y": -189.70895888440546,
+            "properties": {
+                "Var Name": "Return List"
+            }
+        },
+        {
+            "id": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "type": "ForEach Node",
+            "name": "ForEach Node",
+            "pos_x": 3711.404775852384,
+            "pos_y": 445.27559549017724,
+            "properties": {
+                "Continue": null,
+                "Break": null,
+                "End": null,
+                "List": []
+            }
+        },
+        {
+            "id": "ff4ad7c5-b673-4d80-a5e6-66e0a03eb841",
             "type": "Debug Node",
             "name": "Debug Node",
-            "pos_x": 2234.9386404750976,
-            "pos_y": 415.2658533071968,
+            "pos_x": 4724.424915282403,
+            "pos_y": 387.89097551672876,
             "properties": {
-                "Header": "Found Span",
+                "Header": "Browser Item Path",
                 "Data": null
             }
         },
         {
-            "id": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
-            "type": "Browser Wait for Element",
-            "name": "Browser Wait for Element",
-            "pos_x": 1846.4346573526343,
-            "pos_y": 181.09523830649067,
+            "id": "7270d223-43c8-49b2-b7bd-43d8bf25df63",
+            "type": "Debug Node",
+            "name": "Debug Node",
+            "pos_x": 4744.522279876335,
+            "pos_y": 541.6436575171742,
             "properties": {
-                "Selector": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]",
-                "State": "visible",
-                "Timeout": 30000
+                "Header": "Browser Item Count",
+                "Data": null
             }
         },
         {
-            "id": "8d802384-d36c-45cd-9670-df24910a7a29",
-            "type": "String",
-            "name": "Search Button",
-            "pos_x": 1534.0111952425227,
-            "pos_y": 430.01788185537777,
+            "id": "d3a57de7-4e88-4e1b-8541-b97060b086d1",
+            "type": "Wait",
+            "name": "Wait",
+            "pos_x": 4112.806560628685,
+            "pos_y": 400.9659522195397,
             "properties": {
-                "Value": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]"
+                "Milliseconds": 30000.0
+            }
+        },
+        {
+            "id": "6b05e499-8767-4914-bebe-30a538b0142e",
+            "type": "Browser Strip Elements",
+            "name": "Browser Strip Elements",
+            "pos_x": 2903.6617706565003,
+            "pos_y": 298.8358564186932,
+            "properties": {
+                "Element Type": "article",
+                "Include Children": true,
+                "Wait Until": "load",
+                "Timeout": 30000
             }
         }
     ],
     "wires": [
         {
-            "from_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
+            "from_node": "b6c69913-afba-475a-bc4a-4ec2c5aaf316",
+            "from_port": "String",
+            "to_node": "1425a85f-7678-4390-8d0c-f4eade85f609",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "b6c69913-afba-475a-bc4a-4ec2c5aaf316",
             "from_port": "Flow",
-            "to_node": "10395e24-33bf-467a-86a4-3e51a70d90e5",
+            "to_node": "ff4ad7c5-b673-4d80-a5e6-66e0a03eb841",
             "to_port": "Flow"
         },
         {
-            "from_node": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
-            "from_port": "Result",
-            "to_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "from_node": "24c9d5d1-de91-4334-89ef-2de6f022ff6e",
+            "from_port": "Flow",
+            "to_node": "b6c69913-afba-475a-bc4a-4ec2c5aaf316",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "24c9d5d1-de91-4334-89ef-2de6f022ff6e",
+            "from_port": "Data",
+            "to_node": "b6c69913-afba-475a-bc4a-4ec2c5aaf316",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "from_port": "Item",
+            "to_node": "ff4ad7c5-b673-4d80-a5e6-66e0a03eb841",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "from_port": "Body",
+            "to_node": "24c9d5d1-de91-4334-89ef-2de6f022ff6e",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "from_port": "Item",
+            "to_node": "24c9d5d1-de91-4334-89ef-2de6f022ff6e",
             "to_port": "Selector"
         },
         {
-            "from_node": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
-            "from_port": "Result",
-            "to_node": "652ef55f-992e-4a81-87f5-aa2b41309a3b",
-            "to_port": "Selector"
-        },
-        {
-            "from_node": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
-            "from_port": "Result",
-            "to_node": "85d33686-c24f-4f86-82e5-c694e57c8afa",
-            "to_port": "Selector"
-        },
-        {
-            "from_node": "7f97651e-d313-4f13-b1b5-14332678aeda",
+            "from_node": "1425a85f-7678-4390-8d0c-f4eade85f609",
             "from_port": "Flow",
-            "to_node": "85d33686-c24f-4f86-82e5-c694e57c8afa",
+            "to_node": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "to_port": "Continue"
+        },
+        {
+            "from_node": "3f7caaed-5fa3-4661-b245-efba7e81e39b",
+            "from_port": "Value",
+            "to_node": "d028ed17-ee73-413b-84e2-82441eb46a92",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "3f7caaed-5fa3-4661-b245-efba7e81e39b",
+            "from_port": "Flow",
+            "to_node": "d028ed17-ee73-413b-84e2-82441eb46a92",
             "to_port": "Flow"
         },
         {
-            "from_node": "11fa4dbe-550f-49e4-8dc7-029a2f0bc3e6",
-            "from_port": "Flow",
-            "to_node": "7f97651e-d313-4f13-b1b5-14332678aeda",
-            "to_port": "Flow"
-        },
-        {
-            "from_node": "85d33686-c24f-4f86-82e5-c694e57c8afa",
-            "from_port": "Flow",
-            "to_node": "652ef55f-992e-4a81-87f5-aa2b41309a3b",
-            "to_port": "Flow"
-        },
-        {
-            "from_node": "10395e24-33bf-467a-86a4-3e51a70d90e5",
+            "from_node": "cd20f058-c5e0-4c69-9f58-4402b0b5cd87",
             "from_port": "Flow",
             "to_node": "a7cd7e37-9f3b-4728-bf2f-0594e26c43ba",
             "to_port": "Provider End"
         },
         {
-            "from_node": "652ef55f-992e-4a81-87f5-aa2b41309a3b",
-            "from_port": "Flow",
-            "to_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "from_node": "d7ac853f-f4a9-4366-bc65-0ec347c42922",
+            "from_port": "False",
+            "to_node": "61828c0b-6ec6-4efe-966e-dd83833e0c2f",
             "to_port": "Flow"
         },
         {
             "from_node": "a7cd7e37-9f3b-4728-bf2f-0594e26c43ba",
+            "from_port": "Flow",
+            "to_node": "3f7caaed-5fa3-4661-b245-efba7e81e39b",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "3f7caaed-5fa3-4661-b245-efba7e81e39b",
+            "from_port": "Value",
+            "to_node": "edf7d6f5-addf-47fb-9dc5-8bba4a1aeb7e",
+            "to_port": "Found Items"
+        },
+        {
+            "from_node": "3f7caaed-5fa3-4661-b245-efba7e81e39b",
             "from_port": "Flow",
             "to_node": "edf7d6f5-addf-47fb-9dc5-8bba4a1aeb7e",
             "to_port": "Flow"
         },
         {
-            "from_node": "a7cd7e37-9f3b-4728-bf2f-0594e26c43ba",
-            "from_port": "Provider Flow",
-            "to_node": "11fa4dbe-550f-49e4-8dc7-029a2f0bc3e6",
+            "from_node": "d031cd9c-0504-455e-9c38-858bc959c427",
+            "from_port": "Flow",
+            "to_node": "3f7caaed-5fa3-4661-b245-efba7e81e39b",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "8d802384-d36c-45cd-9670-df24910a7a29",
+            "from_port": "Result",
+            "to_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
+            "to_port": "Selector"
+        },
+        {
+            "from_node": "8d802384-d36c-45cd-9670-df24910a7a29",
+            "from_port": "Result",
+            "to_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "to_port": "Selector"
+        },
+        {
+            "from_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "from_port": "Flow",
+            "to_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
             "to_port": "Flow"
         },
         {
@@ -232,54 +501,203 @@
             "to_port": "Flow"
         },
         {
-            "from_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
-            "from_port": "Flow",
-            "to_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "from_node": "a7cd7e37-9f3b-4728-bf2f-0594e26c43ba",
+            "from_port": "Provider Flow",
+            "to_node": "11fa4dbe-550f-49e4-8dc7-029a2f0bc3e6",
             "to_port": "Flow"
+        },
+        {
+            "from_node": "652ef55f-992e-4a81-87f5-aa2b41309a3b",
+            "from_port": "Flow",
+            "to_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "11fa4dbe-550f-49e4-8dc7-029a2f0bc3e6",
+            "from_port": "Flow",
+            "to_node": "7f97651e-d313-4f13-b1b5-14332678aeda",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "7f97651e-d313-4f13-b1b5-14332678aeda",
+            "from_port": "Flow",
+            "to_node": "85d33686-c24f-4f86-82e5-c694e57c8afa",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
+            "from_port": "Result",
+            "to_node": "85d33686-c24f-4f86-82e5-c694e57c8afa",
+            "to_port": "Selector"
+        },
+        {
+            "from_node": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
+            "from_port": "Result",
+            "to_node": "652ef55f-992e-4a81-87f5-aa2b41309a3b",
+            "to_port": "Selector"
+        },
+        {
+            "from_node": "ad19a0f0-d9a8-44b0-a0c6-14cd7c50ad09",
+            "from_port": "Result",
+            "to_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "to_port": "Selector"
+        },
+        {
+            "from_node": "2d604efc-b271-414e-a28e-e4112e2afc2a",
+            "from_port": "Search For",
+            "to_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "to_port": "Text"
         },
         {
             "from_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
             "from_port": "Flow",
+            "to_node": "053ea396-7696-4d01-b77b-09728d3e6e26",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "053ea396-7696-4d01-b77b-09728d3e6e26",
+            "from_port": "True",
             "to_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "053ea396-7696-4d01-b77b-09728d3e6e26",
+            "from_port": "False",
+            "to_node": "8f661afe-2b95-4ad8-8ba1-8b0c12ebaa3d",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "4e7647b0-0b30-4e72-86de-597aedee4446",
+            "from_port": "False",
+            "to_node": "a73345e7-0a22-4ebd-b2d6-6f8a8c621d03",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "85d33686-c24f-4f86-82e5-c694e57c8afa",
+            "from_port": "Found",
+            "to_node": "4e7647b0-0b30-4e72-86de-597aedee4446",
+            "to_port": "A"
+        },
+        {
+            "from_node": "85d33686-c24f-4f86-82e5-c694e57c8afa",
+            "from_port": "Flow",
+            "to_node": "4e7647b0-0b30-4e72-86de-597aedee4446",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "4e7647b0-0b30-4e72-86de-597aedee4446",
+            "from_port": "True",
+            "to_node": "652ef55f-992e-4a81-87f5-aa2b41309a3b",
             "to_port": "Flow"
         },
         {
             "from_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
             "from_port": "Found",
-            "to_node": "b81ebb8f-dd4a-4bf5-885c-2febe0e48e90",
-            "to_port": "Data"
+            "to_node": "053ea396-7696-4d01-b77b-09728d3e6e26",
+            "to_port": "A"
         },
         {
-            "from_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "from_node": "bc1a963d-6a43-409c-b609-f67d76681a6a",
             "from_port": "Flow",
-            "to_node": "b81ebb8f-dd4a-4bf5-885c-2febe0e48e90",
+            "to_node": "d031cd9c-0504-455e-9c38-858bc959c427",
             "to_port": "Flow"
         },
         {
-            "from_node": "8d802384-d36c-45cd-9670-df24910a7a29",
-            "from_port": "Result",
-            "to_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
-            "to_port": "Selector"
+            "from_node": "bc1a963d-6a43-409c-b609-f67d76681a6a",
+            "from_port": "List",
+            "to_node": "d031cd9c-0504-455e-9c38-858bc959c427",
+            "to_port": "Value"
         },
         {
-            "from_node": "8d802384-d36c-45cd-9670-df24910a7a29",
-            "from_port": "Result",
-            "to_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
-            "to_port": "Selector"
+            "from_node": "2d604efc-b271-414e-a28e-e4112e2afc2a",
+            "from_port": "Error Flow",
+            "to_node": "bc1a963d-6a43-409c-b609-f67d76681a6a",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "ff4ad7c5-b673-4d80-a5e6-66e0a03eb841",
+            "from_port": "Flow",
+            "to_node": "7270d223-43c8-49b2-b7bd-43d8bf25df63",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "7270d223-43c8-49b2-b7bd-43d8bf25df63",
+            "from_port": "Flow",
+            "to_node": "1425a85f-7678-4390-8d0c-f4eade85f609",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "24c9d5d1-de91-4334-89ef-2de6f022ff6e",
+            "from_port": "Count",
+            "to_node": "7270d223-43c8-49b2-b7bd-43d8bf25df63",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "from_port": "Flow",
+            "to_node": "d3a57de7-4e88-4e1b-8541-b97060b086d1",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "d3a57de7-4e88-4e1b-8541-b97060b086d1",
+            "from_port": "Flow",
+            "to_node": "cd20f058-c5e0-4c69-9f58-4402b0b5cd87",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6b05e499-8767-4914-bebe-30a538b0142e",
+            "from_port": "Data",
+            "to_node": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "to_port": "List"
+        },
+        {
+            "from_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
+            "from_port": "Flow",
+            "to_node": "6b05e499-8767-4914-bebe-30a538b0142e",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6b05e499-8767-4914-bebe-30a538b0142e",
+            "from_port": "Flow",
+            "to_node": "d7ac853f-f4a9-4366-bc65-0ec347c42922",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6b05e499-8767-4914-bebe-30a538b0142e",
+            "from_port": "Count",
+            "to_node": "d7ac853f-f4a9-4366-bc65-0ec347c42922",
+            "to_port": "A"
+        },
+        {
+            "from_node": "d7ac853f-f4a9-4366-bc65-0ec347c42922",
+            "from_port": "True",
+            "to_node": "f2cd0bf6-65f3-4e2c-8ee2-1d735f950bce",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "6b05e499-8767-4914-bebe-30a538b0142e",
+            "from_port": "Count",
+            "to_node": "9ac48ec1-982e-4a9a-b23b-abf4abc52a36",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "6b05e499-8767-4914-bebe-30a538b0142e",
+            "from_port": "Flow",
+            "to_node": "9ac48ec1-982e-4a9a-b23b-abf4abc52a36",
+            "to_port": "Flow"
         }
     ],
     "frames": [],
     "viewport": {
-        "center_x": 1187.4154954556545,
-        "center_y": 238.54329149778775,
-        "zoom": 0.3772900065011246
+        "center_x": 1892.5570506235672,
+        "center_y": 318.799717083649,
+        "zoom": 0.19761623559869596
     },
     "embedded_subgraphs": {},
     "project_name": "Search Web For",
     "project_description": "Search Web For passed in Search term and return a list of Items found.",
     "project_type": "",
     "project_category": "Browser/Tools",
-    "project_version": "1.0.0",
-    "project_vars": {},
-    "variables": {}
+    "project_version": "1.8.0",
+    "project_vars": {}
 }

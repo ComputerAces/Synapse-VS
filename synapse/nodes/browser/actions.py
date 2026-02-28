@@ -45,8 +45,8 @@ class BrowserNavigateNode(SuperNode):
         }
 
     def do_work(self, URL=None, Timeout=None, **kwargs):
-        url = URL or self.properties.get("URL", "about:blank")
-        wait = kwargs.get("Wait Until") or self.properties.get("Wait Until", "networkidle")
+        url = URL if URL is not None else self.properties.get("URL", "about:blank")
+        wait = kwargs.get("Wait Until") if kwargs.get("Wait Until") is not None else self.properties.get("Wait Until", "networkidle")
         timeout = int(Timeout) if Timeout is not None else int(self.properties.get("Timeout", 30000))
 
         handle_id = self.get_provider_id("Browser Provider")
@@ -104,8 +104,8 @@ class BrowserClickNode(SuperNode):
         }
 
     def do_work(self, Selector=None, X=None, Y=None, **kwargs):
-        use_points = kwargs.get("Use Points", False)
-        sel = Selector or self.properties.get("Selector", "")
+        use_points = kwargs.get("Use Points") if kwargs.get("Use Points") is not None else self.properties.get("Use Points", False)
+        sel = Selector if Selector is not None else self.properties.get("Selector", "")
         
         handle_id = self.get_provider_id("Browser Provider")
         handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
@@ -168,8 +168,8 @@ class BrowserTypeNode(SuperNode):
         }
 
     def do_work(self, Selector=None, Text=None, **kwargs):
-        sel = Selector or self.properties.get("Selector", "")
-        txt = Text or self.properties.get("Text", "")
+        sel = Selector if Selector is not None else self.properties.get("Selector", "")
+        txt = Text if Text is not None else self.properties.get("Text", "")
         
         handle_id = self.get_provider_id("Browser Provider")
         handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
@@ -277,6 +277,7 @@ class BrowserOpenTabNode(SuperNode):
         }
 
     def do_work(self, URL=None, **kwargs):
+        url = URL if URL is not None else self.properties.get("URL", "")
         handle_id = self.get_provider_id("Browser Provider")
         handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
         
@@ -284,8 +285,8 @@ class BrowserOpenTabNode(SuperNode):
              raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
 
         new_page = handle.context.new_page()
-        if URL:
-            new_page.goto(URL)
+        if url:
+            new_page.goto(url)
             
         handle.pages = handle.context.pages
         new_index = len(handle.pages) - 1
@@ -326,7 +327,8 @@ class BrowserSelectTabNode(SuperNode):
         }
         self.output_schema = { "Flow": DataType.FLOW }
 
-    def do_work(self, Index=0, **kwargs):
+    def do_work(self, Index=None, **kwargs):
+        target_index = Index if Index is not None else self.properties.get("Index", 0)
         handle_id = self.get_provider_id("Browser Provider")
         handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
         
@@ -334,8 +336,8 @@ class BrowserSelectTabNode(SuperNode):
              raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
 
         handle.pages = handle.context.pages
-        if not handle.switch_page(int(Index)):
-            self.logger.warning(f"Failed to switch to tab index {Index}. Staying on {handle.active_page_index}")
+        if not handle.switch_page(int(target_index)):
+            self.logger.warning(f"Failed to switch to tab index {target_index}. Staying on {handle.active_page_index}")
 
         self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         return True
@@ -437,77 +439,59 @@ class BrowserStripDataNode(SuperNode):
         try:
             js_script = """
             (selector) => {
-                const elements = Array.from(document.querySelectorAll(selector));
-                
-                let results = {};
-                for (let el of elements) {
-                    const tag = el.tagName.toLowerCase();
-                    if (['script', 'style', 'meta', 'link', 'noscript'].includes(tag)) continue;
-                    
-                    let textContent = el.innerText || el.value || '';
-                    let hasId = !!el.id;
-                    let hasClass = !!el.className;
-                    let isInteractive = ['input', 'textarea', 'select', 'button', 'a', 'form'].includes(tag);
-                    
-                    if (selector === 'body *') {
-                        if (!hasId && !hasClass && !textContent.trim() && !isInteractive) {
-                            continue;
-                        }
+                const resolveTarget = (sel) => {
+                    if (!sel) return null;
+                    if (sel.startsWith('/') || sel.startsWith('//')) {
+                        return document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
                     }
+                    // Handle Magic Path (dot-notation)
+                    if (sel.includes('.') && !sel.startsWith('.') && !sel.includes('#') && !sel.includes('[')) {
+                         let parts = sel.split('.');
+                         let curr = document;
+                         for (let p of parts) {
+                             if (!curr) break;
+                             let match = p.match(/^([\w\-]+)(?:\[(\d+)\])?$/);
+                             if (match) {
+                                 let tag = match[1];
+                                 let idx = parseInt(match[2] || "1");
+                                 let children = Array.from(curr === document ? [document.documentElement] : curr.children)
+                                                   .filter(c => c.tagName.toLowerCase() === tag);
+                                 curr = children[idx - 1];
+                             } else {
+                                 curr = curr.querySelector(p);
+                             }
+                         }
+                         return curr;
+                    }
+                    // Fallback to CSS
+                    try { return document.querySelector(sel); } catch(e) { return null; }
+                };
 
-                    const getPath = (n) => {
-                        let path = [];
-                        while (n.nodeType === Node.ELEMENT_NODE) {
-                            let sel = n.nodeName.toLowerCase();
-                            // Do not use ID as the root fallback since we want the hierarchical path
-                            if (n.id) {
-                                sel += '#' + n.id;
-                            }
-                            let sib = n, nth = 1;
-                            while (sib = sib.previousElementSibling) {
-                                if (sib.nodeName.toLowerCase() === sel.split('#')[0]) nth++;
-                            }
-                            if (nth !== 1) sel += "[" + nth + "]";
-                            
-                            path.unshift(sel);
-                            n = n.parentNode;
-                        }
-                        return path.join('.');
-                    };
-                    
-                    let path = getPath(el);
-                    
-                    let data = {
-                        tag: tag,
-                        id: el.id || '',
-                        class: el.className || '',
-                        text: textContent
-                    };
-                    
-                    // Dynamically map all attributes
-                    if (el.attributes) {
-                        for (let attr of el.attributes) {
-                            if (attr.name !== 'id' && attr.name !== 'class') {
-                                data[attr.name] = attr.value || '';
-                            }
-                        }
+                let targetEl = resolveTarget(selector);
+                if (!targetEl) return JSON.stringify({error: "Element not found"});
+
+                const el = targetEl;
+                const tag = el.tagName.toLowerCase();
+                
+                let data = {
+                    tag: tag,
+                    id: el.id || '',
+                    class: el.className || '',
+                    text: el.innerText || el.textContent || '',
+                    value: el.value || '',
+                    innerHTML: el.innerHTML || '',
+                    outerHTML: el.outerHTML || '',
+                    visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+                };
+                
+                // Merge all attributes
+                if (el.attributes) {
+                    for (let attr of el.attributes) {
+                        data[attr.name] = String(attr.value);
                     }
-                    
-                    // Clean up empty attributes
-                    for (let key in data) {
-                        try {
-                            if (data[key] === '' || data[key] === null || data[key] === undefined) {
-                                delete data[key];
-                            } else {
-                                // Ensure strict string type to avoid SVGAnimatedString objects
-                                data[key] = String(data[key]);
-                            }
-                        } catch(e) {}
-                    }
-                    
-                    results[path] = data;
                 }
-                return JSON.stringify(results);
+                
+                return JSON.stringify(data);
             }
             """
             
@@ -515,8 +499,13 @@ class BrowserStripDataNode(SuperNode):
             import json
             results = json.loads(json_results)
             
-            self.set_output("Count", len(results.keys()))
-            self.set_output("Data", results) # Always returns a single JSON Object (dictionary)
+            if "error" in results:
+                self.logger.warning(f"Browser Strip Data: {results['error']} for selector '{sel}'")
+                self.set_output("Data", {})
+                self.set_output("Count", 0)
+            else:
+                self.set_output("Count", 1)
+                self.set_output("Data", results)
 
         except Exception as e:
             self.logger.error(f"Extraction Error: {e}")
@@ -525,6 +514,241 @@ class BrowserStripDataNode(SuperNode):
 
         self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         return True
+
+@NodeRegistry.register("Browser Strip Elements", "Browser")
+class BrowserStripElementsNode(SuperNode):
+    """
+    Extracts all elements of a specific type (e.g., 'table', 'tr', 'div') and returns 
+    their full XPaths and inner text as a dictionary.
+    
+    ### Inputs:
+    - Flow (flow): Trigger the extraction.
+    - Element Type (string): The HTML tag name to look for (e.g., 'table', 'li', 'a').
+    - Include Children (boolean): If True, recursively extracts all descendants of found elements.
+    - Wait Until (string): Optional wait condition ('load', 'domcontentloaded', 'networkidle').
+    - Timeout (number): Max time (ms) to wait for condition.
+    
+    ### Outputs:
+    - Flow (flow): Triggered after extraction.
+    - Data (list): A list of hierarchical paths (dot-notation).
+    - Count (integer): Number of elements found.
+    """
+    version = "2.2.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.is_browser_node = True
+        self.properties["Element Type"] = "div"
+        self.properties["Include Children"] = True
+        self.properties["Wait Until"] = "load"
+        self.properties["Timeout"] = 30000
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Element Type": DataType.STRING,
+            "Include Children": DataType.BOOLEAN,
+            "Wait Until": DataType.STRING,
+            "Timeout": DataType.NUMBER
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Data": DataType.LIST,
+            "Count": DataType.INTEGER
+        }
+
+    def do_work(self, **kwargs):
+        element_type = kwargs.get("Element Type") if kwargs.get("Element Type") is not None else self.properties.get("Element Type", "div")
+        include_children = kwargs.get("Include Children") if kwargs.get("Include Children") is not None else self.properties.get("Include Children", True)
+        wait = kwargs.get("Wait Until") if kwargs.get("Wait Until") is not None else self.properties.get("Wait Until", "load")
+        timeout = int(kwargs.get("Timeout")) if kwargs.get("Timeout") is not None else int(self.properties.get("Timeout", 30000))
+        
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        try:
+            # 1. Wait for loading if specified
+            if wait and wait.lower() != "none" and wait.strip() != "":
+                try:
+                    handle.page.wait_for_load_state(wait, timeout=timeout)
+                except Exception as e:
+                    self.logger.warning(f"Wait for load state '{wait}' timed out or failed: {e}")
+
+            # 2. Extract paths
+            js_script = """
+            (tag, includeChildren) => {
+                const rootElements = Array.from(document.querySelectorAll(tag));
+                let paths = [];
+
+                const getPath = (el) => {
+                    let path = [];
+                    let n = el;
+                    while (n && n.nodeType === Node.ELEMENT_NODE) {
+                        let t = n.nodeName.toLowerCase();
+                        let sib = n, nth = 1;
+                        while (sib = sib.previousElementSibling) {
+                            if (sib.nodeName.toLowerCase() === t) nth++;
+                        }
+                        if (nth !== 1) t += "[" + nth + "]";
+                        path.unshift(t);
+                        n = n.parentNode;
+                    }
+                    return path.join('.');
+                };
+
+                const collect = (el) => {
+                    try {
+                        let p = getPath(el);
+                        if (p && !paths.includes(p)) {
+                            paths.push(p);
+                        }
+                    } catch(e) {}
+                    
+                    if (includeChildren) {
+                        Array.from(el.children).forEach(child => collect(child));
+                    }
+                };
+
+                rootElements.forEach(root => collect(root));
+                return JSON.stringify(paths);
+            }
+            """
+            
+            json_results = handle.page.evaluate(js_script, [element_type, include_children])
+            import json
+            paths = json.loads(json_results)
+            
+            # Ensure it is a flat list of strings
+            if isinstance(paths, list):
+                paths = [str(p) for p in paths]
+            else:
+                paths = []
+
+            self.set_output("Data", paths)
+            self.set_output("Count", len(paths))
+
+        except Exception as e:
+            self.logger.error(f"Extraction Error: {e}")
+            self.set_output("Data", [])
+            self.set_output("Count", 0)
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
+
+@NodeRegistry.register("Browser Element Attributes", "Browser")
+class BrowserElementAttributesNode(SuperNode):
+    """
+    Returns all attributes of a specific element as a dictionary.
+    
+    ### Inputs:
+    - Flow (flow): Trigger the action.
+    - Selector (string): Target element path/selector.
+    
+    ### Outputs:
+    - Flow (flow): Triggered after extraction.
+    - Attributes (any): Dictionary of {name: value}.
+    """
+    version = "2.0.0"
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.is_native = True
+        self.is_browser_node = True
+        self.define_schema()
+        self.register_handlers()
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.do_work)
+
+    def define_schema(self):
+        self.input_schema = {
+            "Flow": DataType.FLOW,
+            "Selector": DataType.STRING
+        }
+        self.output_schema = {
+            "Flow": DataType.FLOW,
+            "Attributes": DataType.ANY
+        }
+
+    def do_work(self, **kwargs):
+        sel = kwargs.get("Selector") or self.properties.get("Selector")
+        if not sel:
+            raise ValueError(f"[{self.name}] Selector is required.")
+
+        handle_id = self.get_provider_id("Browser Provider")
+        handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
+        
+        if not handle or not isinstance(handle, BrowserHandle):
+             raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
+
+        try:
+            js_script = """
+            (selector) => {
+                const resolveTarget = (sel) => {
+                    if (!sel) return null;
+                    if (sel.startsWith('/') || sel.startsWith('//')) {
+                        return document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                    }
+                    if (sel.includes('.') && !sel.startsWith('.') && !sel.includes('#')) {
+                         let parts = sel.split('.');
+                         let curr = document;
+                         for (let p of parts) {
+                             if (!curr) break;
+                             let match = p.match(/^([\w\-]+)(?:\[(\d+)\])?$/);
+                             if (match) {
+                                 let tag = match[1];
+                                 let idx = parseInt(match[2] || "1");
+                                 let children = Array.from(curr === document ? [document.documentElement] : curr.children)
+                                                   .filter(c => c.tagName.toLowerCase() === tag);
+                                 curr = children[idx - 1];
+                             } else {
+                                 curr = curr.querySelector(p);
+                             }
+                         }
+                         return curr;
+                    }
+                    try { return document.querySelector(sel); } catch(e) { return null; }
+                };
+
+                const el = resolveTarget(selector);
+                if (!el) return JSON.stringify({error: "Not found"});
+
+                let attrs = {};
+                if (el.attributes) {
+                    for (let attr of el.attributes) {
+                        attrs[attr.name] = String(attr.value);
+                    }
+                }
+                return JSON.stringify(attrs);
+            }
+            """
+            
+            json_results = handle.page.evaluate(js_script, sel)
+            import json
+            results = json.loads(json_results)
+            
+            if "error" in results:
+                self.set_output("Attributes", {})
+            else:
+                self.set_output("Attributes", results)
+
+        except Exception as e:
+            self.logger.error(f"Attributes Error: {e}")
+            self.set_output("Attributes", {})
+
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+
 
 @NodeRegistry.register("Browser Wait for Element", "Browser")
 class BrowserWaitNode(SuperNode):
@@ -568,8 +792,8 @@ class BrowserWaitNode(SuperNode):
         }
 
     def do_work(self, Selector=None, State=None, Timeout=None, **kwargs):
-        sel = Selector or self.properties.get("Selector", "")
-        state = State or self.properties.get("State", "visible")
+        sel = Selector if Selector is not None else self.properties.get("Selector", "")
+        state = State if State is not None else self.properties.get("State", "visible")
         timeout = int(Timeout) if Timeout is not None else int(self.properties.get("Timeout", 30000))
         
         handle_id = self.get_provider_id("Browser Provider")
@@ -624,6 +848,9 @@ class BrowserScrollNode(SuperNode):
         self.output_schema = { "Flow": DataType.FLOW }
 
     def do_work(self, Selector=None, X=None, Y=None, **kwargs):
+        sel = Selector if Selector is not None else self.properties.get("Selector", "")
+        px = X if X is not None else self.properties.get("X", 0)
+        py = Y if Y is not None else self.properties.get("Y", 0)
         handle_id = self.get_provider_id("Browser Provider")
         handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
         
@@ -631,10 +858,10 @@ class BrowserScrollNode(SuperNode):
              raise RuntimeError(f"[{self.name}] No active Browser Handle found.")
 
         try:
-            if Selector:
-                handle.page.locator(Selector).scroll_into_view_if_needed()
+            if sel:
+                handle.page.locator(sel).scroll_into_view_if_needed()
             else:
-                handle.page.mouse.wheel(X or 0, Y or 0)
+                handle.page.mouse.wheel(px or 0, py or 0)
         except Exception as e:
             self.logger.error(f"Scroll Error: {e}")
 
@@ -673,7 +900,7 @@ class BrowserHoverNode(SuperNode):
         self.output_schema = { "Flow": DataType.FLOW }
 
     def do_work(self, Selector=None, **kwargs):
-        sel = Selector or self.properties.get("Selector", "")
+        sel = Selector if Selector is not None else self.properties.get("Selector", "")
         
         handle_id = self.get_provider_id("Browser Provider")
         handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
@@ -772,7 +999,7 @@ class BrowserMagicFindNode(SuperNode):
         }
 
     def do_work(self, Target=None, **kwargs):
-        target = Target or self.properties.get("Target", "")
+        target = Target if Target is not None else self.properties.get("Target", "")
         
         handle_id = self.get_provider_id("Browser Provider")
         handle = self.bridge.get_object(f"{handle_id}_Handle") if handle_id else None
