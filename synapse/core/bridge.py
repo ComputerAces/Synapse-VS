@@ -263,6 +263,14 @@ class SynapseBridge:
                 final_key = k
                 break
         
+        # [NEW] Fallback to Root Registry for cross-subgraph global access
+        if metadata is None and self.root_registry is not self._variables_registry:
+            for k in keys_to_check:
+                if k in self.root_registry:
+                    metadata = self.root_registry[k]
+                    final_key = k
+                    break
+
         if metadata is None:
             return default
 

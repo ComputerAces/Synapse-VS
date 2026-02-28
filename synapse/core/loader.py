@@ -35,6 +35,21 @@ def load_graph_from_json(json_path, bridge, engine):
     node_map, was_pruned = load_graph_data(data, bridge, engine, source_file=json_path)
     
     was_modified = was_migrated or was_pruned
+    
+    # [NEW] Auto-bump project version for modified graphs
+    if was_modified:
+        old_ver = data.get("project_version", "1.0.0")
+        try:
+            parts = old_ver.split(".")
+            if len(parts) >= 2:
+                major = parts[0]
+                minor = int(parts[1])
+                new_ver = f"{major}.{minor + 1}.0"
+                data["project_version"] = new_ver
+                logger.info(f"Auto-bumped project version: {old_ver} -> {new_ver}")
+        except Exception as e:
+            logger.debug(f"Failed to auto-bump project version: {e}")
+
     return node_map, was_modified, data
 
 

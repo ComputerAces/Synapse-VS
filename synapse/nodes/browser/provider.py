@@ -115,6 +115,7 @@ class BrowserProviderNode(ProviderNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.provider_type = "Browser Provider"
         self.properties["Browser Type"] = BrowserType.CHROMIUM.value
         self.properties["Headless"] = False

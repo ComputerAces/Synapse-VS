@@ -23,6 +23,7 @@ class BrowserNavigateNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.properties["Wait Until"] = "networkidle"
         self.properties["Timeout"] = 30000
         
@@ -82,6 +83,7 @@ class BrowserClickNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         
         self.define_schema()
         self.register_handlers()
@@ -147,6 +149,7 @@ class BrowserTypeNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         
         self.define_schema()
         self.register_handlers()
@@ -205,6 +208,7 @@ class BrowserGetTabListNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -255,6 +259,7 @@ class BrowserOpenTabNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -307,6 +312,7 @@ class BrowserSelectTabNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -350,6 +356,7 @@ class BrowserCloseTabNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -397,6 +404,7 @@ class BrowserStripDataNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.properties["Mode"] = "Text"
         self.define_schema()
         self.register_handlers()
@@ -538,6 +546,7 @@ class BrowserWaitNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.properties["State"] = "visible"
         self.properties["Timeout"] = 30000
         self.define_schema()
@@ -598,6 +607,7 @@ class BrowserScrollNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -648,6 +658,7 @@ class BrowserHoverNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -695,6 +706,7 @@ class BrowserCloseNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -741,6 +753,7 @@ class BrowserMagicFindNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.define_schema()
         self.register_handlers()
 
@@ -797,6 +810,7 @@ class BrowserTextValueNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.properties["Target"] = ""
         self.define_schema()
         self.register_handlers()
@@ -846,7 +860,6 @@ class BrowserDataSearchNode(SuperNode):
     
     Outputs:
     - Flow: Triggered after search.
-    - Found: True if a match was found.
     - Value: The actual text or value of the element.
     - Path: The formal XPath of the resolved element.
     """
@@ -855,8 +868,11 @@ class BrowserDataSearchNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.properties["XPath"] = ""
         self.properties["Value"] = ""
+        self.properties["Wait Until"] = "networkidle"
+        self.properties["Timeout"] = 30000
         self.define_schema()
         self.register_handlers()
 
@@ -964,6 +980,7 @@ class BrowserElementVisibleNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
+        self.is_browser_node = True
         self.properties["Path"] = ""
         self.define_schema()
         self.register_handlers()

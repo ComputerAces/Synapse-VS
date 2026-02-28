@@ -48,7 +48,16 @@ class StartNode(ProviderNode):
     def start_scope(self, **kwargs):
         # Initiators fire their logic via start_scope in ProviderNode context
         self._inject_outputs()
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        
+        # [NEW] Inherit parent trigger if it was a Provider Flow (Scoped execution)
+        # Otherwise default to standard Flow
+        parent_trigger = self.bridge.get("_SYNP_PARENT_TRIGGER")
+        active_port = "Flow"
+        
+        if parent_trigger == "Provider Flow":
+             active_port = "Provider Flow"
+             
+        self.bridge.set(f"{self.node_id}_ActivePorts", [active_port], self.name)
         return True
 
     def _inject_outputs(self):

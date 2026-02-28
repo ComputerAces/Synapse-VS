@@ -33,6 +33,9 @@ class NodeDispatcher:
         # Native Task Pool (Parallel Threaded Native execution)
         self.native_executor = ThreadPoolExecutor(max_workers=32)
 
+        # [NEW] Serial Executor (For nodes requiring thread affinity like Playwright/Serial)
+        self.serial_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="SynapseSerialWorker")
+
         # AsyncIO Worker
         self.async_loop = asyncio.new_event_loop()
         self.async_thread = threading.Thread(target=self._async_loop_runner, name="SynapseAsyncWorker", daemon=True)
@@ -68,8 +71,11 @@ class NodeDispatcher:
 
         # 2. Native Node
         if getattr(node, "is_native", False):
-            # [FIX] Use ThreadPool instead of single-threaded Queue for Parallelism
-            ft = self.native_executor.submit(self._execute_native_task, node, inputs)
+            # [FIX] Use Serial Executor if thread affinity is required (e.g. Browser/Playwright)
+            if getattr(node, "is_browser_node", False) or getattr(node, "is_serial", False):
+                ft = self.serial_executor.submit(self._execute_native_task, node, inputs)
+            else:
+                ft = self.native_executor.submit(self._execute_native_task, node, inputs)
             return PooledFuture(ft)
             
         # 3. Heavy/Process Node
@@ -125,6 +131,7 @@ class NodeDispatcher:
         # Shutdown Pools
         self.logger.info("Shutting down Worker Pools...")
         self.native_executor.shutdown(wait=False)
+        self.serial_executor.shutdown(wait=False)
         self.executor.shutdown(wait=False)
 
         # 5. Global Cleanup (Kill any orphans) — ONLY for root-level engines

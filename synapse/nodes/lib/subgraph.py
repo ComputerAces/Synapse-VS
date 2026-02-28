@@ -244,6 +244,10 @@ class SubGraphNode(SuperNode):
             # [FIX] Protect parent context by injecting identifying node ID
             # This allows ReturnNode to write to a scoped key SUBGRAPH_RETURN_{node_id}
             child_bridge.set("_SYNP_PARENT_NODE_ID", self.node_id, "Parent_Injection")
+            
+            # [NEW] Propagate the trigger type (Flow vs Provider Flow)
+            parent_trigger = kwargs.get("_trigger", "Flow")
+            child_bridge.set("_SYNP_PARENT_TRIGGER", parent_trigger, "Parent_Injection")
 
             # Inherit control files from parent bridge (set by parent engine)
             stop_file = self.bridge.get("_SYSTEM_STOP_FILE")

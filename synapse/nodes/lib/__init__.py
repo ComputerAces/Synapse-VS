@@ -75,3 +75,4 @@ from .breakpoint_node import BreakpointNode
 from .connectivity import RESTProviderNode, WebSocketProviderNode, GRPCProviderNode, NetRequestNode, NetStreamNode, NetListenerNode
 from .gatekeeper import GatekeeperNode
 from .raw_data_node import RawDataNode
+from .variable_nodes import GlobalSetVarNode, GlobalGetVarNode, ProjectSetVarNode, ProjectGetVarNode

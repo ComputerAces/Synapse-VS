@@ -10,7 +10,7 @@ class ProjectVarGetNode(SuperNode):
     
     Inputs:
     - Flow: Trigger the retrieval.
-    - Name: The name of the project variable to get.
+    - Var Name: The name of the project variable to get.
     
     Outputs:
     - Flow: Pulse triggered after retrieval.
@@ -21,7 +21,7 @@ class ProjectVarGetNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
-        self.properties["Name"] = ""
+        self.properties["Var Name"] = ""
         self.define_schema()
         self.register_handlers()
 
@@ -31,15 +31,15 @@ class ProjectVarGetNode(SuperNode):
     def define_schema(self):
         self.input_schema = {
             "Flow": DataType.FLOW,
-            "Name": DataType.STRING
+            "Var Name": DataType.STRING
         }
         self.output_schema = {
             "Flow": DataType.FLOW,
             "Value": DataType.ANY
         }
 
-    def get_var(self, Name=None, **kwargs):
-        var_name = Name if Name is not None else self.properties.get("Name")
+    def get_var(self, **kwargs):
+        var_name = kwargs.get("Var Name") or self.properties.get("Var Name")
         if not var_name:
             self.logger.warning("No variable name provided for Project Var Get.")
             self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
@@ -60,7 +60,7 @@ class ProjectVarSetNode(SuperNode):
     
     Inputs:
     - Flow: Trigger the update.
-    - Name: The name of the project variable to set.
+    - Var Name: The name of the project variable to set.
     - Value: The new value to assign to the variable.
     
     Outputs:
@@ -71,7 +71,7 @@ class ProjectVarSetNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
-        self.properties["Name"] = ""
+        self.properties["Var Name"] = ""
         self.properties["Value"] = ""
         self.define_schema()
         self.register_handlers()
@@ -82,16 +82,16 @@ class ProjectVarSetNode(SuperNode):
     def define_schema(self):
         self.input_schema = {
             "Flow": DataType.FLOW,
-            "Name": DataType.STRING,
+            "Var Name": DataType.STRING,
             "Value": DataType.ANY
         }
         self.output_schema = {
             "Flow": DataType.FLOW
         }
 
-    def set_var(self, Value=None, Name=None, **kwargs):
-        var_name = Name if Name is not None else self.properties.get("Name")
-        val_to_set = Value if Value is not None else self.properties.get("Value")
+    def set_var(self, **kwargs):
+        var_name = kwargs.get("Var Name") or self.properties.get("Var Name")
+        val_to_set = kwargs.get("Value") or self.properties.get("Value")
         
         if not var_name:
             self.logger.warning("No variable name provided for Project Var Set.")

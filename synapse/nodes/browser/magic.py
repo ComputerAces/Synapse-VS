@@ -13,6 +13,47 @@ class MagicFinder:
     def __init__(self, page: Page):
         self.page = page
 
+    def wait_for(self, target_string: str, state: str = "visible", timeout: int = 30000) -> bool:
+        """
+        Pauses until the target element matches the state.
+        Supports standard selectors and Magic targets.
+        """
+        try:
+            # 1. Standard Selector Optimization (Fast path)
+            sel = target_string
+            if sel.startswith('/') or sel.startswith('//'):
+                sel = f"xpath={sel}" if not sel.startswith('xpath=') else sel
+            
+            try:
+                # Try Playwright's native wait first
+                self.page.wait_for_selector(sel, state=state, timeout=min(timeout, 2000))
+                return True
+            except:
+                pass # Fallback to polling for Magic targets or frame-piercing
+
+            # 2. Polling Fallback (Support for frames and complex intents)
+            import time
+            start = time.time()
+            while (time.time() - start) * 1000 < timeout:
+                resolved = self.find(target_string)
+                
+                # Metadata check for visibility/existence
+                if resolved and isinstance(resolved, dict):
+                    is_present = resolved.get("path") is not None
+                    is_visible = resolved.get("visible", False)
+                    
+                    if state == "visible" and is_visible: return True
+                    if state == "attached" and is_present: return True
+                    if state == "hidden" and not is_visible: return True
+                    if state == "detached" and not is_present: return True
+                
+                time.sleep(0.5)
+            
+            return False
+        except Exception as e:
+            logger.error(f"Wait failed for '{target_string}': {e}")
+            return False
+
     def find(self, target_string: str, payload: Any = None) -> Any:
         try:
             element = None
@@ -20,32 +61,47 @@ class MagicFinder:
             # Robust Native Selection: Try Playwright's engine (CSS/XPath) with prefix + frame fallbacks
             selectors = [target_string]
             if target_string.startswith('/') or target_string.startswith('//'):
+                # Ensure it has the xpath= prefix for Playwright
                 if not target_string.startswith('xpath='):
-                    selectors.insert(0, f"xpath={target_string}") # Ensure explicit XPath prefix for absolute paths
+                    selectors.insert(0, f"xpath={target_string}")
             
             all_found = []
             
-            # 1. Search Main Page
-            for sel in selectors:
-                try:
-                    found = self.page.query_selector_all(sel)
-                    if found: all_found.extend(found)
-                except: pass
+            # [RETRY LOOP] If payload is provided (Intent: Action), we retry briefly 
+            # to accommodate DOM shifts or micro-latencies after a successful Wait.
+            import time
+            attempts = 3 if payload is not None else 1
             
-            # 2. Search Frames if still searching
-            if not all_found:
-                for frame in self.page.frames:
-                    if frame == self.page.main_frame: continue
-                    for sel in selectors:
-                        try:
-                            found = frame.query_selector_all(sel)
-                            if found: all_found.extend(found)
-                        except: pass
-            
-            if all_found:
-                # Priority: Real (visible) vs Exists
-                valid_elements = [el for el in all_found if self._is_real(el)]
-                element = valid_elements[0] if valid_elements else all_found[0]
+            for attempt in range(attempts):
+                all_found = []
+                # 1. Search Main Page
+                for sel in selectors:
+                    try:
+                        found = self.page.query_selector_all(sel)
+                        if found: all_found.extend(found)
+                    except Exception as e:
+                        import threading
+                        curr_thread = threading.current_thread().name
+                        logger.error(f"MagicFind Query Failed (Thread: {curr_thread}): {e}")
+                
+                # 2. Search Frames if still searching
+                if not all_found:
+                    for frame in self.page.frames:
+                        if frame == self.page.main_frame: continue
+                        for sel in selectors:
+                            try:
+                                found = frame.query_selector_all(sel)
+                                if found: all_found.extend(found)
+                            except: pass
+                
+                if all_found:
+                    # Priority: Real (visible) vs Exists
+                    valid_elements = [el for el in all_found if self._is_real(el)]
+                    element = valid_elements[0] if valid_elements else all_found[0]
+                    break
+                
+                if attempt < attempts - 1:
+                    time.sleep(0.2)
                 
             # Fallback path: Custom syntax resolution
             if not element:
@@ -53,7 +109,23 @@ class MagicFinder:
                 element = self._resolve_waterfall(tokens)
             
             if not element:
-                logger.warning(f"MagicFind failed to resolve: {target_string}")
+                # [DIAGNOSTICS] Log more details on what was tried
+                logger.warning(f"MagicFind failed to resolve: {target_string} (Selectors tried: {selectors})")
+                
+                # If it's a deep XPath, maybe log if any part of it was found?
+                if '/' in target_string:
+                    parts = [p for p in target_string.split('/') if p]
+                    if len(parts) > 1:
+                        # Try to find the parent to see where it broke
+                        parent_xpath = '/' + '/'.join(parts[:-1])
+                        try:
+                            parent = self.page.query_selector(f"xpath={parent_xpath}")
+                            if parent:
+                                logger.info(f"Diagnostic: Parent element {parent_xpath} WAS found, but child {parts[-1]} was not.")
+                            else:
+                                logger.info(f"Diagnostic: Parent element {parent_xpath} was ALSO not found.")
+                        except: pass
+
                 return None if payload is not None else {"path": None, "data": None}
 
             # If payload is provided, act on it
@@ -66,7 +138,8 @@ class MagicFinder:
             return self._resolve_metadata(element)
             
         except Exception as e:
-            logger.error(f"MagicFind Error on '{target_string}': {e}")
+            import threading
+            logger.error(f"MagicFind Error on '{target_string}' (Thread: {threading.current_thread().name}): {e}")
             return None
 
     def _parse_syntax(self, target: str) -> List[Dict[str, Any]]:
