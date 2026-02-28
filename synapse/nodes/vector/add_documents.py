@@ -8,14 +8,14 @@ class AddDocumentsNode(SuperNode):
     Indexes text documents into a connected Vector Database Provider.
     Requires an Embedding Provider to generate vectors for the documents.
     
-    Inputs:
-    - Flow: Trigger execution.
-    - Documents: A list of text strings (or a single string) to be indexed.
-    - Metadata: Optional list of dictionaries containing metadata for each document.
+    ### Inputs:
+    - Flow (flow): Trigger execution.
+    - Documents (list): A list of text strings (or a single string) to be indexed.
+    - Metadata (list): Optional list of dictionaries containing metadata for each document.
     
-    Outputs:
-    - Flow: Triggered after indexing is complete.
-    - Success: True if the documents were successfully added, False otherwise.
+    ### Outputs:
+    - Flow (flow): Triggered after indexing is complete.
+    - Success (boolean): True if the documents were successfully added, False otherwise.
     """
     version = "2.1.0"
 
@@ -59,10 +59,7 @@ class AddDocumentsNode(SuperNode):
             if not database: missing.append("Vector Database")
             if not embedding_provider: missing.append("Embedding Provider")
             if not documents: missing.append("Documents")
-            self.logger.error(f"Missing inputs: {', '.join(missing)}")
-            self.bridge.set(f"{self.node_id}_Success", False, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-            return True
+            raise RuntimeError(f"[{self.name}] Missing required inputs or providers: {', '.join(missing)}")
 
         db = database.get("db")
         table_name = database.get("table")

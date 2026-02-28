@@ -5,11 +5,13 @@
 ## 🚀 Key Features
 
 * **Hot Packages**: Optional dependencies are installed on-demand — the first time you use a node that needs an extra library, SVS prompts you to install it automatically. No manual `pip install` needed.
+* **Magic Finder Engine**: High-reliability element resolution with automatic XPath prefixing, recursive iframe traversal, and surgical click/wait fallbacks (forced and coordinate-based).
+* **Detached Graph Telemetry**: Standalone Minimap windows that persist outside the main application grouping, enabling dedicated monitor debugging and real-time pulse tracking.
 * **Secure API Management**: Pass API keys dynamically via input ports or securely fetch them from OS **Environment Variables**.
 * **Dynamic Subgraphs**: Build reusable tools and "favorited" subgraphs with full property propagation from parent nodes.
 * **Architect UI**:
   * **Miniworld & Layout**: Asymmetric layout with 2 large and 4 small viewports. Slots track "Offline/Disconnected" graphs and must be manually assigned via right-click context menu.
-  * **Deep Search**: Top-right search box scans Node Names, Types, and *Properties* (e.g., URLs). Press Enter to cycle logically through matches with a "pulse" animation.
+  * **Deep Smart Search**: Top-right search box scans Node Names, Types, and *Properties* (e.g., URLs). Integrated with the Magic engine to navigate through complex graph logic with a "pulse" animation.
   * **Visual Feedback**:
     * **Purple Highlight**: Running Native Service (e.g., Flask).
     * **Green Border**: Active SubGraph execution.
@@ -38,7 +40,10 @@ The **Architect** is the primary workspace for building and debugging graphs. It
 
 <img src="media/images/Screenshot_Minimap.png" width="400" alt="Synapse VS Minimap">
 
-The **Minimap** provides a high-level bird's-eye view of your entire graph. It allows for rapid navigation through large, complex logic flows by clicking or dragging the view rectangle. It also visualizes active node execution "pulses" in real-time.
+The **Minimap** provides a high-level bird's-eye view of your entire graph. It allows for rapid navigation through large, complex logic flows by clicking or dragging the view rectangle.
+
+* **Detached Mode**: Right-click the Minimap to detach it into a standalone window. This window persists in the taskbar and can be moved to a separate monitor for permanent telemetry monitoring without cluttering your main Architect workspace.
+* **Real-time Pulses**: Visualizes active node execution in real-time.
 
 ### Miniworld: Mission Control
 

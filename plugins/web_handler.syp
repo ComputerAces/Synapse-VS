@@ -2,6 +2,39 @@
     "version": "2.3.0",
     "nodes": [
         {
+            "id": "8d802384-d36c-45cd-9670-df24910a7a29",
+            "type": "String",
+            "name": "Search Button",
+            "pos_x": 1547.263600325733,
+            "pos_y": 342.552008306189,
+            "properties": {
+                "Value": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]"
+            }
+        },
+        {
+            "id": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "type": "Browser Wait for Element",
+            "name": "Browser Wait for Element",
+            "pos_x": 1870.288986502413,
+            "pos_y": 98.93032679058604,
+            "properties": {
+                "Selector": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]",
+                "State": "visible",
+                "Timeout": 30000
+            }
+        },
+        {
+            "id": "b81ebb8f-dd4a-4bf5-885c-2febe0e48e90",
+            "type": "Debug Node",
+            "name": "Debug Node",
+            "pos_x": 2189.880463192182,
+            "pos_y": 383.46008110749176,
+            "properties": {
+                "Header": "Found Span",
+                "Data": null
+            }
+        },
+        {
             "id": "7f97651e-d313-4f13-b1b5-14332678aeda",
             "type": "Browser Strip Data",
             "name": "Browser Strip Data",
@@ -94,8 +127,8 @@
             "id": "45ddc53a-498a-4c45-b382-da80abcd05ce",
             "type": "Browser Type",
             "name": "Browser Type",
-            "pos_x": 1512.0878325732906,
-            "pos_y": 315.76251221498376,
+            "pos_x": 1544.4278394136813,
+            "pos_y": 204.88248876221508,
             "properties": {
                 "Selector": "/html/body/div[2]/div[4]/form/div[1]/div[1]/div[1]/div[1]/div[3]/textarea",
                 "Text": "Synapse VS"
@@ -105,8 +138,8 @@
             "id": "10395e24-33bf-467a-86a4-3e51a70d90e5",
             "type": "Wait",
             "name": "Wait",
-            "pos_x": 2138.440598045602,
-            "pos_y": 38.685418078175914,
+            "pos_x": 2565.7906884364816,
+            "pos_y": 54.855421498371356,
             "properties": {
                 "Milliseconds": 15000.0
             }
@@ -115,8 +148,8 @@
             "id": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
             "type": "Browser Click",
             "name": "Browser Click",
-            "pos_x": 1850.4671552117256,
-            "pos_y": 203.80420635179155,
+            "pos_x": 2192.34722752443,
+            "pos_y": 180.70420146579806,
             "properties": {
                 "Selector": "/html/body/div/div/div/main/article/div[1]/div[1]/div[2]/div/header/div/section[2]/div/form/div/div[3]/button/span[2]",
                 "Use Points": false,
@@ -126,6 +159,42 @@
         }
     ],
     "wires": [
+        {
+            "from_node": "8d802384-d36c-45cd-9670-df24910a7a29",
+            "from_port": "Result",
+            "to_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
+            "to_port": "Selector"
+        },
+        {
+            "from_node": "8d802384-d36c-45cd-9670-df24910a7a29",
+            "from_port": "Result",
+            "to_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "to_port": "Selector"
+        },
+        {
+            "from_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "from_port": "Flow",
+            "to_node": "b81ebb8f-dd4a-4bf5-885c-2febe0e48e90",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "from_port": "Found",
+            "to_node": "b81ebb8f-dd4a-4bf5-885c-2febe0e48e90",
+            "to_port": "Data"
+        },
+        {
+            "from_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "from_port": "Flow",
+            "to_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
+            "to_port": "Flow"
+        },
+        {
+            "from_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
+            "from_port": "Flow",
+            "to_node": "16ba81fa-49ab-4085-9bd7-75e54abc7037",
+            "to_port": "Flow"
+        },
         {
             "from_node": "2d604efc-b271-414e-a28e-e4112e2afc2a",
             "from_port": "Flow",
@@ -193,12 +262,6 @@
             "to_port": "Selector"
         },
         {
-            "from_node": "45ddc53a-498a-4c45-b382-da80abcd05ce",
-            "from_port": "Flow",
-            "to_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
-            "to_port": "Flow"
-        },
-        {
             "from_node": "e908598f-e44b-47a5-b8e5-a9e137d9ce62",
             "from_port": "Flow",
             "to_node": "10395e24-33bf-467a-86a4-3e51a70d90e5",
@@ -207,8 +270,8 @@
     ],
     "frames": [],
     "viewport": {
-        "center_x": 974.8202061889249,
-        "center_y": 170.94003615635177,
+        "center_x": 1882.6503982084687,
+        "center_y": 247.17005228013025,
         "zoom": 0.43290034133557376
     },
     "embedded_subgraphs": {},

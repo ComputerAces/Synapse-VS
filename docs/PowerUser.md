@@ -48,6 +48,14 @@ Running a long-lived graph (like a web server or monitoring service)?
 
 - **Tip**: Use the **Log Node** with rotation enabled. Files auto-rotate at 1MB by default, keeping the last 5 backups. Set `Level` to "ERROR" to capture only critical events, or "DEBUG" for verbose output.
 
+### 8. Magic Find Targets
+
+The Browser and Search engines use "Magic" logic to resolve elements without fragile XPaths.
+
+- **Dot Notation**: Use `parent.child` to find nested elements (e.g., `form.submit`).
+- **Surgical XPath**: If you provide a full XPath (e.g., `/html/body/...`), the engine switches to "Surgical Mode", clicking exactly that pixel without trying to be smart.
+- **Auto-Wait**: Magic Find nodes automatically wait for elements to become visible before acting.
+
 -> [!TIP]
 > Use the **Miniworld** to jump between these complex logic blocks quickly.
 
@@ -159,6 +167,11 @@ The **Provider System** is a cornerstone of advanced architecture in Synapse VS.
 
 - **Cause**: Large models take time to generate.
 - **Fix**: Use the new **Stream** port on the `Ask AI` node! It outputs text chunk-by-chunk, giving you that satisfying sci-fi typewriter effect.
+
+### "Browser Click Not Working"
+
+- **Cause**: Element might be obscured by a transparent overlay or is "too deep" for standard clicks.
+- **Fix**: The engine now has multi-stage fallbacks. It will try a **Standard Click**, then a **Force Click** (bypassing visibility checks), and finally a **Coordinate Click** on the element's exact center.
 
 ---
 

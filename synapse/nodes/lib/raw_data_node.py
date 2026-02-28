@@ -6,16 +6,17 @@ from synapse.core.types import DataType
 class RawDataNode(SuperNode):
     """
     A stateful buffer that stores any data type when triggered by a flow.
+    Useful for holding values between execution cycles or across graph branches.
     
-    Inputs:
-    - Flow: Trigger to update the buffered value from the 'Data' input.
-    - Data: The value to be stored (Default is None).
+    ### Inputs:
+    - Flow (flow): Trigger to update the buffered value from the 'Data' input.
+    - Data (any): The value to be stored in the buffer.
     
-    Outputs:
-    - Flow: Triggered after the data is updated.
-    - Data: The currently stored value.
+    ### Outputs:
+    - Flow (flow): Continues execution after the buffer is updated.
+    - Data (any): The currently stored value (persistent across pulses).
     """
-    version = "1.0.0"
+    version = "2.1.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

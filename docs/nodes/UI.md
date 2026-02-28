@@ -1,29 +1,14 @@
-# 🪟 UI & Interaction
+# 🧩 UI Nodes
 
-Nodes for creating custom interfaces, displaying messages, and interacting with the user during graph execution.
+This document covers nodes within the **UI** core category.
 
-## Nodes
-
-### Custom Form
-
-**Version**: 2.0.2
-**Description**: Renders a dynamic user interface form based on a matching schema.
-Supports both GUI (via Bridge) and CLI rendering modes.
-
-Inputs:
-- Flow: Trigger the form display.
-- Title: The window or header title for the form.
-- Blocking: If True, execution waits until the user submits the form.
-- Schema: A list of field definitions (label, type, default).
-
-Outputs:
-- Flow: Triggered after form submission (or immediately if non-blocking).
-- Form Data: A dictionary containing the user's input values.
+## 📂 Dialogs
 
 ### File Dialog
 
-**Version**: 2.0.2
-**Description**: Triggers a native operating system dialog for selecting files or folders.
+**Version**: `2.1.0`
+
+Triggers a native operating system dialog for selecting files or folders.
 Supports 'Open File', 'Save File', and 'Open Folder' modes across Windows, macOS, and Linux.
 
 This node provides a bridge to the underlying host OS GUI, allowing users to select 
@@ -41,10 +26,34 @@ Outputs:
 - Cancelled: Pulse triggered if the user closed the window or clicked 'Cancel'.
 - Path: The absolute path to the selected item.
 
+---
+
+## 📂 General
+
+### Custom Form
+
+**Version**: `2.1.0`
+
+Renders a dynamic user interface form based on a matching schema.
+Supports both GUI (via Bridge) and CLI rendering modes.
+
+Inputs:
+- Flow: Trigger the form display.
+- Title: The window or header title for the form.
+- Blocking: If True, execution waits until the user submits the form.
+- Schema: A list of field definitions (label, type, default).
+
+Outputs:
+- Flow: Triggered after form submission (or immediately if non-blocking).
+- Form Data: A dictionary containing the user's input values.
+
+---
+
 ### Message Box
 
-**Version**: 2.0.2
-**Description**: Displays a modal message box to the user.
+**Version**: `2.1.0`
+
+Displays a modal message box to the user.
 
 Supports various types (Infor, Warning, Error) and button configurations 
 (OK, Yes/No, OK/Cancel). Can block execution until the user interacts 
@@ -62,10 +71,31 @@ Outputs:
 - Flow: Pulse triggered after closure (or immediately if non-blocking).
 - Result: The button clicked by the user (e.g., 'ok', 'yes', 'no').
 
+---
+
+### Text Display
+
+**Version**: `2.1.0`
+
+Displays text content to the user in a dedicated window or console block.
+Commonly used for showing long reports, logs, or multi-line data summaries.
+
+Inputs:
+- Flow: Trigger the display.
+- Text: The string content to show.
+
+Outputs:
+- Flow: Pulse triggered after the window is closed or processed.
+
+---
+
+## 📂 Overlays
+
 ### Overlay Highlighter
 
-**Version**: 2.0.2
-**Description**: Spawns a temporary visual highlight on the screen at specified coordinates.
+**Version**: `2.1.0`
+
+Spawns a temporary visual highlight on the screen at specified coordinates.
 Useful for guiding user attention or debugging UI element positions.
 
 Inputs:
@@ -76,23 +106,15 @@ Inputs:
 Outputs:
 - Flow: Pulse triggered after the overlay thread starts.
 
-### Text Display
+---
 
-**Version**: 2.0.2
-**Description**: Displays text content to the user in a dedicated window or console block.
-Commonly used for showing long reports, logs, or multi-line data summaries.
-
-Inputs:
-- Flow: Trigger the display.
-- Text: The string content to show.
-
-Outputs:
-- Flow: Pulse triggered after the window is closed or processed.
+## 📂 Toasts
 
 ### Toast
 
-**Version**: 2.0.2
-**Description**: Displays a system-native toast notification.
+**Version**: `2.1.0`
+
+Displays a system-native toast notification.
 On Windows, this uses win11toast for rich notifications. On other 
 platforms, it falls back to desktop-notifier.
 
@@ -105,10 +127,13 @@ Outputs:
 - Flow: Pulse triggered after the toast is sent.
 - OnClick: Pulse triggered if the user clicks on the notification.
 
+---
+
 ### Toast Input
 
-**Version**: 2.0.2
-**Description**: Displays a toast notification with a text input field (Windows only).
+**Version**: `2.1.0`
+
+Displays a toast notification with a text input field (Windows only).
 Falls back to a standard PyQt input dialog on non-Windows platforms.
 
 Inputs:
@@ -122,10 +147,13 @@ Outputs:
 - Text: The string content entered by the user.
 - OnClick: Pulse triggered upon successful submission.
 
+---
+
 ### Toast Media
 
-**Version**: 2.0.2
-**Description**: Displays a system-native toast notification with an attached image.
+**Version**: `2.1.0`
+
+Displays a system-native toast notification with an attached image.
 Ideal for alerts that require visual context, such as security 
 camera triggers or status updates with icons.
 
@@ -140,4 +168,5 @@ Outputs:
 - OnClick: Pulse triggered if the user clicks on the notification.
 
 ---
-[Back to Nodes Index](Index.md)
+
+[Back to Node Index](Index.md)

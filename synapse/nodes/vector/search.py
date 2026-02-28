@@ -9,16 +9,16 @@ class VectorSearchNode(SuperNode):
     Automatically leverages an Embedding Provider to vectorize the query before searching.
     Assumes a Provider Flow connection for both VECTOR and EMBED capabilities.
     
-    Inputs:
-    - Flow: Trigger the search operation.
-    - Query: The text string to search for.
-    - Limit: The maximum number of results to return (default: 5).
+    ### Inputs:
+    - Flow (flow): Trigger the search operation.
+    - Query (string): The text string to search for.
+    - Limit (integer): The maximum number of results to return (default: 5).
     
-    Outputs:
-    - Flow: Triggered after search is complete.
-    - Results: List of matching document text.
-    - Scores: List of similarity scores (0.0 to 1.0).
-    - Metadata: List of metadata dictionaries for each result.
+    ### Outputs:
+    - Flow (flow): Triggered after search is complete.
+    - Results (list): List of matching document text.
+    - Scores (list): List of similarity scores (0.0 to 1.0).
+    - Metadata (list): List of metadata dictionaries for each result.
     """
     version = "2.1.0"
 
@@ -61,9 +61,7 @@ class VectorSearchNode(SuperNode):
             if not database: missing.append("Vector Database")
             if not embedding_provider: missing.append("Embedding Provider")
             if not query: missing.append("Query")
-            self.logger.error(f"Missing inputs: {', '.join(missing)}")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-            return True
+            raise RuntimeError(f"[{self.name}] Missing required inputs or providers: {', '.join(missing)}")
             
         db = database.get("db")
         table_name = database.get("table")

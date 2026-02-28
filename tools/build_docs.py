@@ -2,60 +2,7 @@ import os
 import sys
 import re
 import inspect
-
-# Reuse category map from audit script
-CATEGORY_MAP = {
-    "AI": "AI.md",
-    "System/Debug": "System.md",
-    "System/Files": "System.md",
-    "System/Process": "System.md",
-    "File System": "System.md",
-    "System/Hardware": "Hardware.md",
-    "System/Automation": "Desktop.md",
-    "System/Security": "Security.md",
-    "Media/Vision": "Media.md",
-    "Media/Audio": "Media.md",
-    "Media/Graphics": "Media.md",
-    "Network/Requests": "Web.md",
-    "Network/Ingress": "Web.md",
-    "Network/SSH": "Network.md",
-    "Network/Email": "Network.md",
-    "Network/Providers": "Network.md",
-    "Math/Arithmetic": "Data_Math.md",
-    "Math/Advanced": "Data_Math.md",
-    "Math/Rounding": "Data_Math.md",
-    "Math/Trig": "Data_Math.md",
-    "Data": "Data_Math.md",
-    "Utility/Data/Text": "Data_Math.md",
-    "Utility/Data/List": "Data_Math.md",
-    "Utility/Data/Dict": "Data_Math.md",
-    "Utility/Data/JSON": "Formats.md",
-    "Utility/Data/CSV": "Formats.md",
-    "Utility/Office": "Formats.md",
-    "Utility/Date": "Data_Math.md",
-    "Utility/Dialogs": "UI.md",
-    "Utility/Toasts": "UI.md",
-    "UI": "UI.md",
-    "Security/Providers": "Security.md",
-    "Security/Actions": "Security.md",
-    "Security": "Security.md",
-    "Search/Analytics": "Analytics.md",
-    "Vector/DB": "RAG.md",
-    "System/Plugin": "Advanced.md",
-    "Connectivity/Providers": "Network.md",
-    "Database": "Database.md"
-}
-
-def get_doc_file(category):
-    # Try exact match first
-    if category in CATEGORY_MAP:
-        return CATEGORY_MAP[category]
-    
-    # Try substring match for hierarchical categories
-    for key, doc in CATEGORY_MAP.items():
-        if key in category:
-            return doc
-    return "Advanced.md"
+from collections import defaultdict
 
 def get_node_metadata(search_dir):
     """
@@ -64,9 +11,6 @@ def get_node_metadata(search_dir):
     nodes = {}
     # Matches @NodeRegistry.register("Label", "Category")
     register_pattern = re.compile(r'@NodeRegistry\.register\("([^"]+)",\s*"([^"]+)"\)')
-    # Matches class Header(BaseNode):\n    """docstring"""\n    version = "1.0.1"
-    # Or class Header(BaseNode):\n    version = "1.0.1"\n    """docstring""" (handled by cleandoc logic)
-    
     version_pattern = re.compile(r'version\s*=\s*["\']([^"\']+)["\']')
     docstring_pattern = re.compile(r'"""([\s\S]*?)"""')
 
@@ -106,65 +50,65 @@ def get_node_metadata(search_dir):
     return nodes
 
 def build_docs(nodes, docs_dir, target_file=None):
-    # Group nodes by target doc file
-    files_to_rebuild = {}
+    """
+    Groups nodes by Category Root and then by Sub-Category.
+    Generates hierarchical markdown documents.
+    """
+    # 0. Clean the directory if building everything
+    if not target_file and os.path.exists(docs_dir):
+        for file in os.listdir(docs_dir):
+            if file.endswith(".md") and file != "Index.md":
+                os.remove(os.path.join(docs_dir, file))
+        print(f"Cleaned {docs_dir}")
+
+    # 1. Group by [RootCategory][SubCategory] = [NodeList]
+    hierarchy = defaultdict(lambda: defaultdict(list))
+    
     for nid, info in nodes.items():
-        doc_file = get_doc_file(info['category'])
+        parts = info['category'].split('/')
+        root = parts[0]
+        # Everything after root is the sub-category
+        sub = "/".join(parts[1:]) if len(parts) > 1 else "General"
+        
+        doc_file = f"{root}.md"
         if target_file and doc_file != target_file:
             continue
-        if doc_file not in files_to_rebuild:
-            files_to_rebuild[doc_file] = []
-        files_to_rebuild[doc_file].append(info)
+            
+        hierarchy[root][sub].append(info)
 
-    for doc_file, node_list in files_to_rebuild.items():
+    # 2. Iterate and generate files
+    if not os.path.exists(docs_dir):
+        os.makedirs(docs_dir)
+
+    for root, sub_map in hierarchy.items():
+        doc_file = f"{root}.md"
         doc_path = os.path.join(docs_dir, doc_file)
-        header = ""
         
-        # 1. Try to read existing header (everything before "## Nodes" or first ###)
-        if os.path.exists(doc_path):
-            with open(doc_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                
-                # Find the split point
-                split_point = content.find("## Nodes")
-                if split_point == -1:
-                    # Fallback to first ###
-                    split_point = content.find("### ")
-                
-                if split_point != -1:
-                    header = content[:split_point].strip() + "\n\n## Nodes\n\n"
-                else:
-                    # Generic header
-                    title = doc_file.replace(".md", "")
-                    header = f"# {title}\n\n## Nodes\n\n"
-        else:
-            title = doc_file.replace(".md", "")
-            header = f"# {title}\n\n## Nodes\n\n"
-
-        # 2. Build Nodes Section
-        # Sort nodes by name
-        node_list.sort(key=lambda x: x['name'])
+        output = f"# 🧩 {root} Nodes\n\n"
+        output += f"This document covers nodes within the **{root}** core category.\n\n"
         
-        node_content = ""
-        for info in node_list:
-            node_content += f"### {info['name']}\n\n"
-            node_content += f"**Version**: {info['version']}\n"
-            node_content += f"**Description**: {info['description']}\n\n"
+        # Sort sub-categories alphabetically
+        for sub in sorted(sub_map.keys()):
+            output += f"## 📂 {sub}\n\n"
+            
+            # Sort nodes within sub-category
+            node_list = sorted(sub_map[sub], key=lambda x: x['name'])
+            for info in node_list:
+                output += f"### {info['name']}\n\n"
+                output += f"**Version**: `{info['version']}`\n\n"
+                output += f"{info['description']}\n\n"
+                output += "---\n\n"
 
-        # 3. Add Footer
-        footer = "---\n[Back to Nodes Index](Index.md)\n"
+        output += "[Back to Node Index](Index.md)\n"
 
-        # 4. Write File
         with open(doc_path, 'w', encoding='utf-8') as f:
-            f.write(header)
-            f.write(node_content)
-            f.write(footer)
+            f.write(output)
         
-        print(f"Rebuilt: {doc_file} ({len(node_list)} nodes)")
+        print(f"Rebuilt: {doc_file} ({sum(len(v) for v in sub_map.values())} nodes)")
 
 def generate_index(docs_dir, template_path):
     """
-    Builds Index.md from a template in doc_base.
+    Builds Index.md from a template, mapping all generated category files.
     """
     if not os.path.exists(template_path):
         print(f"Skipping index generation: Template not found at {template_path}")
@@ -178,22 +122,12 @@ def generate_index(docs_dir, template_path):
     for file in os.listdir(docs_dir):
         if file.endswith(".md") and file != "Index.md":
             path = os.path.join(docs_dir, file)
-            # Peek at the first line for the title
+            # Use the basename for the title
             title = file.replace(".md", "")
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    first_line = f.readline().strip()
-                    if first_line.startswith("# "):
-                        title = first_line[2:].strip()
-            except:
-                pass
             categories.append(f"- [{title}]({file})")
 
-    # Sort categories alphabetical (ignoring emojis)
-    def clean_name(s):
-        return re.sub(r'[^\w\s]', '', s).strip()
-    
-    categories.sort(key=lambda x: clean_name(x))
+    # Sort categories alphabetical
+    categories.sort()
     
     category_list = "\n".join(categories)
     new_index = template.replace("[replace_with_Categories]", category_list)
@@ -202,7 +136,7 @@ def generate_index(docs_dir, template_path):
     with open(index_path, 'w', encoding='utf-8') as f:
         f.write(new_index)
     
-    print(f"Generated Index.md with {len(categories)} categories.")
+    print(f"Generated Index.md with {len(categories)} root categories.")
 
 if __name__ == "__main__":
     node_lib = "synapse/nodes"

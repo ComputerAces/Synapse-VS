@@ -14,6 +14,7 @@ The heart of SVS, responsible for graph pulsing and node execution.
 - **Yielding**: Nodes can return `_YSWAIT` or `_YSYIELD` signals to pause execution without blocking the thread, allowing other ready nodes to run.
 - **Context Management**: `ContextManager` handles nested scopes (loops, try/catch, subgraphs).
 - **Node Dispatching**: `NodeDispatcher` routes nodes to either the **Native Track** (Worker Thread) or **Heavy Track** (Subprocess).
+- **Lifecycle Management**: v2.1.0 nodes strictly follow the `define_schema() -> register_handlers() -> __init__` sequence to ensure thread-safe initialization.
 
 ### 2. Synapse Bridge (`SynapseBridge`)
 
@@ -21,6 +22,7 @@ The IPC (Inter-Process Communication) layer.
 
 - Uses `multiprocessing.Manager` to share data across process boundaries.
 - **Variable Vault**: A thread-safe store for all port values and global variables.
+- **Object Contexts**: The Bridge supports `set_object`/`get_object` for sharing complex, thread-bound objects (like Browser handles) across modular nodes without pickling overhead.
 - **Locking Protocol**: Prevents race conditions during shared resource access.
 - **Identity & Session Manager (ISM)**: A secure registry in the Bridge that maps **App IDs** to `IdentityObject` dictionaries, managing multi-user contexts.
 
@@ -28,7 +30,7 @@ The IPC (Inter-Process Communication) layer.
 
 The frontend built with PyQt6.
 
-- **Minimap/Miniworld**: High-performance overview viewports.
+- **Minimap/Miniworld**: Detachable high-performance overview viewports with independent OS window grouping.
 - **Bridge Poller**: Syncs visual state with the backend at 33Hz.
 
 ---
@@ -45,21 +47,37 @@ Written in Python and registered directly into the library. These are best for l
 - **Pattern**:
 
     ```python
-    from synapse.core.node import BaseNode
+    from synapse.core.super_node import SuperNode
     from synapse.nodes.registry import NodeRegistry
+    from synapse.core.types import DataType
 
     @NodeRegistry.register("My Custom Node", "My Category")
-    class MyNode(BaseNode):
+    class MyNode(SuperNode):
+        version = "2.1.0"
+
         def __init__(self, node_id, name, bridge):
             super().__init__(node_id, name, bridge)
-            self.is_native = True # Run in thread (Native) vs process (Heavy)
+            self.define_schema()
+            self.register_handlers()
 
-        def execute(self, InputData=None, **kwargs):
-            # Your Logic Here
-            result = f"Processed: {InputData}"
+        def define_schema(self):
+            self.input_schema = { "Flow": DataType.FLOW, "Data": DataType.STRING }
+            self.output_schema = { "Flow": DataType.FLOW, "Result": DataType.STRING }
+
+        def register_handlers(self):
+            self.register_handler("Flow", self.do_work)
+
+        def do_work(self, Data=None, **kwargs):
+            # 1. Resolve inputs (auto-unwrapped from bridge)
+            val = Data or self.properties.get("Data", "Default")
             
-            # Signal outputs via Bridge
-            self.bridge.set(f"{self.node_id}_OutputData", result, self.name)
+            # 2. Logic
+            result = f"Hello {val}!"
+            
+            # 3. Set outputs
+            self.set_output("Result", result)
+            
+            # 4. Signal next flow
             self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
             return True
     ```
@@ -347,30 +365,17 @@ You can bypass the interactive menu entirely and instantly execute a Sandbox (or
 
 `python tools/audit_nodes.py -n "Node Name"`
 
-This triggers **One-Shot Mode**, which is ideal for rapidly debugging a specific Native Node or SuperNode handler during development. It forcefully auto-mocks inputs and guarantees that it won't track logs to the `audit_state.json` LEDGER.
+This triggers **One-Shot Mode**, which is ideal for rapidly debugging a specific Native Node or SuperNode handler during development.
 
-### 3. Creating Custom Test Scripts
+### 4. Version Auditing
 
-For complex nodes (like loops or external script executors), you may want to bypass the generic Sandbox prompt and inject custom execution limits, bridge arrays, or forced condition breaks to ensure the Watchdog doesn't trip on an empty dummy run.
+Use `tools/audit_node_versions.py` to ensure all library nodes meet the current standard:
 
-- **Location**: `tools/auditor/custom_tests/`
-- **Naming**: Convert the node's class name to snake_case (e.g., `while_node.py`).
-- **Pattern**: When the Auditor audits your node, it will dynamically detect this file and route execution to the `run_test` method instead of the generic Sandbox.
+`python tools/audit_node_versions.py [min_version] [--sync]`
 
-```python
-from tools.auditor.utils import Colors, DummyBridge
-
-def run_test(namespaced_id, node_cls, is_os_mode):
-    print(f"{Colors.YELLOW}Running custom test for {namespaced_id}...{Colors.RESET}")
-    
-    # Example: Build an isolated mock engine and inject variables early
-    # ...
-    
-    # Return True for Success, False for Failure
-    return True
-```
+The `--sync` flag will automatically inject the missing `version` attribute into any outdated node files to bring them into compliance.
 
 ---
 
 &nbsp;
-SVS Developer Docs - v1.4.0
+SVS Developer Docs - v1.5.0

@@ -192,10 +192,13 @@ class BrowserGetTabListNode(SuperNode):
     """
     Retrieves a list of all currently open tabs/pages in the browser.
     
-    Outputs:
-    - Flow: Pulse triggered after retrieval.
-    - Names: List of page titles.
-    - URLs: List of page URLs.
+    ### Inputs:
+    - Flow (flow): Trigger the retrieval.
+
+    ### Outputs:
+    - Flow (flow): Pulse triggered after retrieval.
+    - Names (list): List of page titles.
+    - URLs (list): List of page URLs.
     """
     version = "2.1.0"
 
@@ -239,13 +242,13 @@ class BrowserOpenTabNode(SuperNode):
     """
     Opens a new browser tab and optionally navigates to a URL.
     
-    Inputs:
-    - Flow: Trigger to open the tab.
-    - URL: Optional web address to navigate to.
+    ### Inputs:
+    - Flow (flow): Trigger to open the tab.
+    - URL (string): Optional web address to navigate to.
     
-    Outputs:
-    - Flow: Triggered after the tab is opened.
-    - Tab Index: The index of the newly created tab.
+    ### Outputs:
+    - Flow (flow): Triggered after the tab is opened.
+    - Tab Index (integer): The index of the newly created tab.
     """
     version = "2.1.0"
 
@@ -292,9 +295,12 @@ class BrowserSelectTabNode(SuperNode):
     """
     Switches the focus to a specific browser tab by its index.
     
-    Inputs:
-    - Flow: Trigger the switch.
-    - Index: The numerical index of the tab to select (0-based).
+    ### Inputs:
+    - Flow (flow): Trigger the switch.
+    - Index (integer): The numerical index of the tab to select (0-based).
+    
+    ### Outputs:
+    - Flow (flow): Triggered after the switch attempt.
     """
     version = "2.1.0"
 
@@ -332,6 +338,12 @@ class BrowserSelectTabNode(SuperNode):
 class BrowserCloseTabNode(SuperNode):
     """
     Closes the currently active browser tab.
+    
+    ### Inputs:
+    - Flow (flow): Trigger to close the active tab.
+
+    ### Outputs:
+    - Flow (flow): Triggered after the tab is closed.
     """
     version = "2.1.0"
 
@@ -369,16 +381,16 @@ class BrowserStripDataNode(SuperNode):
     """
     Extracts text, HTML, or attributes from elements on the page.
     
-    Inputs:
-    - Flow: Trigger extraction.
-    - Selector: CSS/XPath selector (e.g., 'h1', '.price').
-    - Mode: Extraction mode ('Text', 'HTML', 'Attribute', 'Count').
-    - Attribute: Name of the attribute to extract (if in 'Attribute' mode).
+    ### Inputs:
+    - Flow (flow): Trigger extraction.
+    - Selector (string): CSS/XPath selector (e.g., 'h1', '.price').
+    - Mode (string): Extraction mode ('Text', 'HTML', 'Attribute', 'Count').
+    - Attribute (string): Name of the attribute to extract (if in 'Attribute' mode).
     
-    Outputs:
-    - Flow: Triggered after extraction.
-    - Data: The extracted string or list of strings.
-    - Count: Number of elements found.
+    ### Outputs:
+    - Flow (flow): Triggered after extraction.
+    - Data (any): The extracted string or list of strings.
+    - Count (integer): Number of elements found.
     """
     version = "2.1.0"
 
@@ -511,15 +523,15 @@ class BrowserWaitNode(SuperNode):
     """
     Pauses execution until a specific element appears on the page.
     
-    Inputs:
-    - Flow: Start waiting.
-    - Selector: CSS/XPath selector of the element.
-    - State: Condition ('attached', 'detached', 'visible', 'hidden').
-    - Timeout: Max wait time in ms.
+    ### Inputs:
+    - Flow (flow): Start waiting.
+    - Selector (string): CSS/XPath selector of the element.
+    - State (string): Condition ('attached', 'detached', 'visible', 'hidden').
+    - Timeout (number): Max wait time in ms.
     
-    Outputs:
-    - Flow: Triggered when condition is met or timeout occurs.
-    - Found: Boolean indicating if the element was found.
+    ### Outputs:
+    - Flow (flow): Triggered when condition is met or timeout occurs.
+    - Found (boolean): Boolean indicating if the element was found.
     """
     version = "2.1.0"
 
@@ -559,8 +571,7 @@ class BrowserWaitNode(SuperNode):
 
         found = False
         try:
-            handle.page.wait_for_selector(sel, state=state, timeout=timeout)
-            found = True
+            found = handle.magic.wait_for(sel, state=state, timeout=timeout)
         except Exception as e:
             self.logger.warning(f"Wait for element '{sel}' failed: {e}")
 
@@ -573,10 +584,14 @@ class BrowserScrollNode(SuperNode):
     """
     Scrolls the page by a specific amount or to an element.
     
-    Inputs:
-    - Flow: Trigger scroll.
-    - Selector: Optional element to scroll into view.
-    - X, Y: Pixel amounts to scroll.
+    ### Inputs:
+    - Flow (flow): Trigger scroll.
+    - Selector (string): Optional element to scroll into view.
+    - X (integer): Pixel amount to scroll horizontally.
+    - Y (integer): Pixel amount to scroll vertically.
+    
+    ### Outputs:
+    - Flow (flow): Triggered after scroll attempt.
     """
     version = "2.1.0"
 
@@ -621,9 +636,12 @@ class BrowserHoverNode(SuperNode):
     """
     Moves the mouse hover over a specific element.
     
-    Inputs:
-    - Flow: Trigger hover.
-    - Selector: Element to hover on.
+    ### Inputs:
+    - Flow (flow): Trigger hover.
+    - Selector (string): Element to hover on.
+    
+    ### Outputs:
+    - Flow (flow): Triggered after hover attempt.
     """
     version = "2.1.0"
 
@@ -709,14 +727,14 @@ class BrowserMagicFindNode(SuperNode):
     Experimental context-aware resolution node.
     Finds elements by dot-notation, text, or fuzzy matching and returns their path/data.
     
-    Inputs:
-    - Flow: Trigger execution.
-    - Target: Smart string (e.g., 'search', '*.button', 'login.email').
+    ### Inputs:
+    - Flow (flow): Trigger execution.
+    - Target (string): Smart string (e.g., 'search', '*.button', 'login.email').
     
-    Outputs:
-    - Flow: Triggered after discovery.
-    - Path: The resolved XPath or identifier.
-    - Data: The current value or text of the element.
+    ### Outputs:
+    - Flow (flow): Triggered after discovery.
+    - Path (string): The resolved XPath or identifier.
+    - Data (any): The current value or text of the element.
     """
     version = "2.1.0"
 
@@ -766,13 +784,13 @@ class BrowserTextValueNode(SuperNode):
     """
     Extracts purely the text or inner value of a single element using Magic Find.
     
-    Inputs:
-    - Flow: Trigger extraction.
-    - Target: Smart string to find the element (e.g., 'search', '#header').
+    ### Inputs:
+    - Flow (flow): Trigger extraction.
+    - Target (string): Smart string to find the element (e.g., 'search', '#header').
     
-    Outputs:
-    - Flow: Triggered after discovery.
-    - Text: The extracted text or value of the element.
+    ### Outputs:
+    - Flow (flow): Triggered after discovery.
+    - Text (string): The extracted text or value of the element.
     """
     version = "2.1.0"
 

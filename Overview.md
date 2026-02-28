@@ -112,9 +112,28 @@ def define_schema(self):
 - **Identity-Aware SCIA**: Protocol-agnostic auth (REST, gRPC, WSS) handling multi-tenancy automatically.
 - **Universal LLM Integration**: Single-prompt orchestration for OpenAI, Gemini, and Ollama.
 - **Hot Package Manager**: On-demand dependency installation (`DependencyManager`).
-- **Hot Reloading**: Subgraphs and plugins update in real-time without stopping execution.
-- **Priority Execution**: Intelligent flow control allowing high-priority tasks to preempt others.
-- **Interactive Sandbox Testing**: A modular CLI Auditor (`tools/auditor`) for robust, isolated node memory validation, Provider sub-testing, and watchdog protection.
+- **Detached Graph Telemetry**: Standalone Minimap windows that persist outside the main window's OS grouping for dual-monitor debugging.
+- **Magic Discovery Engine**: Smart element resolution with recursive iframe traversal and absolute XPath support.
+- **Robust Browser Actions**: surgical click/wait fallbacks (forced and coordinate-based) for high-reliability web automation.
+
+---
+
+## 📚 Documents
+
+The project maintains a structured documentation hierarchy to support developers and power users:
+
+### 📖 System Documentation
+
+- **[Installation Guide](file:///f:/My%20Programs/Synapse%20VS/docs/Installing.md)**: Hardware requirements and platform setup.
+- **[Developer Guide](file:///f:/My%20Programs/Synapse%20VS/docs/developer.md)**: Deep dive into SuperNode architecture, lifecycle, and core internals.
+- **[PowerUser Guide](file:///f:/My%20Programs/Synapse%20VS/docs/PowerUser.md)**: Advanced scripting and workflow optimization techniques.
+
+### 🧩 Node Reference
+
+- The **[docs/nodes/](file:///f:/My%20Programs/Synapse%20VS/docs/nodes/)** directory contains auto-generated documentation for the entire standard library.
+- Each node class's `DocString` is used to populate interactive tooltips within the **Architect UI**.
+
+---
 
 ---
 

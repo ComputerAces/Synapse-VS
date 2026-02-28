@@ -41,17 +41,19 @@ Search for anything here! You can find AI tools, math, system commands, and more
 
 ### Top Right: Smart Search
 
-The search bar in the top-right corner is more than just a filter. It performs a **Deep Search** across your entire graph:
+The search bar in the top-right corner is a deep **Magic Search** tool that understands your graph's structure:
 
 - **Find Nodes**: Type a name like "Ask AI" to highlight those nodes.
 - **Find Types**: Type "System" or "Flow" to see all nodes of that category.
 - **Find Properties**: Type a value (e.g., `https://` or `MyVar`) to find every node that uses that specific URL or variable!
+- **Magic Targets**: Use dot-notation (e.g., `login.button`) to navigate through complex functional clusters.
 - **Navigation**: Press **Enter** to cycle through matches. The view will automatically pan and "pulse" the matching node.
 
 ### Bottom: Console & Minimap
 
 - **Console**: See the results of your work (like messages from a `Print` node).
 - **Minimap**: A small map to help you find your way around large graphs.
+  - **Detached Mode**: Right-click the Minimap or mini-viewport to **Detach** it. This opens the telemetry map in a separate OS window that you can drag to a second monitor for permanent monitoring.
 
 ## 📦 Grouping & Organization
 
@@ -83,6 +85,7 @@ Make your important nodes stand out!
 ## ⌨️ Helpful Shortcuts
 
 - **F5**: Run your graph!
+- **F9 / Shift+F9**: Step Forward / Step Backward during debugging.
 - **Ctrl+S**: Save your work.
 - **F2**: Zoom out to see the whole graph at once.
 - **F11**: Go fullscreen for a distraction-free experience.

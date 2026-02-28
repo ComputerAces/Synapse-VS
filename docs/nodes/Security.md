@@ -1,47 +1,14 @@
-# 🔐 Security & Crypto
+# 🧩 Security Nodes
 
-Nodes for data encryption, integrity verification, and secure information handling.
+This document covers nodes within the **Security** core category.
 
-## Nodes
-
-### AES Decrypt
-
-**Version**: 2.0.2
-**Description**: Decrypts an encrypted string back to its original state.
-
-Attempts to reverse encryption using the provided key. Matches the 
-security logic used by the 'AES Encrypt' node.
-
-Inputs:
-- Flow: Trigger the decryption process.
-- Encrypted Data: The base64 encoded ciphertext.
-- Key: The secret key used during encryption.
-
-Outputs:
-- Flow: Pulse triggered after decryption.
-- Decrypted Data: The recovered plaintext content.
-
-### AES Encrypt
-
-**Version**: 2.0.2
-**Description**: Encrypts a string or data object using a secret key.
-
-Uses Fernet (AES-128) for high-security encryption when available. 
-Encrypted data is returned as a base64-encoded string.
-
-Inputs:
-- Flow: Trigger the encryption process.
-- Data: The plaintext content to encrypt.
-- Key: The secret key for encryption.
-
-Outputs:
-- Flow: Pulse triggered after encryption.
-- Encrypted Data: The resulting base64 encoded ciphertext.
+## 📂 Actions
 
 ### Add Group
 
-**Version**: 2.0.2
-**Description**: Creates a new security group within the connected Security Provider's database.
+**Version**: `2.1.0`
+
+Creates a new security group within the connected Security Provider's database.
 Groups are used to organize users for bulk permission management.
 
 Inputs:
@@ -52,10 +19,13 @@ Outputs:
 - Flow: Triggered after the operation is attempted.
 - Success: True if the group was successfully created, False if it already exists or an error occurred.
 
+---
+
 ### Add Role
 
-**Version**: 2.0.2
-**Description**: Defines a new security role with specific permissions in the Security Provider's database.
+**Version**: `2.1.0`
+
+Defines a new security role with specific permissions in the Security Provider's database.
 Roles represent sets of capabilities that can be assigned to users or groups.
 
 Inputs:
@@ -67,10 +37,13 @@ Outputs:
 - Flow: Triggered after the operation is attempted.
 - Success: True if the role was successfully created.
 
+---
+
 ### Add User
 
-**Version**: 2.0.2
-**Description**: Registers a new user account in the connected Security Provider's database.
+**Version**: `2.1.0`
+
+Registers a new user account in the connected Security Provider's database.
 This creates the primary identity record used for authentication and authorization.
 
 Inputs:
@@ -83,10 +56,13 @@ Outputs:
 - Flow: Triggered after the account creation attempt.
 - Success: True if the user was successfully registered.
 
+---
+
 ### Assign Group to Role
 
-**Version**: 2.0.2
-**Description**: Links a security group to a specific role, granting all group members the role's permissions.
+**Version**: `2.1.0`
+
+Links a security group to a specific role, granting all group members the role's permissions.
 This is the primary method for bulk authorization management.
 
 Inputs:
@@ -98,10 +74,13 @@ Outputs:
 - Flow: Triggered after the assignment is attempted.
 - Success: True if the relationship was successfully recorded.
 
+---
+
 ### Assign User to Group
 
-**Version**: 2.0.2
-**Description**: Adds an individual user to a security group.
+**Version**: `2.1.0`
+
+Adds an individual user to a security group.
 The user will inherit all roles and permissions associated with that group.
 
 Inputs:
@@ -113,25 +92,117 @@ Outputs:
 - Flow: Triggered after the operation is attempted.
 - Success: True if the user was successfully added to the group.
 
-### Basic Security Provider
+---
 
-**Version**: 2.0.2
-**Description**: Provides standard database-backed security services including authentication and authorization.
-Connects to a Database Provider to store and retrieve user, group, and role information.
+### Log In
+
+**Version**: `2.1.0`
+
+Authenticates a user against the Security Provider's database.
+If successful, it establishes a user session and updates the active User Provider.
 
 Inputs:
-- Flow: Trigger to enter the security scope.
-- Table Name: The database table used for storing user data (default: 'Users').
-- Use Verify: If True, enables stricter session verification.
+- Flow: Trigger the authentication process.
+- Username: The user's login name.
+- Password: The secret password to verify.
 
 Outputs:
-- Done: Triggered upon exiting the security scope.
-- Provider Flow: Active while inside the security context.
+- Flow: Standard execution trigger (executed ONLY upon successful authentication).
+- Error Flow: Pulse triggered if authentication fails or an error occurs.
+- Authenticated: Boolean status of the login attempt.
+
+---
+
+### Log Out
+
+**Version**: `2.1.0`
+
+Terminates the current user session and clears authentication tokens.
+Used to securely exit an application scope.
+
+Inputs:
+- Flow: Trigger the logout process.
+
+Outputs:
+- Flow: Triggered after session data has been cleared.
+
+---
+
+### Register
+
+**Version**: `2.1.0`
+
+Handles self-service user registration with password confirmation.
+Checks for existing usernames before creating a new record.
+
+Inputs:
+- Flow: Trigger the registration workflow.
+- Username: The desired login name.
+- Password: The primary password entry.
+- Confirm Password: Must match the Password input to succeed.
+
+Outputs:
+- Flow: Triggered after the registration attempt.
+- Success: True if the account was created successfully.
+
+---
+
+### Remove User
+
+**Version**: `2.1.0`
+
+Permanently deletes a user account from the connected Security Provider's database.
+
+Inputs:
+- Flow: Trigger the deletion.
+- Username: The name of the user account to remove.
+
+Outputs:
+- Flow: Triggered after the deletion is attempted.
+- Success: True if the user was successfully removed.
+
+---
+
+### Set Password
+
+**Version**: `2.1.0`
+
+Manually hashes a plaintext string into a secure SHA-256 password hash.
+Useful for preparing password data before passing it to 'Add User' or 'Update User'.
+
+Inputs:
+- Flow: Trigger the hashing process.
+- Plaintext: The raw string to be hashed.
+
+Outputs:
+- Flow: Triggered after hashing.
+- Password: The resulting hexadecimal hash string.
+
+---
+
+### Update User
+
+**Version**: `2.1.0`
+
+Modifies existing user data in the Security Provider's database using a dictionary of updates.
+
+Inputs:
+- Flow: Trigger the update process.
+- Username: The target user account to update.
+- Data: A dictionary containing the fields and new values (e.g., {"Password": "new_hash"}).
+
+Outputs:
+- Flow: Triggered after the update attempt.
+
+---
+
+## 📂 Cryptography
 
 ### Checksum/Hash
 
-**Version**: 2.0.2
-**Description**: Generates a cryptographic checksum for strings or files.
+**Version**: `2.1.0`
+
+Generates a cryptographic checksum for strings or files.
 
 Supports multiple algorithms (SHA-256, MD5) and secure HMAC 
 (Keyed-Hash Message Authentication Code) for verified message integrity.
@@ -146,10 +217,13 @@ Outputs:
 - Flow: Pulse triggered after calculation.
 - Hash: The resulting hexadecimal checksum string.
 
+---
+
 ### Encryption Provider
 
-**Version**: 2.0.2
-**Description**: Standardized data encryption and decryption service.
+**Version**: `2.1.0`
+
+Standardized data encryption and decryption service.
 
 This provider establishes a cryptographic environment using a master secret 
 key. It handles Fernet (AES-128) encryption and can intercept system-wide 
@@ -165,10 +239,128 @@ Outputs:
 - Provider ID: Identifier for automation node targeting.
 - Flow: Pulse triggered after the service is closed.
 
+---
+
+## 📂 General
+
+### AES Decrypt
+
+**Version**: `2.1.0`
+
+Decrypts an encrypted string back to its original state.
+
+Attempts to reverse encryption using the provided key. Matches the 
+security logic used by the 'AES Encrypt' node.
+
+Inputs:
+- Flow: Trigger the decryption process.
+- Encrypted Data: The base64 encoded ciphertext.
+- Key: The secret key used during encryption.
+
+Outputs:
+- Flow: Pulse triggered after decryption.
+- Decrypted Data: The recovered plaintext content.
+
+---
+
+### AES Encrypt
+
+**Version**: `2.1.0`
+
+Encrypts a string or data object using a secret key.
+
+Uses Fernet (AES-128) for high-security encryption when available. 
+Encrypted data is returned as a base64-encoded string.
+
+Inputs:
+- Flow: Trigger the encryption process.
+- Data: The plaintext content to encrypt.
+- Key: The secret key for encryption.
+
+Outputs:
+- Flow: Pulse triggered after encryption.
+- Encrypted Data: The resulting base64 encoded ciphertext.
+
+---
+
+### Hash String
+
+**Version**: `2.1.0`
+
+Generates a secure SHA-256 hash (fingerprint) of a string.
+
+Hashing is a one-way transformation used for data integrity verification 
+or password masking. It cannot be reversed.
+
+Inputs:
+- Flow: Trigger the hashing process.
+- Data: The string to hash.
+
+Outputs:
+- Flow: Pulse triggered after hashing.
+- SHA Key: The resulting 64-character hexadecimal hash.
+
+---
+
+## 📂 Providers
+
+### Basic Security Provider
+
+**Version**: `2.1.0`
+
+Provides standard database-backed security services including authentication and authorization.
+Connects to a Database Provider to store and retrieve user, group, and role information.
+
+Inputs:
+- Flow: Trigger to enter the security scope.
+- Table Name: The database table used for storing user data (default: 'Users').
+- Use Verify: If True, enables stricter session verification.
+
+Outputs:
+- Done: Triggered upon exiting the security scope.
+- Provider Flow: Active while inside the security context.
+
+---
+
+### OS Security Provider
+
+**Version**: `2.1.0`
+
+Security provider that leverages OS-level security features and restrictions.
+Integrated with system permissions and environment security barriers.
+
+Inputs:
+- Flow: Start the OS security provider service.
+
+Outputs:
+- Provider Flow: Active while the provider service is running.
+- Flow: Triggered when the service is stopped.
+
+---
+
+### User Provider
+
+**Version**: `2.1.0`
+
+Service provider for user identity and permission management.
+Handles user state, roles, groups, and permission category checks.
+
+Inputs:
+- Flow: Start the user provider service.
+
+Outputs:
+- Provider Flow: Active while the provider service is running.
+- Flow: Triggered when the service is stopped.
+
+---
+
+## 📂 RBAC
+
 ### Gatekeeper
 
-**Version**: 2.0.2
-**Description**: Validates user identity and session tokens within a scoped application context.
+**Version**: `2.1.0`
+
+Validates user identity and session tokens within a scoped application context.
 
 This node acts as a security checkpoint, checking the current execution context 
 against authentication providers. It directs flow based on whether a valid 
@@ -186,131 +378,6 @@ Outputs:
 - Access Denied: Pulse triggered if no identity is found or verification fails.
 - Identity: The user profile data of the authorized identity.
 
-### Hash String
-
-**Version**: 2.0.2
-**Description**: Generates a secure SHA-256 hash (fingerprint) of a string.
-
-Hashing is a one-way transformation used for data integrity verification 
-or password masking. It cannot be reversed.
-
-Inputs:
-- Flow: Trigger the hashing process.
-- Data: The string to hash.
-
-Outputs:
-- Flow: Pulse triggered after hashing.
-- SHA Key: The resulting 64-character hexadecimal hash.
-
-### Log In
-
-**Version**: 2.0.2
-**Description**: Authenticates a user against the Security Provider's database.
-If successful, it establishes a user session and updates the active User Provider.
-
-Inputs:
-- Flow: Trigger the authentication process.
-- Username: The user's login name.
-- Password: The secret password to verify.
-
-Outputs:
-- Flow: Standard execution trigger (executed ONLY upon successful authentication).
-- Error Flow: Pulse triggered if authentication fails or an error occurs.
-- Authenticated: Boolean status of the login attempt.
-
-### Log Out
-
-**Version**: 2.0.2
-**Description**: Terminates the current user session and clears authentication tokens.
-Used to securely exit an application scope.
-
-Inputs:
-- Flow: Trigger the logout process.
-
-Outputs:
-- Flow: Triggered after session data has been cleared.
-
-### OS Security Provider
-
-**Version**: 2.0.2
-**Description**: Security provider that leverages OS-level security features and restrictions.
-Integrated with system permissions and environment security barriers.
-
-Inputs:
-- Flow: Start the OS security provider service.
-
-Outputs:
-- Provider Flow: Active while the provider service is running.
-- Flow: Triggered when the service is stopped.
-
-### Register
-
-**Version**: 2.0.2
-**Description**: Handles self-service user registration with password confirmation.
-Checks for existing usernames before creating a new record.
-
-Inputs:
-- Flow: Trigger the registration workflow.
-- Username: The desired login name.
-- Password: The primary password entry.
-- Confirm Password: Must match the Password input to succeed.
-
-Outputs:
-- Flow: Triggered after the registration attempt.
-- Success: True if the account was created successfully.
-
-### Remove User
-
-**Version**: 2.0.2
-**Description**: Permanently deletes a user account from the connected Security Provider's database.
-
-Inputs:
-- Flow: Trigger the deletion.
-- Username: The name of the user account to remove.
-
-Outputs:
-- Flow: Triggered after the deletion is attempted.
-- Success: True if the user was successfully removed.
-
-### Set Password
-
-**Version**: 2.0.2
-**Description**: Manually hashes a plaintext string into a secure SHA-256 password hash.
-Useful for preparing password data before passing it to 'Add User' or 'Update User'.
-
-Inputs:
-- Flow: Trigger the hashing process.
-- Plaintext: The raw string to be hashed.
-
-Outputs:
-- Flow: Triggered after hashing.
-- Password: The resulting hexadecimal hash string.
-
-### Update User
-
-**Version**: 2.0.2
-**Description**: Modifies existing user data in the Security Provider's database using a dictionary of updates.
-
-Inputs:
-- Flow: Trigger the update process.
-- Username: The target user account to update.
-- Data: A dictionary containing the fields and new values (e.g., {"Password": "new_hash"}).
-
-Outputs:
-- Flow: Triggered after the update attempt.
-
-### User Provider
-
-**Version**: 2.0.2
-**Description**: Service provider for user identity and permission management.
-Handles user state, roles, groups, and permission category checks.
-
-Inputs:
-- Flow: Start the user provider service.
-
-Outputs:
-- Provider Flow: Active while the provider service is running.
-- Flow: Triggered when the service is stopped.
-
 ---
-[Back to Nodes Index](Index.md)
+
+[Back to Node Index](Index.md)
