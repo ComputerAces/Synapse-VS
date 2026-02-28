@@ -119,12 +119,13 @@ def generate_index(docs_dir, template_path):
 
     # Find all .md files in the docs dir (excluding Index.md)
     categories = []
+    import urllib.parse
     for file in os.listdir(docs_dir):
         if file.endswith(".md") and file != "Index.md":
             path = os.path.join(docs_dir, file)
             # Use the basename for the title
             title = file.replace(".md", "")
-            categories.append(f"- [{title}]({file})")
+            categories.append(f"- [{title}]({urllib.parse.quote(file)})")
 
     # Sort categories alphabetical
     categories.sort()
