@@ -39,6 +39,8 @@ logs/
 sub_graphs/
 snippets/
 Synapse VS/
+test_*.*
+sig.txt
 
 # Build artifacts
 dist/
