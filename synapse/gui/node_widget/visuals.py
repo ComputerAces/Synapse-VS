@@ -90,6 +90,14 @@ class NodeVisualsMixin:
         self.update()
 
     def paint(self, painter, option, widget):
+        # [VIEWPORT CULLING]
+        # Only render when bounds intersect the viewport
+        if self.scene() and self.scene().views():
+            view = self.scene().views()[0]
+            visible_rect = view.mapToScene(view.viewport().rect()).boundingRect()
+            if not visible_rect.intersects(self.sceneBoundingRect()):
+                return
+            
         # 1. Base Geometry
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width, self.height, 10, 10)
@@ -129,7 +137,7 @@ class NodeVisualsMixin:
         except:
             pass
 
-        # Only process visual states if Trace is enabled (or if it's an Error/Step state which should always show)
+        # Only process visual states if Trace is enabled and node isn't culled
         is_running_service = False
         is_subgraph_active = False
         is_pulsing_blue = False
@@ -213,8 +221,9 @@ class NodeVisualsMixin:
                 alpha = 120
                 highlight_color = QColor(128, 0, 128, alpha) # Purple
             elif is_subgraph_active:
-                alpha = 120
-                highlight_color = QColor(0, 191, 255, alpha) # Blue
+                pulse = (math.sin(ms / 250.0) + 1) / 2.0
+                alpha = int(60 + (90 * pulse))
+                highlight_color = QColor(75, 0, 130, alpha) # Dark Purple/Indigo
 
             if highlight_color and alpha > 0:
                 painter.setBrush(QBrush(highlight_color))

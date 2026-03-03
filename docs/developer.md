@@ -32,6 +32,7 @@ The frontend built with PyQt6.
 
 - **Minimap/Miniworld**: Detachable high-performance overview viewports with independent OS window grouping.
 - **Bridge Poller**: Syncs visual state with the backend at 33Hz.
+- **Canvas Rendering (Viewport Culling)**: Your approach to only drawing visible nodes (with a slight buffer margin for smooth panning) is exactly the right path. In PyQt6, the QGraphicsScene relies heavily on bounding rects. By explicitly telling the canvas to suspend complex paint operations (like drop shadows, antialiasing on thick wires, or live text updates) when a node's bounding box intersects outside the visible viewport, you can keep the framerate locked at 60 FPS even with thousands of nodes. It is highly effective and requires far less overhead than writing custom OpenGL shaders.
 
 ---
 

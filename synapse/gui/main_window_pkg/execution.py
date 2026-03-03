@@ -290,9 +290,18 @@ class ExecutionMixin:
                 
                 if hasattr(target_item, 'inputs'):
                     for port in target_item.inputs:
+                        is_flow = (port.name == "Flow")
                         for wire in port.wires:
                             if hasattr(wire, 'highlight_fade'):
                                 wire.highlight_fade()
+                            
+                            # Give a distinct 'data fetch' ping to nodes providing variables
+                            if not is_flow and wire.start_port and hasattr(wire.start_port, 'parent_node'):
+                                provider = wire.start_port.parent_node
+                                if provider and provider != target_item:
+                                    provider._is_fading_blue = True
+                                    provider._fade_start_blue = QTime.currentTime().msecsSinceStartOfDay()
+                                    provider.update()
 
                 if self.auto_focus_checkbox.isChecked() and target_graph == self.get_current_graph():
                     target_graph.canvas.smooth_center_on(target_item)
@@ -316,9 +325,11 @@ class ExecutionMixin:
                     if target_item: break
         
         if target_item:
-            target_item.update()
-            
-            if not is_active:
+            if is_active:
+                target_item._is_running = True
+                target_item._running_since = QTime.currentTime().msecsSinceStartOfDay()
+                target_item._is_fading = False
+            else:
                 target_item._is_running = False 
                 target_item._is_fading = True
                 target_item._fade_start = QTime.currentTime().msecsSinceStartOfDay()

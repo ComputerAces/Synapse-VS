@@ -54,9 +54,11 @@ class MainWindow(QMainWindow, LayoutMixin, ActionsMixin, MenusMixin, FileOperati
         self.status_bar = self.statusBar()
         self.status_bar.showMessage("Ready")
         
-        self.thread_count_label = QLabel("Services: 0")
+        self.thread_count_label = QLabel("Threads: 0")
+        self.service_count_label = QLabel("Services: 0")
         self.env_count_label = QLabel("Environments: 0")
         self.status_bar.addPermanentWidget(self.env_count_label)
+        self.status_bar.addPermanentWidget(self.service_count_label)
         self.status_bar.addPermanentWidget(self.thread_count_label)
         
         # 6. Load Settings & Restore Session
@@ -243,25 +245,32 @@ class MainWindow(QMainWindow, LayoutMixin, ActionsMixin, MenusMixin, FileOperati
                         if getattr(item, "_is_running", False) or getattr(item, "_is_fading", False):
                             item.update()
             
-            # 5. Update Thread/Service/Environment Count Labels
-            if hasattr(graph, 'engine') and graph.engine:
-                count = len(graph.engine.service_registry)
-                self.thread_count_label.setText(f"Services: {count}")
-                
-            # Global Environment Count
+            # 5. Update UI Labels (Services, Environments, Threads)
             env_count = 0
+            thread_count = 0
+            service_count = 0
+            
             for i in range(self.central_tabs.count()):
                 w = self.central_tabs.widget(i)
-                if isinstance(w, GraphWidget) and w.execution_state == w.STATE_RUNNING:
-                    env_count += 1
-            
-            # Plus active services/sub-processes across ALL graphs
-            for i in range(self.central_tabs.count()):
-                w = self.central_tabs.widget(i)
-                if isinstance(w, GraphWidget) and hasattr(w, 'engine') and w.engine:
-                    env_count += len(w.engine.dispatcher.active_processes)
-            
+                if isinstance(w, GraphWidget):
+                    if w.execution_state == w.STATE_RUNNING:
+                        env_count += 1
+                        
+                    if hasattr(w, 'engine') and w.engine:
+                        env_count += len(w.engine.dispatcher.active_processes)
+                        
+                        if hasattr(w.engine, 'service_registry'):
+                            service_count += len(w.engine.service_registry)
+                            
+                        # [NEW] Thread Tracking
+                        if hasattr(w.engine, 'thread_manager') and w.engine.thread_manager:
+                            try:
+                                thread_count += len(w.engine.thread_manager.active_threads)
+                            except: pass
+                            
             self.env_count_label.setText(f"Environments: {env_count}")
+            self.service_count_label.setText(f"Services: {service_count}")
+            self.thread_count_label.setText(f"Threads: {thread_count}")
             
         except BrokenPipeError:
             # Manager likely dead or shutting down

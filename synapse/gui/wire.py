@@ -296,6 +296,13 @@ class Wire(QGraphicsPathItem):
         self.highlight_active()
 
     def paint(self, painter, option, widget):
+        # [VIEWPORT CULLING]
+        if self.scene() and self.scene().views():
+            view = self.scene().views()[0]
+            visible_rect = view.mapToScene(view.viewport().rect()).boundingRect()
+            if not visible_rect.intersects(self.sceneBoundingRect()):
+                return
+            
         ms = QTime.currentTime().msecsSinceStartOfDay()
         is_active = getattr(self, "_is_active", False)
         

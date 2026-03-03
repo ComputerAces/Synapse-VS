@@ -17,6 +17,7 @@ class MinimapWidget(QWidget):
         self.offset_x = 0
         self.offset_y = 0
         self.cached_bounds = None
+        self.last_active_node = None
         
     def update_minimap(self):
         """Recalculate bounds and trigger repaint."""
@@ -34,10 +35,12 @@ class MinimapWidget(QWidget):
         if not graph or not graph.canvas:
             painter.setPen(QColor("#666666"))
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No Graph")
+            painter.end()
             return
         
         scene = graph.canvas.scene
         if not scene:
+            painter.end()
             return
         
         # Calculate scene bounds (Ignore frames as requested)
@@ -57,6 +60,7 @@ class MinimapWidget(QWidget):
                     scene_rect = scene_rect.united(i.sceneBoundingRect())
 
         if scene_rect.isEmpty():
+            painter.end()
             return
         
         # Calculate scale to fit widget
@@ -90,6 +94,7 @@ class MinimapWidget(QWidget):
         
         # Draw viewport frame
         self._draw_viewport(painter, graph.canvas)
+        painter.end()
         
     def _get_fade_multiplier(self, x, y):
         """Calculate a 0.0-1.0 multiplier based on proximity to widget edges."""
@@ -146,7 +151,6 @@ class MinimapWidget(QWidget):
             trace_subgraphs = self.main_window.trace_subgraphs_checkbox.isChecked()
 
         is_running = False
-        is_fading = False
         is_running_service = False
         is_subgraph_active = False
         is_waiting = False
@@ -161,46 +165,80 @@ class MinimapWidget(QWidget):
             
             if can_trace_this:
                 is_running = getattr(node, '_is_running', False)
-                is_fading = getattr(node, '_is_fading', False)
+                if is_running:
+                    if getattr(self, 'last_active_node', None) != node:
+                        if getattr(self, 'last_active_node', None) is not None:
+                            from PyQt6.QtCore import QTime
+                            self.last_active_node._minimap_fade_start = QTime.currentTime().msecsSinceStartOfDay()
+                        self.last_active_node = node
+                
                 is_waiting = getattr(node, '_is_waiting', False)
                 if node.node and getattr(node.node, "bridge", None):
                     is_running_service = node.node.bridge.get(f"{node.node.node_id}_IsServiceRunning")
                     is_subgraph_active = node.node.bridge.get(f"{node.node.node_id}_SubGraphActivity")
+                    
+        is_last_active = (getattr(self, 'last_active_node', None) == node)
 
-        if is_waiting and show_trace:
-            # Pulsing blue effect using time-based sine wave
-            import math
-            from PyQt6.QtCore import QTime
-            ms = QTime.currentTime().msecsSinceStartOfDay()
+        if is_last_active and show_trace:
+            node._minimap_fade_start = 0
+
+        from PyQt6.QtCore import QTime
+        import math
+        ms = QTime.currentTime().msecsSinceStartOfDay()
+
+        if getattr(node, "_is_error", False):
+            # Flashing Dark Red (Breathing)
+            pulse = (math.sin(ms / 200.0) + 1) / 2.0
+            r = int(139 + (116 * pulse)) # 139 to 255
+            color = QColor(r, 0, 0)
+        elif is_waiting and show_trace:
+            # Pulsing blue/orange effect
             pulse = (math.sin(ms / 300.0) + 1.0) / 2.0  # 0.0 to 1.0
-            r = int(0 + 100 * pulse)
-            g = int(120 + 100 * pulse)
-            b = 255
+            r = int(255)
+            g = int(165 + (90 * pulse))
+            b = 0
             color = QColor(r, g, b)
-            painter.setPen(QPen(QColor(0, 150, 255), 2))
         elif is_running_service:
             color = QColor("#800080") # Bold Purple
-            painter.setPen(QPen(QColor("#00ff00"), 2))
         elif is_subgraph_active:
-            color = QColor("#00bfff") # Deep Sky Blue
-            painter.setPen(QPen(QColor("#00bfff"), 2))
-        elif is_running:
+            pulse = (math.sin(ms / 250.0) + 1) / 2.0
+            r = int(75)
+            g = int(0)
+            b = int(130)
+            color = QColor(r, g, b, int(60 + (90 * pulse)))
+        elif getattr(node, "_is_fading_blue", False) and show_trace:
+            # Data Var Fetching Pulse (Fading Deep Sky Blue)
+            fade_start_blue = getattr(node, "_fade_start_blue", ms)
+            elapsed = ms - fade_start_blue
+            if elapsed < 1000:
+                factor = 1.0 - (elapsed / 1000.0)
+                r = int(color.red() + (0 - color.red()) * factor)
+                g = int(color.green() + (191 - color.green()) * factor)
+                b = int(color.blue() + (255 - color.blue()) * factor)
+                color = QColor(r, g, b)
+            else:
+                node._is_fading_blue = False
+        elif is_last_active and show_trace:
             color = QColor("#00ff00")
-            painter.setPen(QPen(QColor("#00ff00"), 2))
-        elif is_fading:
-            # Dim the original color to indicate fading
-            color = color.lighter(130) if color.lightness() < 128 else color.darker(130)
-            painter.setPen(QPen(QColor(color.red(), color.green(), color.blue(), 128), 1))
+        else:
+            # Check for custom minimap fade
+            fade_start = getattr(node, '_minimap_fade_start', 0)
+            if fade_start > 0 and show_trace:
+                elapsed = ms - fade_start
+                if elapsed < 1000:
+                    # Blend from #00ff00 to standard color
+                    factor = 1.0 - (elapsed / 1000.0)
+                    r = int(color.red() + (0 - color.red()) * factor)
+                    g = int(color.green() + (255 - color.green()) * factor)
+                    b = int(color.blue() + (0 - color.blue()) * factor)
+                    color = QColor(r, g, b)
+                else:
+                    node._minimap_fade_start = 0
         # Apply edge fading
         fade_multiplier = self._get_fade_multiplier(x + w/2, y + h/2)
         color.setAlpha(int(color.alpha() * fade_multiplier))
         
-        pen = painter.pen()
-        pen_color = pen.color()
-        pen_color.setAlpha(int(pen_color.alpha() * fade_multiplier))
-        pen.setColor(pen_color)
-        painter.setPen(pen)
-        
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
         painter.drawRect(QRectF(x, y, max(w, 3), max(h, 3)))
         
@@ -252,11 +290,17 @@ class MinimapWidget(QWidget):
         # Calculate fading for the wire (using midpoint)
         fade_multiplier = self._get_fade_multiplier((x1 + x2) / 2, (y1 + y2) / 2)
         
+        c = wire.color if hasattr(wire, 'color') else QColor("#cccccc")
+        if isinstance(c, str): c = QColor(c)
+
         if alpha > 0:
-            painter.setPen(QPen(QColor(0, 255, 0, int(alpha * fade_multiplier)), 2))
+            # Highlight Active Pulse
+            if c.name().lower() == "#006400": # Dark Green Flow wire -> Vibrant Green Pulse
+                c = QColor("#2ECC71")
+            
+            c.setAlpha(int(alpha * fade_multiplier))
+            painter.setPen(QPen(c, 2))
         else:
-            c = wire.color if hasattr(wire, 'color') else QColor("#cccccc")
-            if isinstance(c, str): c = QColor(c)
             # Standard wires use a naturally thinner/fainter alpha scaled by fade
             c.setAlpha(int(128 * fade_multiplier))
             painter.setPen(QPen(c, 1))

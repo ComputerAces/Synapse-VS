@@ -157,6 +157,14 @@ class FrameWidget(QGraphicsRectItem):
 
     def paint(self, painter, option, widget):
         rect = self.rect()
+        
+        # [VIEWPORT CULLING]
+        if self.scene() and self.scene().views():
+            view = self.scene().views()[0]
+            visible_rect = view.mapToScene(view.viewport().rect()).boundingRect()
+            if not visible_rect.intersects(self.sceneBoundingRect()):
+                return
+        
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Draw Shadow/Glow if selected

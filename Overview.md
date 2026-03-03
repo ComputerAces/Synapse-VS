@@ -118,6 +118,7 @@ def define_schema(self):
 - **SubGraph File Rescue**: Automatic fallback to embedded `.syp` cache when dynamic graph targets are moved or deleted, with UI recovery hooks.
 - **Headless Execution Profiling**: Strictly gated backend parsing allows graphs to sprint down to `0.0s` logical tick rates without blocking the PyQt main thread.
 - **Node Library Tuning**: Toggleable DocStrings and instantaneous search filtering for a streamlined authoring experience.
+- **Canvas Rendering: Viewport Culling**: Your approach to only drawing visible nodes (with a slight buffer margin for smooth panning) is exactly the right path. In PyQt6, the QGraphicsScene relies heavily on bounding rects. By explicitly telling the canvas to suspend complex paint operations (like drop shadows, antialiasing on thick wires, or live text updates) when a node's bounding box intersects outside the visible viewport, you can keep the framerate locked at 60 FPS even with thousands of nodes. It is highly effective and requires far less overhead than writing custom OpenGL shaders.
 
 ---
 

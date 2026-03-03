@@ -9,6 +9,7 @@ import time
 import datetime
 import re
 from synapse.nodes.lib.loop_node import LoopNode
+from synapse.core.super_node import SuperNode
 from synapse.nodes.registry import NodeRegistry
 from synapse.core.types import DataType, TriggerType
 from synapse.core.dependencies import DependencyManager
