@@ -22,6 +22,7 @@ class DebugNode(SuperNode):
         self.is_debug = True 
         self.properties["Header"] = "*"
         self.properties["Handle Formatting"] = False
+        self.no_show = ["Handle Formatting"]
         self.define_schema()
         self.register_handlers()
 
@@ -33,7 +34,7 @@ class DebugNode(SuperNode):
             "Flow": DataType.FLOW,
             "Header": DataType.STRING,
             "Data": DataType.ANY,
-            "Handle Formatting": {"type": DataType.BOOLEAN, "no_show": True}
+            "Handle Formatting": DataType.BOOLEAN
         }
         self.output_schema = {
             "Flow": DataType.FLOW

@@ -21,6 +21,9 @@ class StringNode(SuperNode):
         super().__init__(node_id, name, bridge)
         self.is_native = True
         self.properties["Value"] = ""
+        # Prune legacy lowercase "value" property if it was loaded from an older graph
+        if "value" in self.properties:
+            del self.properties["value"]
         self.define_schema()
         self.register_handlers()
 

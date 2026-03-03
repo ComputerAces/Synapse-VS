@@ -47,7 +47,12 @@ class DataToStringNode(SuperNode):
         indent_val = Indent if Indent is not None else kwargs.get("Indent") if kwargs.get("Indent") is not None else self.properties.get("Indent", True)
         
         try:
-            result = json.dumps(val, indent=2 if indent_val else None)
+            if isinstance(val, list):
+                # Map elements to strings (using json.dumps for dicts/lists to preserve structure)
+                str_list = [json.dumps(x, indent=2 if indent_val else None, ensure_ascii=False) if isinstance(x, (dict, list)) else str(x) for x in val]
+                result = "\n".join(str_list)
+            else:
+                result = json.dumps(val, indent=2 if indent_val else None, ensure_ascii=False)
             self.bridge.set(f"{self.node_id}_String", result, self.name)
             self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         except Exception as e:

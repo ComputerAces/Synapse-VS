@@ -290,3 +290,86 @@ class ListCountNode(SuperNode):
         self.set_output("Count", count)
         self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
         return True
+
+@NodeRegistry.register("List Add Item", "Data/Lists")
+class ListAddItemNode(BaseListOpNode):
+    """
+    Appends one or more items to a list. Supports dynamically adding multiple input pins.
+    
+    Inputs:
+    - Flow: Execution trigger.
+    - List: The base list to add items to (starts empty if not provided).
+    - [Dynamic Inputs]: Add items via the Node's visual context menu.
+    
+    Outputs:
+    - Flow: Triggered after the items are added.
+    - Result: The updated list.
+    - Count: The length of the updated list.
+    """
+    version = "1.0.0"
+    allow_dynamic_inputs = True
+
+    def __init__(self, node_id, name, bridge):
+        super().__init__(node_id, name, bridge)
+        self.hidden_fields = ["additional_inputs"]
+        # Schema logic is inherited, but we enforce it immediately
+        self.define_schema()
+        self.register_handlers()
+
+    def define_schema(self):
+        super().define_schema()
+        # Rename 'Result' to 'List' for clarity
+        if "Result" in self.output_schema:
+            del self.output_schema["Result"]
+        self.output_schema["List"] = DataType.LIST
+
+    def register_handlers(self):
+        self.register_handler("Flow", self.add_items)
+
+    def add_items(self, List=None, **kwargs):
+        input_list = List if List is not None else self.properties.get("List", [])
+        
+        # Ensure we are working with a list, but copy it so we don't accidentally mutate a global reference
+        if not isinstance(input_list, list):
+            if input_list is None:
+                current_list = []
+            elif hasattr(input_list, "__iter__") and not isinstance(input_list, (str, bytes)):
+                current_list = list(input_list)
+            else:
+                current_list = [input_list]
+        else:
+            current_list = list(input_list)
+            
+        # Get dynamic inputs order from properties
+        dynamic_inputs = self.properties.get("additional_inputs") or self.properties.get("Additional Inputs", [])
+        
+        # Parse if stringified
+        if isinstance(dynamic_inputs, str):
+            import ast
+            try:
+                dynamic_inputs = ast.literal_eval(dynamic_inputs)
+            except Exception:
+                dynamic_inputs = []
+                
+        if not isinstance(dynamic_inputs, list):
+            dynamic_inputs = []
+            
+        # Append items in order
+        for pin_name in dynamic_inputs:
+            val = kwargs.get(pin_name)
+            if val is None:
+                val = self.properties.get(pin_name)
+                
+            # Unwrap stringified UI lists
+            if isinstance(val, list) and len(val) == 2 and isinstance(val[0], str):
+                if val[0].lower() in ["str", "string", "int", "integer", "float", "number", "bool", "boolean", "any", "list", "dict"]:
+                    val = val[1]
+            
+            # Don't strictly throw out None, user might explicitly want to add None/null to list
+            current_list.append(val)
+            
+        self.set_output("List", current_list)
+        self.set_output("Count", len(current_list))
+        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+        return True
+

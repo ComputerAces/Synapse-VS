@@ -135,7 +135,7 @@ class FlowController:
                     continue 
 
             # 3. FALLBACK: Legacy Name Convention
-            if port in legacy_flow_names:
+            if active_ports is None and not should_trigger and port in legacy_flow_names:
                 should_trigger = True
             
             if should_trigger:

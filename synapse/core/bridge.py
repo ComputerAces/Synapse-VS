@@ -347,11 +347,15 @@ class SynapseBridge:
                 
                 # 2. Get Deterministic SHM Name (Reuse block)
                 import hashlib
-                shm_name = f"syn_{hashlib.md5(scoped_key.encode()).hexdigest()[:16]}"
                 
                 # 3. Manage SHM
                 old_metadata = self._variables_registry.get(scoped_key)
                 new_version = (old_metadata[1] + 1) if old_metadata else 1
+                
+                if old_metadata:
+                    shm_name = old_metadata[0]
+                else:
+                    shm_name = f"syn_{hashlib.md5(scoped_key.encode()).hexdigest()[:16]}"
                 
                 # Try to reuse existing shm if possible
                 shm = None
@@ -360,7 +364,9 @@ class SynapseBridge:
                     if shm.size < len(data_bytes):
                         # Too small, must recreate
                         shm.close()
-                        shm.unlink()
+                        try: shm.unlink()
+                        except: pass
+                        shm_name = f"syn_{hashlib.md5(scoped_key.encode()).hexdigest()[:10]}_{new_version}"
                         shm = shared_memory.SharedMemory(create=True, size=len(data_bytes), name=shm_name)
                 except:
                     # Doesn't exist, create
@@ -404,11 +410,15 @@ class SynapseBridge:
             with self._get_lock(scoped_key):
                 # 2. Get Deterministic SHM Name (Reuse block)
                 import hashlib
-                shm_name = f"syn_{hashlib.md5(scoped_key.encode()).hexdigest()[:16]}"
                 
                 # 3. Manage SHM
                 old_metadata = self._variables_registry.get(scoped_key)
                 new_version = (old_metadata[1] + 1) if old_metadata else 1
+                
+                if old_metadata:
+                    shm_name = old_metadata[0]
+                else:
+                    shm_name = f"syn_{hashlib.md5(scoped_key.encode()).hexdigest()[:16]}"
                 
                 try:
                     # Try to reuse existing shm if possible
@@ -418,6 +428,7 @@ class SynapseBridge:
                         shm.close()
                         try: shm.unlink()
                         except: pass
+                        shm_name = f"syn_{hashlib.md5(scoped_key.encode()).hexdigest()[:10]}_{new_version}"
                         shm = shared_memory.SharedMemory(create=True, size=len(data_bytes), name=shm_name)
                 except (FileNotFoundError, Exception):
                     # Doesn't exist or failed to open, try to create

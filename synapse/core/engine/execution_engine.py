@@ -573,7 +573,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         provider_type = node.register_provider_context() if is_provider else None
         is_delayable_provider = is_provider and provider_type != "Flow Provider"
         prov_wired = any(w["from_port"] == "Provider Flow" for w in self.wires if w["from_node"] == node_id)
-        completion_ports = ["Flow", "Out", "Done", "Success", "True", "False"]
+        completion_ports = ["Done"]
 
         stack_overrides = {}
         # 1. Provider Scoping (Native)
@@ -887,7 +887,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
 
                     if scope_id in self.pending_terminations:
                         stack, prio, delay = self.pending_terminations[scope_id]
-                        completion_ports = ["Flow", "Out", "Done", "Success", "True", "False"]
+                        completion_ports = ["Done"]
                         
                         logger.info(f"Provider Scope {scope_id} finished. Resuming completion flow.")
                         
