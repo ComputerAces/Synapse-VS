@@ -37,6 +37,7 @@ class MenusMixin:
         # View Menu
         self.view_menu = menubar.addMenu("&View")
         self.view_menu.addAction(self.toggle_fullscreen_action)
+        self.view_menu.addAction(self.toggle_toolbar_action)
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.zoom_fit_action)
         self.view_menu.addAction(self.zoom_in_action)

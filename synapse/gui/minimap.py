@@ -167,7 +167,7 @@ class MinimapWidget(QWidget):
                     is_running_service = node.node.bridge.get(f"{node.node.node_id}_IsServiceRunning")
                     is_subgraph_active = node.node.bridge.get(f"{node.node.node_id}_SubGraphActivity")
 
-        if is_waiting:
+        if is_waiting and show_trace:
             # Pulsing blue effect using time-based sine wave
             import math
             from PyQt6.QtCore import QTime

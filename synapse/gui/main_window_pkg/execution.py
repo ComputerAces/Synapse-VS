@@ -134,59 +134,67 @@ class ExecutionMixin:
             # Always append for logic/debug monitoring
             self.debug_output.appendPlainText(line)
         elif channel == "flow": 
-            self.highlight_flow_wire(line, source_graph)
+            if self.show_trace_checkbox.isChecked():
+                self.highlight_flow_wire(line, source_graph)
         elif channel == "node_start":
-            node_id = line.replace("[NODE_START]", "").strip()
-            self.set_node_running_state(node_id, True, source_graph)
+            if self.show_trace_checkbox.isChecked():
+                node_id = line.replace("[NODE_START]", "").strip()
+                self.set_node_running_state(node_id, True, source_graph)
         elif channel == "node_stop":
-            node_id = line.replace("[NODE_STOP]", "").strip()
-            source_graph = self.sender() if isinstance(self.sender(), GraphWidget) else self.get_current_graph()
-            
-            # [USER REQUEST] All nodes should fade immediately upon stopping
-            self.set_node_running_state(node_id, False, source_graph)
-        elif channel == "subgraph_start":
-            node_id = line.replace("[SYNP_SUBGRAPH_ACTIVITY]", "").strip()
-            self.set_node_subgraph_state(node_id, True, source_graph)
-        elif channel == "subgraph_stop":
-            node_id = line.replace("[SYNP_SUBGRAPH_FINISHED]", "").strip()
-            self.set_node_subgraph_state(node_id, False, source_graph)
-        elif channel == "node_waiting_start":
-            # Format: [NODE_WAITING_START] node_id | duration_ms
-            content = line.replace("[NODE_WAITING_START]", "").strip()
-            if "|" in content:
-                node_id, duration = content.split("|", 1)
-                node_id = node_id.strip()
-                try: duration = int(duration.strip())
-                except: duration = 1000
-                self.set_node_waiting_state(node_id, True, duration, source_graph)
-        elif channel == "node_waiting_pulse":
-            # Format: [NODE_WAITING_PULSE] node_id | duration
-            content = line.replace("[NODE_WAITING_PULSE]", "").strip()
-            if "|" in content:
-                node_id, duration = content.split("|", 1)
-                node_id = node_id.strip()
+            if self.show_trace_checkbox.isChecked():
+                node_id = line.replace("[NODE_STOP]", "").strip()
+                source_graph = self.sender() if isinstance(self.sender(), GraphWidget) else self.get_current_graph()
                 
-                # Re-use waiting state logic + Pulse
-                try: duration = int(duration.strip())
-                except: duration = 1000
-                self.set_node_waiting_state(node_id, True, duration, source_graph)
-
+                # [USER REQUEST] All nodes should fade immediately upon stopping
+                self.set_node_running_state(node_id, False, source_graph)
+        elif channel == "subgraph_start":
+            if self.show_trace_checkbox.isChecked():
+                node_id = line.replace("[SYNP_SUBGRAPH_ACTIVITY]", "").strip()
+                self.set_node_subgraph_state(node_id, True, source_graph)
+        elif channel == "subgraph_stop":
+            if self.show_trace_checkbox.isChecked():
+                node_id = line.replace("[SYNP_SUBGRAPH_FINISHED]", "").strip()
+                self.set_node_subgraph_state(node_id, False, source_graph)
+        elif channel == "node_waiting_start":
+            if self.show_trace_checkbox.isChecked():
+                # Format: [NODE_WAITING_START] node_id | duration_ms
+                content = line.replace("[NODE_WAITING_START]", "").strip()
+                if "|" in content:
+                    node_id, duration = content.split("|", 1)
+                    node_id = node_id.strip()
+                    try: duration = int(duration.strip())
+                    except: duration = 1000
+                    self.set_node_waiting_state(node_id, True, duration, source_graph)
+        elif channel == "node_waiting_pulse":
+            if self.show_trace_checkbox.isChecked():
+                # Format: [NODE_WAITING_PULSE] node_id | duration
+                content = line.replace("[NODE_WAITING_PULSE]", "").strip()
+                if "|" in content:
+                    node_id, duration = content.split("|", 1)
+                    node_id = node_id.strip()
+                    
+                    # Re-use waiting state logic + Pulse
+                    try: duration = int(duration.strip())
+                    except: duration = 1000
+                    self.set_node_waiting_state(node_id, True, duration, source_graph)
+    
+                    target_node = self._find_node_in_graph(source_graph, node_id) if source_graph else None
+                    if target_node and hasattr(target_node, "highlight_pulse_blue"):
+                        target_node.highlight_pulse_blue()
+        elif channel == "provider_pulse":
+            if self.show_trace_checkbox.isChecked():
+                node_id = line.strip()
                 target_node = self._find_node_in_graph(source_graph, node_id) if source_graph else None
                 if target_node and hasattr(target_node, "highlight_pulse_blue"):
                     target_node.highlight_pulse_blue()
-
-        elif channel == "provider_pulse":
-            node_id = line.strip()
-            target_node = self._find_node_in_graph(source_graph, node_id) if source_graph else None
-            if target_node and hasattr(target_node, "highlight_pulse_blue"):
-                target_node.highlight_pulse_blue()
         elif channel == "node_error":
-            # Format: [NODE_ERROR] node_id | message
-            content = line.replace("[NODE_ERROR]", "").strip()
-            if "|" in content:
-                node_id, msg = content.split("|", 1)
-                node_id = node_id.strip()
-                self.set_node_error_state(node_id, True, msg.strip(), source_graph)
+            if self.show_trace_checkbox.isChecked():
+                # Format: [NODE_ERROR] node_id | message
+                content = line.replace("[NODE_ERROR]", "").strip()
+                if "|" in content:
+                    node_id, msg = content.split("|", 1)
+                    node_id = node_id.strip()
+                    self.set_node_error_state(node_id, True, msg.strip(), source_graph)
 
     def poll_bridge_states(self):
         try:
@@ -199,12 +207,14 @@ class ExecutionMixin:
              bridge_dict = self.shared_manager.dict()
              next_node_id = bridge_dict.get("_SYSTEM_NEXT_NODE")
              
+             show_trace = self.show_trace_checkbox.isChecked()
+
              for item in canvas.scene.items():
                  if hasattr(item, 'node') and item.node:
                      node_id = item.node.node_id
                      
                      # 1. Step Next Highlight
-                     is_next = (node_id == next_node_id)
+                     is_next = (node_id == next_node_id) and show_trace
                      if getattr(item, '_is_next', None) != is_next:
                          item._is_next = is_next
                          item.update()

@@ -1,4 +1,5 @@
 {
+    "version": "2.3.0",
     "nodes": [
         {
             "id": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
@@ -31,8 +32,8 @@
             "id": "ebc91833-8953-495b-9303-619010a16d82",
             "type": "Path Exists",
             "name": "Does 'sub_graphs' Exists",
-            "pos_x": 734.0,
-            "pos_y": -324.0,
+            "pos_x": 758.0628719875558,
+            "pos_y": -393.35768984648456,
             "properties": {
                 "Path": "./sub_graphs"
             }
@@ -69,7 +70,9 @@
                 "Additional Inputs": [
                     "Item 0",
                     "Item 1"
-                ]
+                ],
+                "Item 0": null,
+                "Item 1": null
             }
         }
     ],
@@ -149,8 +152,8 @@
     ],
     "frames": [],
     "viewport": {
-        "center_x": 1232.8683235977155,
-        "center_y": -276.0152963278467,
+        "center_x": 1231.452860539624,
+        "center_y": -285.9235377344874,
         "zoom": 0.7064825848216107
     },
     "embedded_subgraphs": {},
@@ -159,6 +162,5 @@
     "project_type": "",
     "project_category": "File System/Folders",
     "project_version": "1.0.0",
-    "project_vars": {},
-    "version": "2.3.0"
+    "project_vars": {}
 }

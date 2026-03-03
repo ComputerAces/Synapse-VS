@@ -152,6 +152,9 @@ class GraphSerializer:
         node_map = {}
         was_pruned = False
         
+        # [NEW] Extract embedded SubGraph caches before instantiating nodes
+        embedded_subgraphs = data.get("embedded_subgraphs", {})
+        
         if "nodes" in data:
             for n_data in data["nodes"]:
                 node_type = n_data["type"]
@@ -177,6 +180,12 @@ class GraphSerializer:
                             # [PRUNING] Load properties strictly (shared logic with loader.py)
                             loaded_props = n_data["properties"]
                             
+                            # [NEW] Inject Embedded Data to properties BEFORE logical property sync
+                            graph_path_key = "Graph Path" if "Graph Path" in loaded_props else "graph_path" if "graph_path" in loaded_props else "GraphPath"
+                            g_path = loaded_props.get(graph_path_key)
+                            if g_path and g_path in embedded_subgraphs:
+                                loaded_props["Embedded Data"] = embedded_subgraphs[g_path]
+                                
                             # Determine allowed dynamic property keys (case-insensitive)
                             allowed_dynamic = set()
                             for k, v in loaded_props.items():
@@ -266,9 +275,57 @@ class GraphSerializer:
                                  path = logic.properties.get("Graph Path") or logic.properties.get("graph_path") or getattr(node_class, "graph_path", "")
                                  abs_path = os.path.abspath(path) if os.path.exists(path) else path
                                  name = None
+                                 
+                                 # Initialize prompt state tracking for this session if not exists
+                                 if not hasattr(self, "_missing_paths_handled"):
+                                     self._missing_paths_handled = set()
+                                 
                                  if os.path.exists(abs_path):
                                       with open(abs_path, 'r') as f:
                                           name = json.load(f).get("project_name", "").strip()
+                                 else:
+                                      # File is Missing!
+                                      has_embed = logic.properties.get("Embedded Data") or logic.properties.get("embedded_data") or logic.properties.get("EmbeddedData")
+                                      if has_embed:
+                                            name = has_embed.get("project_name", "").strip()
+                                      
+                                      # [NEW] UI Rescue Dialog
+                                      if path and path not in self._missing_paths_handled:
+                                          self._missing_paths_handled.add(path)
+                                          from PyQt6.QtWidgets import QMessageBox, QFileDialog
+                                          
+                                          msg_box = QMessageBox()
+                                          msg_box.setIcon(QMessageBox.Icon.Warning)
+                                          msg_box.setWindowTitle("Missing SubGraph Source")
+                                          
+                                          cache_status = "A cached version of this SubGraph was found in the parent file." if has_embed else "NO cached version was found."
+                                          msg_box.setText(f"The SubGraph file was not found at:\n{path}\n\n{cache_status}")
+                                          
+                                          btn_locate = msg_box.addButton("Locate File...", QMessageBox.ButtonRole.ActionRole)
+                                          btn_cache = msg_box.addButton("Use Cached Data", QMessageBox.ButtonRole.AcceptRole) if has_embed else None
+                                          btn_ignore = msg_box.addButton("Ignore", QMessageBox.ButtonRole.RejectRole)
+                                          
+                                          msg_box.exec()
+                                          
+                                          if msg_box.clickedButton() == btn_locate:
+                                               # Prompt for new location
+                                               dname = os.path.dirname(abs_path)
+                                               if not os.path.exists(dname): dname = os.getcwd()
+                                               new_path, _ = QFileDialog.getOpenFileName(None, "Locate SubGraph .syp", dname, "Synapse Graphs (*.syp)")
+                                               if new_path:
+                                                    abs_path = new_path
+                                                    key = "Graph Path" if "Graph Path" in logic.properties else "graph_path"
+                                                    logic.properties[key] = new_path
+                                                    # Flush old cache if new path is loaded
+                                                    if "Embedded Data" in logic.properties: logic.properties["Embedded Data"] = None
+                                                    if "embedded_data" in logic.properties: logic.properties["embedded_data"] = None
+                                                    # Load new name
+                                                    with open(abs_path, 'r') as f:
+                                                        name = json.load(f).get("project_name", "").strip()
+                                                    # Auto-mark missing paths collection as unhandled so other subgraphs with this old path can be updated if encountered later? 
+                                                    # No, let's keep it handled to prevent prompt spam. They can Map to File via right-click for the rest.
+                                                    was_pruned = True # Flags graph as modified
+                                                    
                                  if not name: name = os.path.splitext(os.path.basename(path))[0]
                                  widget.set_user_name(name)
                                  

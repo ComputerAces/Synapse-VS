@@ -76,11 +76,10 @@ def load_graph_data(data, bridge, engine, source_file=None):
         
         if node_class:
             node = node_class(node_id, node_name, bridge)
-        elif "graph_path" in n_data.get("properties", {}):
+        elif "properties" in n_data and ("graph_path" in n_data["properties"] or "Graph Path" in n_data["properties"] or "GraphPath" in n_data["properties"]):
             # Fallback: It's a SubGraph, but maybe not registered by name yet.
             sg_cls = NodeRegistry.get_node_class("SubGraph Node")
             if sg_cls:
-                logger.warning(f"Node Type '{node_type}' not found. Falling back to generic SubGraphNode.")
                 node = sg_cls(node_id, node_name, bridge)
             else:
                  logger.error(f"Critical: SubGraph Node class not found.")
@@ -161,10 +160,8 @@ def load_graph_data(data, bridge, engine, source_file=None):
                 loaded_props.pop(k) # Remove from JSON data
                 was_pruned = True
         
-        # [NEW] Re-sync schema after properties are loaded
-        if hasattr(node, "sync_schema"):
-            node.sync_schema()
-        
+        # [NEW] Re-sync schema AFTER all properties (including Embedded Data) are loaded
+        # Moved below embedded injection to ensure dynamic ports build correctly
         if hasattr(node, '_parse_legacy_ports'):
             node._parse_legacy_ports()
             
@@ -185,6 +182,11 @@ def load_graph_data(data, bridge, engine, source_file=None):
             if graph_path in embedded_subgraphs:
                 node.properties["Embedded Data"] = embedded_subgraphs[graph_path]
                 logger.info(f"[{node_name}] Injected embedded data from '{graph_path}'")
+
+        # [NEW] Re-sync schema AFTER embedded data is injected 
+        # so dynamic SubGraph ports can process the fallback cache immediately.
+        if hasattr(node, "sync_schema"):
+            node.sync_schema()
 
         # Name Repair
         if (node.name.startswith("SubGraph") or node.name == node_type):

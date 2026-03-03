@@ -45,6 +45,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.bridge.set("_SYSTEM_HEADLESS", self.headless, "Engine")
         self.bridge.set("_SYSTEM_PAUSE_FILE", self.pause_file, "Engine")
         self.bridge.set("_SYSTEM_STOP_FILE", self.stop_file, "Engine")
+        self.bridge.set("_SYSTEM_SPEED_FILE", self.speed_file, "Engine")
         self.bridge.set("_OS_TYPE", platform.system(), "Engine")
         
         # [NEW] Set Graph Prefix (Scope ID) for Bridge
@@ -729,16 +730,16 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             except: pass
             
         # Trace Flags
-        trace_enabled = self.bridge.get("_SYSTEM_TRACE_ENABLED", default=True)
         if self.parent_bridge:
+            trace_enabled = self.parent_bridge.get("_SYSTEM_TRACE_ENABLED", default=True)
+            trace_subgraphs = self.parent_bridge.get("_SYSTEM_TRACE_SUBGRAPHS", default=True)
+            self.trace = trace_enabled and trace_subgraphs
+            
             # Parent Stop Propagation
             if self.parent_bridge.get("_SYSTEM_STOP"):
                 self.bridge.set("_SYSTEM_STOP", True, "Parent_Stop_Propagation")
-
-            # Sub-graph specific tracing
-            trace_subgraphs = self.bridge.get("_SYSTEM_TRACE_SUBGRAPHS", default=True)
-            self.trace = trace_enabled and trace_subgraphs
         else:
+            trace_enabled = self.bridge.get("_SYSTEM_TRACE_ENABLED", default=True)
             self.trace = trace_enabled
 
     def _check_stop_signal(self):

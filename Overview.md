@@ -115,6 +115,9 @@ def define_schema(self):
 - **Detached Graph Telemetry**: Standalone Minimap windows that persist outside the main window's OS grouping for dual-monitor debugging.
 - **Magic Discovery Engine**: Smart element resolution with recursive iframe traversal and absolute XPath support.
 - **Robust Browser Actions**: surgical click/wait fallbacks (forced and coordinate-based) for high-reliability web automation.
+- **SubGraph File Rescue**: Automatic fallback to embedded `.syp` cache when dynamic graph targets are moved or deleted, with UI recovery hooks.
+- **Headless Execution Profiling**: Strictly gated backend parsing allows graphs to sprint down to `0.0s` logical tick rates without blocking the PyQt main thread.
+- **Node Library Tuning**: Toggleable DocStrings and instantaneous search filtering for a streamlined authoring experience.
 
 ---
 

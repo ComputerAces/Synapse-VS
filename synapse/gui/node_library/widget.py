@@ -641,6 +641,8 @@ class NodeLibrary(QWidget):
                  clean_desc = desc.replace("\n", "<br>")
                  tooltip = f"<html><b>Snippet: {label}</b><br><br>{clean_desc}</html>"
                  node_item.setToolTip(0, tooltip)
+             else:
+                 node_item.setToolTip(0, label)
         
         elif has_deps:
             # HOT PLUGIN: Dark Yellow (Missing) or Dark Purple (Installed)
@@ -665,6 +667,8 @@ class NodeLibrary(QWidget):
                 req_text = f"<br><br><b>Requires:</b> {', '.join(node_class.required_libraries)}<br>{status}"
                 tooltip = f"<html><b>{label}</b> (v{ver})<br><br>{formatted_doc}{req_text}</html>"
                 node_item.setToolTip(0, tooltip)
+            else:
+                node_item.setToolTip(0, label)
 
         elif is_plugin:
             # PLUGINS: Green/Bold
@@ -678,6 +682,8 @@ class NodeLibrary(QWidget):
                 clean_desc = desc.replace("\n", "<br>") if desc else label
                 tooltip = f"<html>{clean_desc}</html>"
                 node_item.setToolTip(0, tooltip)
+            else:
+                node_item.setToolTip(0, label)
 
         elif node_class and getattr(node_class, 'is_native', False):
             # NATIVE NODES: Dark Purple / Bold (hot-loading libraries installed)
@@ -693,6 +699,8 @@ class NodeLibrary(QWidget):
                 formatted_doc = doc.replace("\n", "<br>")
                 tooltip = f"<html><b>{label}</b> (v{ver})<br><br>{formatted_doc}<br><br><b>Type:</b> <span style='color:#6A0DAD;'>Native</span></html>"
                 node_item.setToolTip(0, tooltip)
+            else:
+                node_item.setToolTip(0, label)
 
         else:
             # STANDARD
@@ -709,6 +717,8 @@ class NodeLibrary(QWidget):
                     node_item.setToolTip(0, tooltip)
                 else:
                     node_item.setToolTip(0, label)
+            else:
+                node_item.setToolTip(0, label)
             
             if parent_item.text(0) == "Enums":
                 font = node_item.font(0)

@@ -263,22 +263,30 @@ class StringCombineNode(SuperNode):
             dynamic_inputs = []
         
         combined_string = ""
-        for pin_name in dynamic_inputs:
-            # First try kwargs, then properties
-            val = kwargs.get(pin_name)
-            if val is None:
-                val = self.properties.get(pin_name, "")
-            
-            # [FIX] UI often encodes untyped properties as ['str', 'value']
-            # We must unwrap it before combining
-            if isinstance(val, list) and len(val) == 2 and isinstance(val[0], str):
-                # Check if it looks like a type identifier (e.g. 'str', 'int', 'bool', 'any')
-                if val[0].lower() in ["str", "string", "int", "integer", "float", "number", "bool", "boolean", "any"]:
-                    val = val[1]
-            
-            # Append string representation
-            if val is not None:
-                combined_string += str(val)
-
+        
+        # If we have explicitly defined inputs, use them to preserve order
+        if dynamic_inputs:
+            for pin_name in dynamic_inputs:
+                # First try kwargs, then properties
+                val = kwargs.get(pin_name)
+                if val is None:
+                    val = self.properties.get(pin_name, "")
+                
+                # [FIX] UI often encodes untyped properties as ['str', 'value']
+                # We must unwrap it before combining
+                if isinstance(val, list) and len(val) == 2 and isinstance(val[0], str):
+                    if val[0].lower() in ["str", "string", "int", "integer", "float", "number", "bool", "boolean", "any"]:
+                        val = val[1]
+                
+                # Append string representation
+                if val is not None and val != "":
+                    combined_string += str(val)
+        else:
+            # Fallback: if no additional_inputs are logged, just concatenate all provided kwargs
+            for k, val in kwargs.items():
+                if k == "Flow": continue
+                if val is not None and val != "":
+                    combined_string += str(val)
+                
         self.bridge.set(f"{self.node_id}_Result", combined_string, self.name)
         return True

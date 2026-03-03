@@ -61,6 +61,12 @@ class NodeActionsMixin:
             self.add_img_in = menu.addAction("Add Image Input")
             self.rem_img_in = menu.addAction("Remove Image Input")
         
+        is_subgraph = self.name.startswith("SubGraph") or self.name == getattr(self, "node_type", "SubGraph Node") or getattr(self, "node_type", "") == "SubGraph Node"
+        map_file_action = None
+        if is_subgraph:
+            menu.addSeparator()
+            map_file_action = menu.addAction("Map to File...")
+            
         # [SuperNode Integration]
         # Check if this node type inherits from SuperNode
         from synapse.nodes.registry import NodeRegistry
@@ -261,6 +267,38 @@ class NodeActionsMixin:
                      win = QApplication.activeWindow()
                      if hasattr(win, 'open_tab'): win.open_tab(path)
 
+        if action == map_file_action and map_file_action:
+             from PyQt6.QtWidgets import QFileDialog
+             import os
+             import json
+             path = self.node.properties.get("Graph Path") or self.node.properties.get("graph_path", "")
+             dname = os.path.dirname(os.path.abspath(path)) if path else os.getcwd()
+             if not os.path.exists(dname): dname = os.getcwd()
+             new_path, _ = QFileDialog.getOpenFileName(None, "Locate SubGraph .syp", dname, "Synapse Graphs (*.syp)")
+             if new_path:
+                  # Flush caches
+                  if "Embedded Data" in self.node.properties: self.node.properties["Embedded Data"] = None
+                  if "embedded_data" in self.node.properties: self.node.properties["embedded_data"] = None
+                  # Re-map target
+                  key = "Graph Path" if "Graph Path" in self.node.properties else "graph_path"
+                  self.node.properties[key] = new_path
+                  # Refresh visual state
+                  self.update_subgraph_status(True)
+                  # Try to get the graph name
+                  try:
+                      with open(new_path, 'r') as f:
+                           name = json.load(f).get("project_name", "").strip()
+                      if not name: name = os.path.splitext(os.path.basename(new_path))[0]
+                      self.set_user_name(name)
+                  except: pass
+                  # Fully rebuild the ports logic against the newly mapped file
+                  if hasattr(self.node, 'rebuild_ports'):
+                      self.node.rebuild_ports()
+                      if hasattr(self, 'scene') and self.scene():
+                          if hasattr(self.scene(), "update_wires"):
+                               self.scene().update_wires()
+                  self._mark_modified()
+
         elif self.node_type == "Subtract Image":
             if action == self.add_img_in:
                 # find next letter
@@ -391,6 +429,10 @@ class NodeActionsMixin:
         self.node.properties[key] = lst
 
     def delete_node(self):
+        # [NEW] Remove from Frame to trigger auto-resize
+        if hasattr(self, 'parent_frame') and self.parent_frame:
+            self.parent_frame.remove_node(self)
+
         # Remove wires
         for port in self.ports:
             wires = port.wires[:] 

@@ -67,6 +67,11 @@ class ActionsMixin:
         self.toggle_fullscreen_action = QAction("Toggle Fullscreen", self)
         self.toggle_fullscreen_action.setShortcut("F11")
         self.toggle_fullscreen_action.triggered.connect(self.toggle_fullscreen)
+
+        self.toggle_toolbar_action = QAction("Toggle Toolbar", self)
+        self.toggle_toolbar_action.setCheckable(True)
+        self.toggle_toolbar_action.setChecked(True)
+        self.toggle_toolbar_action.triggered.connect(self.toggle_toolbar)
         
         self.toggle_wire_legend_action = QAction("Wire Key", self)
         self.toggle_wire_legend_action.setShortcut("F1")
@@ -236,6 +241,10 @@ class ActionsMixin:
         graph = self.get_current_graph()
         if graph and hasattr(graph, 'canvas'):
             graph.canvas.zoom(1/1.1)
+
+    def toggle_toolbar(self, checked):
+        if hasattr(self, 'main_toolbar'):
+            self.main_toolbar.setVisible(checked)
 
     def clear_console(self):
         if hasattr(self, 'console_output'):

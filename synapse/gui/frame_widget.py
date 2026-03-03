@@ -116,6 +116,9 @@ class FrameWidget(QGraphicsRectItem):
             max_y = float('-inf')
             
             for node in self.child_nodes:
+                if not node.isVisible():
+                    continue
+                    
                 sp = node.scenePos()
                 # Calculate local coordinates relative to the frame's origin (self.pos())
                 local_x = sp.x() - self.pos().x()
@@ -125,6 +128,10 @@ class FrameWidget(QGraphicsRectItem):
                 min_y = min(min_y, local_y)
                 max_x = max(max_x, local_x + node.width)
                 max_y = max(max_y, local_y + node.height)
+                
+            # If all nodes were hidden, don't collapse to inverted rect
+            if min_x == float('inf'):
+                min_x, min_y, max_x, max_y = 0, 0, 0, 0
                 
             padding = self.padding
             target_rect = QRectF(

@@ -30,15 +30,40 @@ class NodeVisualsMixin:
             self.border_color = QColor("#BDB76B") # Dark Khaki
 
     def update_subgraph_status(self, found):
-        if found:
-            self.title_color = QColor("#00008b") # Dark Blue
-        else:
-            self.title_color = QColor("#4b0082") # Dark Purple
+        if hasattr(self, "node") and self.node:
+            has_embed = self.node.properties.get("Embedded Data") or self.node.properties.get("embedded_data")
+            if not found and has_embed:
+                # Warning State: Running on Embedded Fallback
+                self.body_color = QColor(80, 0, 0) # Very Dark Red (#500000)
+                self.title_color = QColor(139, 0, 0) # Dark Red (#8b0000)
+                self._is_subgraph_fallback = True
+            elif found:
+                self.title_color = QColor("#00008b") # Dark Blue
+                self.body_color = QColor("#1e1e1e")
+                self._is_subgraph_fallback = False
+            else:
+                self.title_color = QColor("#4b0082") # Dark Purple
+                self.body_color = QColor("#1e1e1e")
+                self._is_subgraph_fallback = False
         self.update()
 
     def highlight_pulse(self, duration=1000):
         """Triggers a transient highlight pulse."""
         self._is_running = True
+        # Background
+        from PyQt6.QtGui import QLinearGradient
+        grad = QLinearGradient(0, 0, 0, self.height)
+        
+        # Determine background color mapping
+        is_subgraph = self.name.startswith("SubGraph") or self.name == getattr(self, "node_type", "SubGraph Node") or getattr(self, "node_type", "") == "SubGraph Node"
+        if is_subgraph and getattr(self, "_is_subgraph_fallback", False):
+            # Flash Dark Red if running on embedded fallback data without linked file
+            base_col = QColor(58, 0, 0) # #3A0000
+            grad.setColorAt(0, base_col.lighter(120))
+            grad.setColorAt(1, base_col)
+        else:
+            grad.setColorAt(0, self.body_color.lighter(130))
+            grad.setColorAt(1, self.body_color)
         self.update()
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(duration, self.reset_highlight)
@@ -65,37 +90,62 @@ class NodeVisualsMixin:
         self.update()
 
     def paint(self, painter, option, widget):
-        # 1. Determine State
-        is_running = getattr(self, "_is_running", False)
-        is_pulsing_blue = getattr(self, "_is_pulsing_blue", False)
-        is_selected = self.isSelected()
-        
-        is_running_service = False
-        is_subgraph_active = False
-        if self.node and getattr(self.node, "bridge", None):
-            bridge = self.node.bridge
-            is_running_service = bridge.get(f"{self.node.node_id}_IsServiceRunning")
-            is_subgraph_active = bridge.get(f"{self.node.node_id}_SubGraphActivity")
-
-        # 2. Draw Body (Always solid base)
+        # 1. Base Geometry
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width, self.height, 10, 10)
         
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(self.body_color))
-        painter.drawPath(path)
-
-        # 2b. Draw Overlay Highlight
-        is_fading = getattr(self, "_is_fading", False)
-        is_fading_blue = getattr(self, "_is_fading_blue", False)
+        # 1.5 Draw Background Body
+        from PyQt6.QtGui import QLinearGradient
+        grad = QLinearGradient(0, 0, 0, self.height)
         
-        if is_running_service or is_running or is_pulsing_blue or is_subgraph_active or is_fading or is_fading_blue or getattr(self, "_is_waiting", False) or getattr(self, "_is_error", False):
-            ms = QTime.currentTime().msecsSinceStartOfDay()
+        # Determine background color mapping
+        is_subgraph = self.name.startswith("SubGraph") or self.name == getattr(self, "node_type", "SubGraph Node") or getattr(self, "node_type", "") == "SubGraph Node"
+        if is_subgraph and getattr(self, "_is_subgraph_fallback", False):
+            # Flash Dark Red if running on embedded fallback data without linked file
+            base_col = QColor(58, 0, 0) # #3A0000
+            grad.setColorAt(0, base_col.lighter(120))
+            grad.setColorAt(1, base_col)
+        else:
+            grad.setColorAt(0, self.body_color.lighter(130))
+            grad.setColorAt(1, self.body_color)
             
-            highlight_color = None
-            alpha = 0
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(grad))
+        painter.drawPath(path)
+        
+        # 2. Check highlight states
+        ms = QTime.currentTime().msecsSinceStartOfDay()
+        is_running = getattr(self, "_is_running", False)
+        is_fading = getattr(self, "_is_fading", False)
+        is_selected = self.isSelected()
+        
+        # [NEW] Check Trace visibility preference from Main Window
+        show_trace = True
+        try:
+            if hasattr(self, 'scene') and self.scene():
+                main_window = self.scene().views()[0].window()
+                if hasattr(main_window, 'show_trace_checkbox'):
+                    show_trace = main_window.show_trace_checkbox.isChecked()
+        except:
+            pass
 
-            # [NEW] Error State (Red Overlay) - Highest Priority
+        # Only process visual states if Trace is enabled (or if it's an Error/Step state which should always show)
+        is_running_service = False
+        is_subgraph_active = False
+        is_pulsing_blue = False
+        is_fading_blue = False
+        
+        if show_trace:
+            is_running_service = getattr(self, "_is_running_service", False)
+            is_subgraph_active = getattr(self, "_is_subgraph_active", False)
+            is_pulsing_blue = getattr(self, "_is_pulsing_blue", False)
+            is_fading_blue = getattr(self, "_is_fading_blue", False)
+
+        highlight_color = None
+        alpha = 0
+        
+        if is_running or is_fading or is_running_service or is_subgraph_active or is_pulsing_blue or is_fading_blue or getattr(self, "_is_waiting", False) or getattr(self, "_is_error", False):
+            # [ERROR] State Priority Highest
             if getattr(self, "_is_error", False):
                 # Flashing Dark Red (Breathing)
                 pulse = (math.sin(ms / 200.0) + 1) / 2.0

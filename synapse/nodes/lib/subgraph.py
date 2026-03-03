@@ -220,7 +220,6 @@ class SubGraphNode(SuperNode):
 
         # Prepare Trace/Speed files
         trace_enabled = self.properties.get("IsDebug", False)
-        speed_file = None
         
         # Prepare Child Bridge
         import multiprocessing
@@ -252,6 +251,7 @@ class SubGraphNode(SuperNode):
             # Inherit control files from parent bridge (set by parent engine)
             stop_file = self.bridge.get("_SYSTEM_STOP_FILE")
             pause_file = self.bridge.get("_SYSTEM_PAUSE_FILE")
+            speed_file = self.bridge.get("_SYSTEM_SPEED_FILE")
 
             child_engine = ExecutionEngine(
                 child_bridge, 
@@ -328,12 +328,12 @@ class SubGraphNode(SuperNode):
 
             # [DEBUG] Check child bridge keys
             all_child_keys = child_bridge.get_all_keys()
-            self.logger.info(f"Child bridge keys at termination: {all_child_keys}")
+            self.logger.debug(f"Child bridge keys at termination: {all_child_keys}")
 
             # [FIX] Retrieve results from instance-specific scoped key
             scoped_return_key = f"SUBGRAPH_RETURN_{self.node_id}"
             results = child_bridge.get(scoped_return_key) or {}
-            self.logger.info(f"Retrieved results from {scoped_return_key}: {list(results.keys())}")
+            self.logger.debug(f"Retrieved results from {scoped_return_key}: {list(results.keys())}")
             # [NUCLEAR SCRUB] Final safety pass before setting parent outputs.
             # This ensures that NO UI metadata survives the child-to-parent transfer.
             reserved = ["Flow", "Exec", "In", "_trigger", "_bridge", "_engine", "_context_stack", "_context_pulse"]

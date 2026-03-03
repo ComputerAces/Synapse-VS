@@ -317,8 +317,9 @@ class LayoutMixin:
                         item.set_display_mode(checked)
 
     def on_hide_tooltips_changed(self, checked):
-        # Update styling or global setting for tooltips
-        pass
+        if hasattr(self, 'node_library'):
+            self.node_library.set_tooltips_hidden(checked)
+            self.node_library.populate_library()
 
     def on_project_data_changed(self):
         # This is called when the USER edits the panel. We write TO the graph.
