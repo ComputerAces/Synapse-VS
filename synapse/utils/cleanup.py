@@ -108,11 +108,19 @@ def init_global_handlers():
     sys.excepthook = manager.handle_exception
     
     # 2. Signal Handlers
+    _shutting_down = False
     def sig_handler(signum, frame):
+        nonlocal _shutting_down
+        if _shutting_down:
+            # Second Ctrl+C: force kill immediately
+            logger.warning("Force kill requested.")
+            os._exit(1)
+        _shutting_down = True
         logger.info(f"Received signal {signum}. Shutting down...")
         manager.cleanup_all()
-        # Re-raise or exit
-        sys.exit(0)
+        # [FIX] sys.exit() raises SystemExit which can be caught by blocking threads.
+        # os._exit() terminates the process immediately at the OS level.
+        os._exit(0)
 
     try:
         signal.signal(signal.SIGINT, sig_handler)

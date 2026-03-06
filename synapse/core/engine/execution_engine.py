@@ -438,6 +438,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             if not is_loop_scope:
                 # [LOCKBOX] Gather return data immediately
                 return_data = self._gather_inputs(node_id, trigger_port)
+                
+                
                 if return_data:
                     # [STRICT WHITELIST] Filter by schema AND aggressive keyword block
                     reserved = ["Flow", "Exec", "In", "_trigger", "_bridge", "_engine", "_context_stack", "_context_pulse"]

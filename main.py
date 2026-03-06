@@ -5,7 +5,7 @@ from synapse.core.bridge import SynapseBridge
 from synapse.core.engine import ExecutionEngine
 import synapse.nodes # Triggers auto-discovery
 from synapse.nodes.registry import NodeRegistry
-from synapse.core.loader import load_graph_from_json, load_favorites_into_registry
+from synapse.core.loader import load_graph_from_file, load_favorites_into_registry
 from synapse.utils.logger import main_logger as logger
 
 def main():
@@ -48,13 +48,19 @@ def main():
     if args.file:
         json_path = args.file
         logger.info(f"Loading graph from {json_path} (Delay: {args.speed}s)")
-        node_map, was_modified, data = load_graph_from_json(json_path, bridge, engine)
+        node_map, was_modified, data = load_graph_from_file(json_path, bridge, engine)
         
         if was_modified:
             logger.info("Graph was modified during loading (migrations or dead property cleanup).")
             
             # [REPAIR LOGIC] Determine if we should prompt or auto-save
-            is_interactive = sys.stdin.isatty() and not getattr(args, 'headless', False)
+            # [FIX] QProcess on Windows reports stdin.isatty()=True even though
+            # no interactive input is possible. Use fileno() check as a secondary guard.
+            try:
+                stdin_ok = sys.stdin.isatty() and sys.stdin.fileno() >= 0
+            except (OSError, ValueError, AttributeError):
+                stdin_ok = False
+            is_interactive = stdin_ok and not getattr(args, 'headless', False)
             
             should_save = False
             if is_interactive:

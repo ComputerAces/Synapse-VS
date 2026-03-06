@@ -24,6 +24,7 @@ class UserActivityNode(SuperNode):
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
+        self.is_native = True
         
         # Migration: Remove dead properties and ports from prior versions
         dead_properties = ["Timeout_MS", "Timeout MS", "Last Data"]
@@ -63,8 +64,8 @@ class UserActivityNode(SuperNode):
         from synapse.core.activity_tracker import get_tracker
         tracker = get_tracker()
         
-        mouse_idle = tracker.mouse_idle_ms
-        keyboard_idle = tracker.keyboard_idle_ms
+        mouse_idle = float(tracker.mouse_idle_ms)
+        keyboard_idle = float(tracker.keyboard_idle_ms)
         
         # Active if either counter is at zero (just had input)
         is_active = mouse_idle == 0.0 or keyboard_idle == 0.0

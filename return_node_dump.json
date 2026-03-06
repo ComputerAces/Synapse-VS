@@ -1,0 +1,62 @@
+{
+  "ReturnNode": {
+    "id": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+    "type": "Return Node",
+    "name": "Return",
+    "pos_x": 1514.108997313238,
+    "pos_y": -6.497908002869007,
+    "properties": {
+      "'data' Folder": "",
+      "'Bot' Folder": "",
+      "'bots' Folder": "",
+      "Label": "",
+      "Success": null,
+      "Additional Inputs": [
+        "Success",
+        "'data' Folder",
+        "'Bot' Folder",
+        "'bots' Folder",
+        "'system' Folder"
+      ],
+      "'system' Folder": ""
+    }
+  },
+  "Wires": [
+    {
+      "from_node": "34c01e85-4557-4f0c-b9f7-4f4d6dc5ca3b",
+      "from_port": "Result",
+      "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+      "to_port": "Success"
+    },
+    {
+      "from_node": "34c01e85-4557-4f0c-b9f7-4f4d6dc5ca3b",
+      "from_port": "Flow",
+      "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+      "to_port": "Flow"
+    },
+    {
+      "from_node": "4f63781e-d178-4be5-993b-79f3f7945fac",
+      "from_port": "Result",
+      "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+      "to_port": "'Bot' Folder"
+    },
+    {
+      "from_node": "2ef24b99-e1d6-4b49-9d7d-cdd2396a95bb",
+      "from_port": "Result",
+      "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+      "to_port": "'system' Folder"
+    },
+    {
+      "from_node": "f685b64c-6d95-47ca-86cb-f737febbd191",
+      "from_port": "Result",
+      "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+      "to_port": "'data' Folder"
+    },
+    {
+      "from_node": "92adaab6-296b-42d4-9391-0d810684fb02",
+      "from_port": "Result",
+      "to_node": "8dec7932-5ba5-4c48-a23c-a54202ba29c0",
+      "to_port": "'bots' Folder"
+    }
+  ]
+}

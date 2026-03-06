@@ -5,6 +5,7 @@ from .scene import GraphicScene
 from .factory import NodeFactory
 from .serializer import GraphSerializer
 from synapse.gui.node_widget.widget import NodeWidget
+from synapse.utils.file_utils import serialize_to_yaml, parse_yaml_or_json
 
 class NodeCanvas(QGraphicsView):
     modified = pyqtSignal()
@@ -91,21 +92,19 @@ class NodeCanvas(QGraphicsView):
     def copy_selection(self):
         """Serializes selection and puts it in the clipboard."""
         from PyQt6.QtWidgets import QApplication
-        import json
         data = self.serializer.serialize_selection()
         if data["nodes"] or data["frames"]:
             clipboard = QApplication.clipboard()
-            clipboard.setText("synapse_copy:" + json.dumps(data))
+            clipboard.setText("synapse_copy:" + serialize_to_yaml(data))
 
     def paste_selection(self):
         """Restores selection from clipboard."""
         from PyQt6.QtWidgets import QApplication
-        import json
         clipboard = QApplication.clipboard()
         text = clipboard.text()
         if text.startswith("synapse_copy:"):
             try:
-                data = json.loads(text.replace("synapse_copy:", ""))
+                data = parse_yaml_or_json(text.replace("synapse_copy:", ""))
                 self.serializer.deserialize_selection(data)
                 self.modified.emit()
             except Exception as e:

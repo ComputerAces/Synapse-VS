@@ -1,7 +1,8 @@
-import json
 import os
+import json
 from synapse.nodes.registry import NodeRegistry
 from synapse.utils.logger import main_logger as logger
+from synapse.utils.file_utils import smart_load
 
 # Properties that are always allowed (system metadata)
 SYSTEM_PROPERTIES = {
@@ -10,9 +11,10 @@ SYSTEM_PROPERTIES = {
     "additional_inputs", "additional_outputs", "additional inputs", "additional outputs", "Additional Inputs", "Additional Outputs", "cases"
 }
 
-def load_graph_from_json(json_path, bridge, engine):
-    with open(json_path, 'r') as f:
-        data = json.load(f)
+def load_graph_from_file(path, bridge, engine):
+    data = smart_load(path)
+    if not data:
+        raise ValueError(f"Failed to load graph from {path}")
         
     # [NEW] Inject Project Variables into Bridge
     project_vars = data.get("project_vars", {})
@@ -32,7 +34,7 @@ def load_graph_from_json(json_path, bridge, engine):
     if was_migrated:
         logger.info(f"Graph migrated to schema v{data.get('version')}")
  
-    node_map, was_pruned = load_graph_data(data, bridge, engine, source_file=json_path)
+    node_map, was_pruned = load_graph_data(data, bridge, engine, source_file=path)
     
     was_modified = was_migrated or was_pruned
     
@@ -146,13 +148,21 @@ def load_graph_data(data, bridge, engine, source_file=None):
             
             # 5. [PROTECTION] Dynamic Port Pattern Match (for nodes that allow dynamic expansion)
             if not matched and (getattr(node, "allow_dynamic_inputs", False) or getattr(node, "allow_dynamic_outputs", False)):
-                for pattern in DYNAMIC_PATTERNS:
-                    if re.fullmatch(pattern, k_normalized):
-                        # It looks like a dynamic port, keep it even if not in the additional_inputs list
-                        # This prevents data loss for unwired dynamic ports.
-                        node.properties[k] = v
-                        matched = True
-                        break
+                # [FIX] SubGraph nodes have both allow_dynamic_inputs AND allow_dynamic_outputs.
+                # Their port names are arbitrary (determined by child graph's Start/Return nodes),
+                # so pattern matching is impossible. Keep ALL properties for SubGraph-type nodes.
+                is_subgraph = getattr(node, "allow_dynamic_inputs", False) and getattr(node, "allow_dynamic_outputs", False)
+                if is_subgraph:
+                    node.properties[k] = v
+                    matched = True
+                else:
+                    for pattern in DYNAMIC_PATTERNS:
+                        if re.fullmatch(pattern, k_normalized):
+                            # It looks like a dynamic port, keep it even if not in the additional_inputs list
+                            # This prevents data loss for unwired dynamic ports.
+                            node.properties[k] = v
+                            matched = True
+                            break
 
             if not matched:
                 source_name = os.path.basename(source_file) if source_file else "Unknown"
@@ -300,3 +310,6 @@ def load_favorites_into_registry():
         
     except Exception as e:
         logger.warning(f"Failed to load favorites: {e}")
+
+# Alias for backward compatibility
+load_graph_from_json = load_graph_from_file

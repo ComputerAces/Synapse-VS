@@ -30,9 +30,9 @@ def run_headless(file_path):
     engine = ExecutionEngine(bridge, headless=True)
     
     # 2. Load Graph
-    from synapse.core.loader import load_graph_from_json
+    from synapse.core.loader import load_graph_from_file
     try:
-        node_map, _ = load_graph_from_json(file_path, bridge, engine)
+        node_map, _ = load_graph_from_file(file_path, bridge, engine)
     except Exception as e:
         print(f"Failed to load graph: {e}")
         return

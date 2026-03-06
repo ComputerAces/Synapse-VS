@@ -1,6 +1,6 @@
-import json
 import os
 from PyQt6.QtCore import QPointF
+from synapse.utils.file_utils import smart_load
 from synapse.gui.node_widget.widget import NodeWidget
 from synapse.gui.wire import Wire
 from synapse.gui.frame_widget import FrameWidget
@@ -138,10 +138,11 @@ class GraphSerializer:
                 visited.add(graph_path)
                 if os.path.exists(graph_path):
                     try:
-                        with open(graph_path, 'r') as f: subgraph_data = json.load(f)
-                        embedded[graph_path] = subgraph_data
-                        if "nodes" in subgraph_data:
-                            self._collect_embedded_subgraphs(subgraph_data["nodes"], embedded, visited)
+                        subgraph_data = smart_load(graph_path)
+                        if subgraph_data:
+                            embedded[graph_path] = subgraph_data
+                            if "nodes" in subgraph_data:
+                                self._collect_embedded_subgraphs(subgraph_data["nodes"], embedded, visited)
                     except: pass
 
     def deserialize(self, data):
@@ -166,12 +167,21 @@ class GraphSerializer:
                 widget.setPos(pos)
                 
                 node_class = NodeRegistry.get_node_class(node_type)
+                used_subgraph_fallback = False
                 
-                # [FALLBACK] If type not found, but has graph_path, treat as SubGraph
-                if not node_class and "properties" in n_data and ("Graph Path" in n_data["properties"] or "graph_path" in n_data["properties"]):
-                    node_class = NodeRegistry.get_node_class("SubGraph Node")
-                    if node_class:
-                         print(f"[{node_name}] Type '{node_type}' not found. Falling back to SubGraph Node.")
+                # [FALLBACK] If type not found, but has graph_path or Embedded Data, treat as SubGraph
+                if not node_class and "properties" in n_data:
+                    props = n_data["properties"]
+                    has_graph_path = "Graph Path" in props or "graph_path" in props or "GraphPath" in props
+                    has_embedded = "Embedded Data" in props or "embedded_data" in props or "EmbeddedData" in props
+                    if has_graph_path or has_embedded:
+                        node_class = NodeRegistry.get_node_class("SubGraph Node")
+                        if node_class:
+                            used_subgraph_fallback = True
+                            # Only warn if we can't resolve the graph_path
+                            gp = props.get("Graph Path") or props.get("graph_path") or props.get("GraphPath", "")
+                            if not gp or not os.path.exists(os.path.abspath(gp)):
+                                print(f"[{node_name}] Type '{node_type}' not found. Falling back to SubGraph Node.")
 
                 if node_class:
                     try:
@@ -240,12 +250,20 @@ class GraphSerializer:
                                 
                                 # 5. [PROTECTION] Dynamic Port Pattern Match (for nodes that allow dynamic expansion)
                                 if not matched and (getattr(logic, "allow_dynamic_inputs", False) or getattr(logic, "allow_dynamic_outputs", False)):
-                                    for pattern in DYNAMIC_PATTERNS:
-                                        if re.fullmatch(pattern, k_normalized):
-                                            # It looks like a dynamic port, keep it even if not in the additional_inputs list
-                                            logic.properties[k] = v
-                                            matched = True
-                                            break
+                                    # [FIX] SubGraph nodes have both allow_dynamic_inputs AND allow_dynamic_outputs.
+                                    # Their port names are arbitrary (determined by child graph's Start/Return nodes),
+                                    # so pattern matching is impossible. Keep ALL properties for SubGraph-type nodes.
+                                    is_subgraph = getattr(logic, "allow_dynamic_inputs", False) and getattr(logic, "allow_dynamic_outputs", False)
+                                    if is_subgraph:
+                                        logic.properties[k] = v
+                                        matched = True
+                                    else:
+                                        for pattern in DYNAMIC_PATTERNS:
+                                            if re.fullmatch(pattern, k_normalized):
+                                                # It looks like a dynamic port, keep it even if not in the additional_inputs list
+                                                logic.properties[k] = v
+                                                matched = True
+                                                break
 
                                 if not matched:
                                     print(f"[GUI Repair] [{node_name}] Removed dead property '{k}'")
@@ -337,7 +355,8 @@ class GraphSerializer:
                              except: pass
                     except: pass
                 
-                self.factory.configure_node_ports(widget, node_type, node_instance=widget.node)
+                factory_type = "SubGraph Node" if used_subgraph_fallback else node_type
+                self.factory.configure_node_ports(widget, factory_type, node_instance=widget.node)
                 
                 if widget.node:
                      # Check both Title Case and legacy lowercase for dynamic ports

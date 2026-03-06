@@ -3,6 +3,7 @@ from PyQt6.QtCore import pyqtSignal, QProcess
 import json
 import os
 import sys
+from synapse.utils.file_utils import smart_load, serialize_to_yaml
 import multiprocessing
 from synapse.core.bridge import SynapseBridge
 
@@ -304,7 +305,7 @@ class GraphWidget(QWidget):
             
             if name:
                 safe_name = "".join([c for c in name if c.isalnum() or c in (' ', '_', '-')]).strip()
-                filename = f"{safe_name}.json"
+                filename = f"{safe_name}.syp"
             snippet_dir = os.path.join(os.getcwd(), "snippets")
             if not os.path.exists(snippet_dir):
                 os.makedirs(snippet_dir)
@@ -312,12 +313,12 @@ class GraphWidget(QWidget):
             path = os.path.join(snippet_dir, filename)
             
             try:
-                with open(path, "w") as f:
+                with open(path, "w", encoding='utf-8') as f:
                     # Enrich with metadata
                     data["name"] = name
                     data["category"] = category
                     data["type"] = "snippet"
-                    json.dump(data, f, indent=4)
+                    f.write(serialize_to_yaml(data))
                     
                 QMessageBox.information(self, "Snippet Saved", f"Snippet '{name}' saved to library.")
                 
@@ -348,7 +349,7 @@ class GraphWidget(QWidget):
         self.process = QProcess(self)
         self.process.setProgram(python_exe)
         
-        args = ["main.py", run_path, "--speed", str(delay)]
+        args = ["main.py", run_path, "--speed", str(delay), "--headless"]
         if not trace:
             args.append("--no-trace")
         if pause_flag_file:

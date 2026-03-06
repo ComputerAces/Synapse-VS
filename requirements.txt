@@ -3,4 +3,9 @@ pygrabber
 pyaudio
 langdetect
 vaderSentiment
-playwrightmsgpack
+playwright
+msgpack
+PyYAML
+
+
+opencv-python

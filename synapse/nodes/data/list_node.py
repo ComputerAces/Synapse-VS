@@ -24,7 +24,8 @@ class ListNode(SuperNode):
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
-        self.properties["AdditionalInputs"] = []
+        if "AdditionalInputs" not in self.properties and "additional_inputs" not in self.properties:
+            self.properties["AdditionalInputs"] = []
         self.define_schema()
         self.register_handlers()
 
@@ -36,7 +37,11 @@ class ListNode(SuperNode):
             "Flow": DataType.FLOW
         }
         # Dynamic inputs
-        for name in self.properties.get("AdditionalInputs", []):
+        additional = self.properties.get("AdditionalInputs", [])
+        if not additional:
+            additional = self.properties.get("additional_inputs", [])
+            
+        for name in additional:
             self.input_schema[name] = DataType.ANY
             
         self.output_schema = {
@@ -50,6 +55,8 @@ class ListNode(SuperNode):
         
         # Collect all defined Item ports from additional_inputs
         additional = self.properties.get("AdditionalInputs", [])
+        if not additional:
+            additional = self.properties.get("additional_inputs", [])
         item_pattern = re.compile(r"^Item (\d+)$", re.IGNORECASE)
         
         for port_name in additional:
@@ -60,9 +67,15 @@ class ListNode(SuperNode):
             # SuperNode passes args in kwargs if they match schema keys
             val = kwargs.get(port_name)
             
-            # If not in kwargs (not wired or None), check properties
+            # If not in kwargs (not wired or None), check properties (Case Insensitive to handle UI bugs)
             if val is None:
                 val = self.properties.get(port_name)
+                if val is None:
+                    search_key = port_name.lower()
+                    for k, v in self.properties.items():
+                        if k.lower() == search_key:
+                            val = v
+                            break
             
             if val is not None:
                 items.append(val)

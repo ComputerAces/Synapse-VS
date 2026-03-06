@@ -18,7 +18,7 @@
             "pos_x": 157.8486788625045,
             "pos_y": 189.87489261174326,
             "properties": {
-                "Graph Path": "",
+                "Graph Path": "plugins/Basic/System/Automation/is_user_there.syp",
                 "Embedded Data": null,
                 "Isolated": false,
                 "Last Image": null,

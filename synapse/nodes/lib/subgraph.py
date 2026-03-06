@@ -3,6 +3,7 @@ from synapse.nodes.registry import NodeRegistry
 from synapse.core.bridge import SynapseBridge
 from synapse.core.engine import ExecutionEngine
 from synapse.core.types import DataType
+from synapse.utils.file_utils import smart_load
 
 @NodeRegistry.register("SubGraph Node", "Flow/SubGraph")
 class SubGraphNode(SuperNode):
@@ -153,9 +154,49 @@ class SubGraphNode(SuperNode):
             
         return outputs
 
+    def _resolve_graph_path(self, graph_path, parent_file=None):
+        """Resolves a graph_path using a 4-step fallback chain.
+        
+        Priority: Local project files ALWAYS override plugin/builtin files.
+        1. Search sub_graphs/ for a local override (by basename)
+        2. Try the path as-is (absolute or relative to CWD)
+        3. Try relative to the parent graph's directory
+        4. Return None (caller should fall back to embedded data)
+        
+        Returns: resolved absolute path or None
+        """
+        import os
+        if not graph_path:
+            return None
+        
+        basename = os.path.basename(graph_path)
+        
+        # 1. Local override: search sub_graphs/ for a file with the same basename
+        # This enables "hot override" of plugin SubGraphs with project-local versions
+        sub_graphs_dir = os.path.join(os.getcwd(), "sub_graphs")
+        if os.path.isdir(sub_graphs_dir):
+            for root, dirs, files in os.walk(sub_graphs_dir):
+                if basename in files:
+                    local_path = os.path.join(root, basename)
+                    return os.path.abspath(local_path)
+        
+        # 2. Absolute / relative to CWD
+        abs_path = os.path.abspath(graph_path)
+        if os.path.exists(abs_path):
+            return abs_path
+        
+        # 3. Relative to parent graph's directory
+        if parent_file:
+            parent_dir = os.path.dirname(os.path.abspath(parent_file))
+            relative_path = os.path.join(parent_dir, basename)
+            if os.path.exists(relative_path):
+                return relative_path
+        
+        return None
+
     def _get_graph_data_for_outputs(self):
         """Loads and returns the child graph's JSON data for port analysis."""
-        import json, os
+        import os
         # Priority: 1. File on Disk (always freshest), 2. Embedded Data (fallback)
         
         # 1. Resolve Graph Path and try loading from file first
@@ -164,12 +205,10 @@ class SubGraphNode(SuperNode):
                      self.properties.get("graph_path") or \
                      getattr(self.__class__, "graph_path", None)
         
-        if graph_path:
+        resolved = self._resolve_graph_path(graph_path)
+        if resolved:
             try:
-                abs_path = os.path.abspath(graph_path)
-                if os.path.exists(abs_path):
-                    with open(abs_path, 'r') as f:
-                        return json.load(f)
+                return smart_load(resolved)
             except:
                 pass
         
@@ -202,17 +241,24 @@ class SubGraphNode(SuperNode):
 
         isolated = kwargs.get("Isolated") if "Isolated" in kwargs else self.properties.get("Isolated", False)
         
-        import json, os
+        import os
         data = None
-        if embedded_data and isinstance(embedded_data, dict):
+        
+        # Priority: 1. File on Disk (freshest), 2. Embedded Data (fallback)
+        # Use _resolve_graph_path for the 3-step fallback (absolute → relative → None)
+        parent_file = kwargs.get("_source_file") or getattr(self, "_source_file", None)
+        resolved = self._resolve_graph_path(graph_path, parent_file)
+        
+        if resolved:
+            try:
+                data = smart_load(resolved)
+                graph_path = resolved  # Update for downstream use
+            except Exception as e:
+                self.logger.error(f"Failed to load subgraph file '{resolved}': {e}")
+        
+        # 2. Fallback to Embedded Data
+        if not data and embedded_data and isinstance(embedded_data, dict):
             data = embedded_data
-        elif graph_path:
-             try:
-                if os.path.exists(graph_path):
-                    with open(graph_path, 'r') as f:
-                        data = json.load(f)
-             except Exception as e:
-                 self.logger.error(f"Failed to load subgraph file '{graph_path}': {e}")
 
         if not data:
             self.logger.error(f"Execution Failed: No graph data found. Path: {graph_path}")
@@ -279,8 +325,13 @@ class SubGraphNode(SuperNode):
             
             # Inject parent kwargs into child bridge
             child_registry = child_engine.port_registry
+            
+            # [FIX] System properties must be filtered from BOTH kwargs and self.properties
+            # to prevent Graph Path/Embedded Data from leaking down the SubGraph chain
+            system_props = {"Graph Path", "GraphPath", "graph_path", "Embedded Data", "EmbeddedData", "embedded_data", "Isolated", "node_id", "name"}
+            
             for k, v in kwargs.items():
-                if k.startswith("_") or k == "Flow":
+                if k.startswith("_") or k == "Flow" or k in system_props:
                     continue
                 child_bridge.set(k, v, "Parent_Injection")
                 if start_id:
@@ -294,9 +345,8 @@ class SubGraphNode(SuperNode):
             sub_id = f"{parent_sub_id} > {self.name}" if parent_sub_id else self.name
             child_bridge.set("_SYNP_SUBGRAPH_ID", sub_id, "Parent_Injection")
 
-            system_props = ["Graph Path", "GraphPath", "graph_path", "Embedded Data", "EmbeddedData", "embedded_data", "node_id", "name"]
             for k, v in self.properties.items():
-                if k not in system_props:
+                if k not in system_props and k not in kwargs:
                     child_bridge.set(k, v, "Parent_Property_Injection")
 
             try:
@@ -304,16 +354,25 @@ class SubGraphNode(SuperNode):
                 for pk in parent_keys:
                     if pk.startswith("Global:"):
                         var_name = pk.split(":", 1)[1]
+                        # [FIX] Do NOT inherit _SYNP_PARENT_ keys from grandparent — 
+                        # they would overwrite this SubGraph's own parent context.
+                        if var_name.startswith("_SYNP_PARENT_"):
+                            continue
                         val = self.bridge.get(var_name)
                         child_bridge.set(var_name, val, "Parent_Scope_Inheritance")
             except Exception as e:
                 self.logger.warning(f"Failed to inherit global variables: {e}")
+            
+            # [FIX] Set correct parent context AFTER global inheritance to prevent overwrite
+            child_bridge.set("_SYNP_PARENT_NODE_ID", self.node_id, "Parent_Injection")
+            child_bridge.set("_SYNP_PARENT_TRIGGER", kwargs.get("_trigger", "Flow"), "Parent_Injection")
                 
             if start_id:
                 try:
                     child_engine.run(start_id)
                 except Exception as e:
-                    self.logger.error(f"Nested SubGraph Failed: {e}")
+                    import traceback
+                    self.logger.error(f"Nested SubGraph Failed: {e}\n{traceback.format_exc()}")
                     from synapse.core.data import ErrorObject
                     error_obj = ErrorObject(
                         project_name=f"SubGraph: {self.name}",
@@ -326,14 +385,10 @@ class SubGraphNode(SuperNode):
                     self.bridge.bubble_set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
                     return False
 
-            # [DEBUG] Check child bridge keys
-            all_child_keys = child_bridge.get_all_keys()
-            self.logger.debug(f"Child bridge keys at termination: {all_child_keys}")
-
             # [FIX] Retrieve results from instance-specific scoped key
             scoped_return_key = f"SUBGRAPH_RETURN_{self.node_id}"
             results = child_bridge.get(scoped_return_key) or {}
-            self.logger.debug(f"Retrieved results from {scoped_return_key}: {list(results.keys())}")
+            self.logger.info(f"Retrieved results from {scoped_return_key}: {list(results.keys())}")
             # [NUCLEAR SCRUB] Final safety pass before setting parent outputs.
             # This ensures that NO UI metadata survives the child-to-parent transfer.
             reserved = ["Flow", "Exec", "In", "_trigger", "_bridge", "_engine", "_context_stack", "_context_pulse"]
@@ -362,9 +417,10 @@ class SubGraphNode(SuperNode):
             for expected_port in self.output_schema.keys():
                 if expected_port in ["Flow", "Error Flow"]: continue
                 if expected_port not in captured_ports:
-                    error_msg = f"[PORT MISMATCH] SubGraph '{self.name}' expected output '{expected_port}' but child graph returned: {list(results.keys()) or 'No Data'}"
-                    self.logger.error(error_msg)
-                    self.bridge.set(f"{self.node_id}_LastError", error_msg, self.name)
+                    warn_msg = f"[PORT MISMATCH] SubGraph '{self.name}' expected output '{expected_port}' but child graph returned: {list(results.keys()) or 'No Data'}"
+                    self.logger.warning(warn_msg)
+                    # Default missing data ports to None so downstream nodes don't crash
+                    self.set_output(expected_port, None)
                 
             active_ports = [gui_label] if gui_label else ["Flow"]
             self.bridge.set(f"{self.node_id}_ActivePorts", active_ports, self.name)

@@ -3,7 +3,7 @@ import json
 import uuid
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QApplication
 from PyQt6.QtCore import QTimer
-
+from synapse.utils.file_utils import smart_load
 from synapse.gui.graph_widget import GraphWidget
 from synapse.gui.node_widget.widget import NodeWidget
 from synapse.nodes.registry import NodeRegistry
@@ -50,9 +50,10 @@ class FileOperationsMixin:
                     self.central_tabs.setCurrentIndex(i)
                     return widget
         try:
-            with open(file_path, "r") as f:
-                raw_data = f.read()
-                data = json.loads(raw_data)
+            data = smart_load(file_path)
+            if not data:
+                QMessageBox.critical(self, "Load Error", f"Failed to load graph from '{os.path.basename(file_path)}'")
+                return None
             
             # [SCHEMA VALIDATION & MIGRATION]
             from synapse.core.schema import validate_graph, migrate_graph
@@ -120,9 +121,6 @@ class FileOperationsMixin:
                 new_tab.deleteLater()
                 raise e
                 
-        except json.JSONDecodeError as e:
-            QMessageBox.critical(self, "Graph Format Error", f"The file '{os.path.basename(file_path)}' contains invalid JSON.\n\nError: {e}")
-            return None
         except Exception as e:
             QMessageBox.critical(self, "Load Error", f"Failed to open '{os.path.basename(file_path)}':\n\n{str(e)}")
             import traceback
@@ -230,8 +228,9 @@ class FileOperationsMixin:
         
         # Optional: update titles
         try:
-            with open(file_path, 'r') as f:
-                p_name = json.load(f).get("project_name", "").strip()
+            sub_data = smart_load(file_path)
+            if sub_data:
+                p_name = sub_data.get("project_name", "").strip()
                 if p_name: 
                     widget.set_user_name(p_name)
                     logic.name = p_name
