@@ -53,7 +53,7 @@ class PropertiesPanel(QWidget):
             self.current_widget = None
             self.current_frame = None
             
-            # [NEW] Default to Project Properties
+            # [RESTORED] Default to Project Properties
             if win and hasattr(win, 'get_current_graph'):
                 graph = win.get_current_graph()
                 if graph:
@@ -277,7 +277,7 @@ class PropertiesPanel(QWidget):
                     self.add_string_property_ui(out_name, str(val))
                     
     def load_project_properties(self, graph_widget):
-        """Displays editors for Project Metadata (Name, Category, Description)."""
+        """Displays editors for Project Metadata when no node is selected."""
         self.current_node = None
         self.current_widget = None
         self.current_frame = None
@@ -306,6 +306,10 @@ class PropertiesPanel(QWidget):
         desc_edit.setMaximumHeight(80)
         desc_edit.textChanged.connect(lambda: self._update_meta(graph_widget, "project_description", desc_edit.toPlainText()))
         self.form_layout.addRow("Description:", desc_edit)
+
+    def _update_meta(self, graph, key, val):
+        graph.project_metadata[key] = val
+        graph.mark_modified(None)
 
     def _update_meta(self, graph, key, val):
         graph.project_metadata[key] = val

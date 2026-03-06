@@ -24,8 +24,17 @@ class SuperNode(BaseNode):
         # Event Handlers { "TriggerPort": method }
         self.handlers = {}
         
+        # Metadata Persistence
+        self.node_type = getattr(self.__class__, "node_label", "Unknown")
+        
         # Default Handlers
         self.register_handler("Flow", self.main)
+        
+        # Schema Versioning
+        self.node_version = getattr(self.__class__, "node_version", 1)
+        self.loaded_version = 1 # Set by loader if different
+        self.is_legacy = False # Set by loader if mismatch
+        self.latest_version = self.node_version # Reference for UI
         
         # Standard Lifecycle Triggers
         self.define_schema()

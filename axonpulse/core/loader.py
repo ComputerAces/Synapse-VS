@@ -22,6 +22,12 @@ def load_graph_from_file(path, bridge, engine):
         for k, v in project_vars.items():
             bridge.set(f"ProjectVars.{k}", v, "ProjectLoader")
             logger.info(f"Injected Project Variable: {k}")
+            
+    # [NEW] Inject Project Metadata into Bridge
+    bridge.set("ProjectMeta.project_name", data.get("project_name", ""), "ProjectLoader")
+    bridge.set("ProjectMeta.project_version", data.get("project_version", "1.0.0"), "ProjectLoader")
+    bridge.set("ProjectMeta.project_category", data.get("project_category", ""), "ProjectLoader")
+    bridge.set("ProjectMeta.project_description", data.get("project_description", ""), "ProjectLoader")
  
     # [SCHEMA VALIDATION & MIGRATION]
     from axonpulse.core.schema import validate_graph, migrate_graph
@@ -78,6 +84,24 @@ def load_graph_data(data, bridge, engine, source_file=None):
         
         if node_class:
             node = node_class(node_id, node_name, bridge)
+            
+            # [VERSIONING] Compare loaded version with current class version
+            loaded_ver = n_data.get("node_version", 1)
+            current_ver = getattr(node_class, "node_version", 1)
+            
+            node.loaded_version = loaded_ver
+            node.latest_version = current_ver
+            
+            if current_ver > loaded_ver:
+                node.is_legacy = True
+                node.properties["is_legacy"] = True
+                node.properties["version_mismatch"] = True
+                node.properties["latest_version"] = current_ver
+                logger.info(f"[{node_name}] Loaded legacy version v{loaded_ver} (Latest: v{current_ver})")
+            else:
+                # Store the version in properties so it's saved in the next graph save
+                node.properties["node_version"] = current_ver
+
         elif "properties" in n_data and ("graph_path" in n_data["properties"] or "Graph Path" in n_data["properties"] or "GraphPath" in n_data["properties"]):
             # Fallback: It's a SubGraph, but maybe not registered by name yet.
             sg_cls = NodeRegistry.get_node_class("SubGraph Node")

@@ -162,6 +162,81 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         except Exception as e:
             logger.error(f"Hot Reload Failed: {e}")
 
+    def _check_node_upgrades(self):
+        """Checks Bridge for any pending node upgrade requests."""
+        if not self.bridge: return
+        
+        # We look for keys starting with NODE_UPGRADE_REQUEST_
+        # Since manager.dict doesn't support prefix search well, 
+        # we can check all legacy nodes specifically.
+        legacy_node_ids = [nid for nid, n in self.nodes.items() if getattr(n, 'is_legacy', False)]
+        
+        for nid in legacy_node_ids:
+            req_key = f"NODE_UPGRADE_REQUEST_{nid}"
+            req = self.bridge.get(req_key)
+            if req:
+                logger.info(f"Processing Upgrade Request for node {nid}...")
+                success = self.upgrade_node(nid)
+                if success:
+                    # Clear request
+                    self.bridge.set(req_key, None)
+                    logger.info(f"Node {nid} successfully upgraded.")
+                    # [TRACE] Notify UI
+                    if self.trace:
+                         print(f"[NODE_UPGRADED] {nid}", flush=True)
+
+    def upgrade_node(self, node_id):
+        """Re-instantiates a node with its latest class from NodeRegistry."""
+        old_node = self.nodes.get(node_id)
+        if not old_node: return False
+        
+        from axonpulse.nodes.registry import NodeRegistry
+        node_type = getattr(old_node, "node_type", "Unknown")
+        node_class = NodeRegistry.get_node_class(node_type)
+        if not node_class:
+            logger.error(f"Cannot upgrade {node_id}: Type '{node_type}' not found in registry.")
+            return False
+            
+        logger.info(f"Upgrading node {node_id} ('{node_type}') to v{getattr(node_class, 'node_version', 1)}...")
+        
+        try:
+            # 1. Instantiate New Node
+            new_node = node_class(old_node.node_id, old_node.name, self.bridge)
+            
+            # 2. Migrate Properties (Selective)
+            # We preserve existing values for ports that still exist in the new schema
+            # Loader-managed system properties are also preserved.
+            for k, v in old_node.properties.items():
+                 # [FIX] Do NOT migrate version-related properties that would make the new node look legacy
+                 if k in ["is_legacy", "version_mismatch", "node_version"]:
+                     continue
+                 
+                 # Only migrate if it's a known property or a standard system property
+                 if k in new_node.properties or k in ["header_color", "label", "singleton_scope"]:
+                     new_node.properties[k] = v
+            
+            # Ensure new version is set
+            new_node.properties["node_version"] = getattr(node_class, "node_version", 1)
+            
+            # 3. Handle Service Replacement
+            if old_node.is_service:
+                 try:
+                     old_node.terminate()
+                 except: pass
+                 self.service_registry.pop(node_id, None)
+            
+            # 4. Update Engine State
+            self.nodes[node_id] = new_node
+            self.port_registry.register_node_ports(new_node)
+            
+            if new_node.is_service:
+                self.service_registry[node_id] = new_node
+                
+            return True
+        except Exception as e:
+            logger.error(f"Node Upgrade failed for {node_id}: {e}", exc_info=True)
+            return False
+
     def run(self, start_node_id, initial_stack=None):
         """
         Executes the graph using components.
@@ -295,6 +370,10 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                 if now - self._last_reload_check > self._reload_interval:
                     if self._check_hot_reload():
                         self.hot_reload_graph()
+                    
+                    # [NEW] Check for Node Upgrades
+                    self._check_node_upgrades()
+                    
                     self._last_reload_check = now
                 
                 # 1. Get Next Node

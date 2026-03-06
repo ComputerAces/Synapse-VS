@@ -208,6 +208,17 @@ class AxonPulseBridge:
         logger.warning(f"[Bridge] Password request timed out for {zip_name}")
         return None
 
+    def request_node_upgrade(self, node_id, latest_version):
+        """
+        Signs a request for the engine to upgrade a specific node to its latest version.
+        """
+        self.bubble_set(f"NODE_UPGRADE_REQUEST_{node_id}", {
+            "node_id": node_id,
+            "latest_version": latest_version,
+            "timestamp": time.time()
+        })
+        logger.info(f"[Bridge] Node upgrade requested for {node_id} to v{latest_version}")
+
     # --- Provider Hijacking (Middleware Logic) ---
 
     def register_super_function(self, provider_id, func_name, handler_node_id):

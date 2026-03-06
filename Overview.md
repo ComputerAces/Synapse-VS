@@ -38,9 +38,6 @@ The standard base class for all nodes (`axonpulse/core/super_node.py`).
 
 A Zero-Copy Shared Memory layer for real-time IPC.
 
-- **Variable Vault**: Thread-safe storage for all graph variables.
-- **Local Mirroring**: Caches frequently accessed data to minimize lock contention.
-
 ### 3. Asset Packaging Ecosystem
 
 SVS supports secure distribution of logic via standardized `.zip` packages.
@@ -48,6 +45,7 @@ SVS supports secure distribution of logic via standardized `.zip` packages.
 - **Interactive Auth**: Encrypted zips prompt the user for passwords via the UI bridge.
 - **Automated Extraction**: Packages are safely extracted to `plugins/extracted/` with dependency shielding.
 - **Hot-Loading**: Contents (nodes and subgraphs) are instantly registered into the active library upon successful authentication.
+- **Node Versioning (v2.2.0)**: Tracks the schema version of each node instance. Detects mismatches during load and facilitates interactive upgrades via the Bridge.
 
 ---
 

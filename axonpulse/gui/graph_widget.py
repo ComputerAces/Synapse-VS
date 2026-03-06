@@ -196,6 +196,12 @@ class GraphWidget(QWidget):
 
     def serialize(self):
         """Wrapper for canvas serialization."""
+        # [NEW] Sync metadata from Bridge before saving
+        self.project_metadata["project_name"] = self.bridge.get("ProjectMeta.project_name") or self.project_metadata.get("project_name", "")
+        self.project_metadata["project_version"] = self.bridge.get("ProjectMeta.project_version") or self.project_metadata.get("project_version", "1.0.0")
+        self.project_metadata["project_category"] = self.bridge.get("ProjectMeta.project_category") or self.project_metadata.get("project_category", "")
+        self.project_metadata["project_description"] = self.bridge.get("ProjectMeta.project_description") or self.project_metadata.get("project_description", "")
+        
         data = self.canvas.serialize()
         data.update(self.project_metadata)
         return data

@@ -199,6 +199,8 @@ AI Providers use a unified interface pattern. All providers inherit from `AIProv
 
 - **Hot Reloading & Cache Invalidation**: The `SubGraphNode` monitors the source `.syp` file. If the data changes, it invalidates the current `ExecutionEngine` and `AxonPulseBridge` cache, performing a fresh reload to ensure the graph executes the newest logic.
 - **Robust Loading**: Utilizes a shared `load_graph_data` utility in `axonpulse/core/loader.py` that handles unregistered node types via a generic fallback.
+- **Hot-Loading**: Contents (nodes and subgraphs) are instantly registered into the active library upon successful authentication.
+  - **Node Versioning (v2.2.0)**: Tracks the schema version of each node instance.
 - **Version Conflict**: It compares the `project_version` of the external file vs the embedded data, always choosing the newer version.
 - **Error Bubbling**: Exceptions in a subgraph bubble up to the parent node's "Error Flow" port if connected.
 - **Dynamic Outputs**: SubGraph nodes scan child graph Return nodes and build outputs dynamically:
@@ -387,4 +389,32 @@ The `--sync` flag will automatically inject the missing `version` attribute into
 ---
 
 &nbsp;
-SVS Developer Docs - v1.6.0
+SVS Developer Docs - v1.7.0
+
+## 📈 Node Versioning (Future-Proofing)
+
+To prevent graph breakage when a node's Python implementation is updated (e.g., adding a required port), SVS uses a schema-based versioning system.
+
+### 1. Version Definition
+Nodes define their version at the class level:
+```python
+class MyNode(SuperNode):
+    node_version = 2
+```
+
+### 2. Mismatch Detection (Loader)
+During `load_graph_data`, the engine compares the `node_version` stored in the graph JSON with the registry version. 
+- If `Graph Version < Registry Version`: The node is marked as `is_legacy = True`.
+- `version_mismatch` and `latest_version` properties are injected for the Architect UI to display a warning icon.
+
+### 3. Interactive Upgrade Path
+The UI can request an upgrade via the Bridge:
+```python
+bridge.request_node_upgrade(node_id, latest_version)
+```
+
+The `ExecutionEngine` polls for these requests in its control loop. When found, it:
+1. Re-instantiates the node using the latest class.
+2. Migrates compatible properties (preserving existing user configuration).
+3. Re-registers ports via `PortRegistry` to maintain wire integrity.
+4. Auto-restarts the service if the node is a `Provider` or `Service`.

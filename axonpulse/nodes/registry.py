@@ -34,6 +34,7 @@ class NodeRegistry:
             node_class.node_label = label
             node_class.node_category = category
             node_class.node_namespaced_id = namespaced_label
+            node_class.node_version = getattr(node_class, "node_version", 1)
             
             return node_class
         return decorator

@@ -26,7 +26,7 @@ class LayoutMixin:
         self.right_tabs = QTabWidget()
         
         self.properties_panel = PropertiesPanel()
-        self.right_tabs.addTab(self.properties_panel, "Node")
+        self.right_tabs.addTab(self.properties_panel, "Properties")
         
         self.project_panel = ProjectPanel(self)
         self.project_panel.dataChanged.connect(self.on_project_data_changed)
@@ -210,7 +210,7 @@ class LayoutMixin:
         self.update_execution_ui()
         self.update_tab_icons()
         self.update_properties()
-        self.update_project_panel() # [NEW] Sync Project Panel
+        self.update_project_panel() # [RESTORED] Sync Project Panel
 
     def update_properties(self):
         graph = self.get_current_graph()
@@ -228,7 +228,6 @@ class LayoutMixin:
         """Syncs the Project Panel with the current graph's metadata."""
         graph = self.get_current_graph()
         if not graph:
-            # Clear or disable?
             return
             
         if not hasattr(graph, 'project_metadata'):
@@ -243,14 +242,6 @@ class LayoutMixin:
             self.project_panel.set_version(meta.get("project_version", "1.0.0"))
             self.project_panel.set_category(meta.get("project_category", ""))
             self.project_panel.set_description(meta.get("project_description", ""))
-            # Variables?
-            # meta.get("variables", {}) ? Or are global variables stored elsewhere?
-            # Usually variables involved in the graph are in graph.bridge or graph.variables?
-            # ProjectPanel seems to edit 'project metadata' variables, which might be distinct 
-            # from runtime variables. Let's assume they are meta-variables for now or 
-            # initial global values.
-            # checks project_panel.py -> it has a table.
-            self.project_panel.set_variables(meta.get("variables", {}))
         except Exception as e:
             print(f"Error updating project panel: {e}")
         finally:
@@ -322,20 +313,29 @@ class LayoutMixin:
             self.node_library.populate_library()
 
     def on_project_data_changed(self):
-        # This is called when the USER edits the panel. We write TO the graph.
+        """Triggered when user edits the Project Panel. Writes to graph metadata and Bridge."""
         graph = self.get_current_graph()
         if graph:
             if not hasattr(graph, 'project_metadata'):
                 graph.project_metadata = {}
             
-            # Pull from Panel
-            graph.project_metadata["project_name"] = self.project_panel.get_name()
-            graph.project_metadata["project_version"] = self.project_panel.get_version()
-            graph.project_metadata["project_category"] = self.project_panel.get_category()
-            graph.project_metadata["project_description"] = self.project_panel.get_description()
-            graph.project_metadata["variables"] = self.project_panel.get_variables()
+            name = self.project_panel.get_name()
+            version = self.project_panel.get_version()
+            category = self.project_panel.get_category()
+            description = self.project_panel.get_description()
+
+            graph.project_metadata["project_name"] = name
+            graph.project_metadata["project_version"] = version
+            graph.project_metadata["project_category"] = category
+            graph.project_metadata["project_description"] = description
             
+            # Sync to Bridge for nodes to see
+            if hasattr(graph, 'bridge'):
+                graph.bridge.set("ProjectMeta.project_name", name, "ProjectPanel")
+                graph.bridge.set("ProjectMeta.project_version", version, "ProjectPanel")
+                graph.bridge.set("ProjectMeta.project_category", category, "ProjectPanel")
+                graph.bridge.set("ProjectMeta.project_description", description, "ProjectPanel")
+
             graph.is_modified = True
-            # We need to trigger title update, which broadcast_graph_modified does
             if hasattr(self, 'broadcast_graph_modified'):
                 self.broadcast_graph_modified()

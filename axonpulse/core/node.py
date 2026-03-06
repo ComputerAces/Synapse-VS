@@ -9,7 +9,7 @@ class BaseNode(abc.ABC):
     Abstract Base Class for all AxonPulse Nodes.
     Wrapper for process isolation.
     """
-    version = "0.0.1"
+    node_version = 1
 
     def __init__(self, node_id, name, bridge):
         self.node_id = node_id
