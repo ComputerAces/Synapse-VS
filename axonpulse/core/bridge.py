@@ -166,6 +166,48 @@ class AxonPulseBridge:
             return True
         return False
 
+    def request_asset_password(self, zip_path, timeout=60.0):
+        """
+        Requests a password for an encrypted asset from the UI via the Bridge.
+        Blocks until a response is received or timeout occurs.
+        """
+        import uuid
+        request_id = str(uuid.uuid4())[:8]
+        zip_name = os.path.basename(zip_path)
+        
+        # 1. Post Request to Bridge
+        request_key = f"AssetPasswordRequest:{request_id}"
+        self.bubble_set(request_key, {
+            "path": zip_path,
+            "filename": zip_name,
+            "status": "pending",
+            "timestamp": time.time()
+        })
+        
+        logger.info(f"[Bridge] Password request sent for {zip_name} (ID: {request_id})")
+        
+        # 2. Wait for Response (Polling for now)
+        response_key = f"AssetPasswordResponse:{request_id}"
+        start = time.time()
+        while time.time() - start < timeout:
+            response = self.get(response_key)
+            if response and response.get("password"):
+                # Cleanup request
+                self.set(request_key, None)
+                self.set(response_key, None) 
+                return response["password"]
+            
+            # Check if user cancelled
+            if response and response.get("status") == "cancelled":
+                self.set(request_key, None)
+                self.set(response_key, None)
+                return None
+
+            time.sleep(0.5)
+            
+        logger.warning(f"[Bridge] Password request timed out for {zip_name}")
+        return None
+
     # --- Provider Hijacking (Middleware Logic) ---
 
     def register_super_function(self, provider_id, func_name, handler_node_id):

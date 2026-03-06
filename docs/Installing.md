@@ -35,6 +35,8 @@ After selection, it will set up the virtual environment and launch the Architect
 
  > **Note**: If you chose the **Full** installation, all these "Hot Packages" are pre-installed, so you won't see these prompts unless you add custom nodes with new requirements.
 
+ - **`pyzipper`**: Required for modern AES-256 encrypted asset packages. If missing, the system falls back to standard `zipfile` (ZipCrypto), which may fail on high-security packs.
+
 ## Next Steps
 
 - Now that you're set up, check out the [UI Usage Guide](file:///f:/My%20Programs/AxonPulse%20VS/docs/UI_Usage.md) to learn how to navigate the Architect interface.

@@ -62,17 +62,17 @@ The Browser and Search engines use "Magic" logic to resolve elements without fra
 ---
 [Return to README](file:///f:/My%20Programs/AxonPulse%20VS/README.md)
 
-### 8. Smart Switch Routing
+### 9. Smart Switch Routing
 
 The **Switch Node** supports named cases with separate display names and match values.
 
 - **Tip**: Add a case named "Success" that matches value "200". Add another named "Not Found" matching "404". Connect each to different handling paths. The "Default" output catches everything else.
 
-### 9. Parallel Processing with the Parallel Runner
+### 10. Parallel Processing with the Parallel Runner
 
 Want to process a list of items simultaneously instead of one-by-one? The **Parallel Runner** node spawns multiple workers to run a subgraph in parallel.
 
-### Step 1: Create your Worker Subgraph
+#### Step 1: Create your Worker Subgraph
 
 Build a small graph in a new tab that does the work for **one item**:
 
@@ -84,7 +84,7 @@ Build a small graph in a new tab that does the work for **one item**:
 - `_PARALLEL_INDEX` gives you the item's position in the list (0, 1, 2...).
 - Save this graph as something like `worker.syp`.
 
-### Step 2: Wire up the Parallel Runner
+#### Step 2: Wire up the Parallel Runner
 
 In your main graph:
 
@@ -96,7 +96,7 @@ In your main graph:
 - **Graph**: Path to `worker.syp`.
 - **Threads**: Number of workers (e.g., 4 for a quad-core CPU).
 
-### Step 3: Handle Results
+#### Step 3: Handle Results
 
 - **Results** output gives you a list (same order as input) of each worker's return value.
 - **Errors** output gives you a list of `{index, item, worker, error}` dicts for any failures.
@@ -122,7 +122,7 @@ Each URL is checked simultaneously — 3x faster than sequential!
 
 ---
 
-### 10. Hot Packages (On-Demand Install)
+### 11. Hot Packages (On-Demand Install)
 
 AxonPulse VS doesn't install every library upfront. The first time you use a node that needs an extra package, you'll see an **Install Dialog**.
 
@@ -132,7 +132,7 @@ AxonPulse VS doesn't install every library upfront. The first time you use a nod
 
 ---
 
-### 11. The Provider System (Scoped Context)
+### 12. The Provider System (Scoped Context)
 
 The **Provider System** is a cornerstone of advanced architecture in AxonPulse VS. It allows you to define global configurations (API keys, ports, file paths) that are "pushed" to all downstream nodes automatically.
 
@@ -153,6 +153,19 @@ The **Provider System** is a cornerstone of advanced architecture in AxonPulse V
   1. **Flow** (Exit signal)
   2. **Provider Flow** (The scoped sub-path)
   3. **Provider ID** (Explicit handle)
+
+---
+
+### 13. Managing Third-Party Node Packs
+
+You can expand your AxonPulse VS library by dropping community-made assets into the `plugins/` folder.
+
+- **`.syp` (SubGraphs)**: Drag-and-drop these files to use them as reusable nodes.
+- **`.spy` / `.py` (Hard Nodes)**: Raw Python files that are automatically compiled and registered as native nodes. SVS performs deep inspection to ensure they inherit from the correct base classes.
+- **`.zip` (Encrypted Packages)**: The most secure way to distribute complex node logic.
+  - **Hot Extraction**: SVS detects zips at startup.
+  - **Password Prompts**: If you see a **"Sleek Synapse Dialog"** asking for a password, it's the engine authenticating an encrypted package.
+  - **Extracted Library**: Look in `plugins/extracted/` to see the actual source of your installed packages.
 
 ---
 

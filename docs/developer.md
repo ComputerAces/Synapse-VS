@@ -14,7 +14,8 @@ The heart of SVS, responsible for graph pulsing and node execution.
 - **Yielding**: Nodes can return `_YSWAIT` or `_YSYIELD` signals to pause execution without blocking the thread, allowing other ready nodes to run.
 - **Context Management**: `ContextManager` handles nested scopes (loops, try/catch, subgraphs).
 - **Node Dispatching**: `NodeDispatcher` routes nodes to either the **Native Track** (Worker Thread) or **Heavy Track** (Subprocess).
-- **Lifecycle Management**: v2.1.0 nodes strictly follow the `define_schema() -> register_handlers() -> __init__` sequence to ensure thread-safe initialization.
+- **Lifecycle Management (v2.1.0)**: Nodes strictly follow the `define_schema() -> register_handlers() -> __init__` sequence. 
+  - **Defensive Data Resolution**: If `execute()` receives a `kwargs` mismatch, it automatically checks `self.properties` for fallback values before failing.
 
 ### 2. AxonPulse Bridge (`AxonPulseBridge`)
 
@@ -25,6 +26,7 @@ The IPC (Inter-Process Communication) layer.
 - **Object Contexts**: The Bridge supports `set_object`/`get_object` for sharing complex, thread-bound objects (like Browser handles) across modular nodes without pickling overhead.
 - **Locking Protocol**: Prevents race conditions during shared resource access.
 - **Identity & Session Manager (ISM)**: A secure registry in the Bridge that maps **App IDs** to `IdentityObject` dictionaries, managing multi-user contexts.
+- **Interactive Prompts**: `request_asset_password(zip_path)` allows background discovery threads to block and wait for UI password entry via atomic `AssetPasswordRequest/Response` signals.
 
 ### 3. Architect UI (`MainWindow`)
 
@@ -91,7 +93,13 @@ Any graph you create in the Architect can become a reusable node.
     1. Build your logic in a new tab.
     2. Set a **Project Name** and **Category** in the Project Tab (Right Dock).
     3. Save the graph to the `plugins/` folder.
-- **Plugin Discovery**: On startup, SVS scans the `plugins/` directory and registers any `.syp` files as nodes in the Node Library.
+- **Plugin Discovery**:
+    - **Phase 1 (Boot)**: Scans for `.syp` and unencrypted `.spy` nodes for instant availability. Uses `SourceFileLoader` to bypass `.py` extension requirements.
+    - **Phase 2 (Bridge Up)**: Performs a second pass with a `bridge` handle to process encrypted `.zip` packages.
+- **ZIP Extraction Lifecycle**:
+    - Enforces extraction to `plugins/extracted/<zip_name>/`.
+    - Uses a directory-existence guard to prevent redundant extractions.
+    - Supports AES-256 via `pyzipper` with a manual password request flow.
 - **Property Propagation**: Custom properties set on the parent "SubGraph Node" are automatically injected into the internal `Start Node` of the child graph.
 
 ### 3. Creating Custom AI Providers
@@ -142,11 +150,11 @@ AI Providers use a unified interface pattern. All providers inherit from `AIProv
 
         @property
         def default_inputs(self):
-            return [(\"Flow\", DataType.FLOW), (\"API Key\", DataType.STRING), (\"Model\", DataType.STRING)]
+            return [("Flow", DataType.FLOW), ("API Key", DataType.STRING), ("Model", DataType.STRING)]
 
         @property
         def default_outputs(self):
-            return [(\"Flow\", DataType.FLOW), (\"Provider\", DataType.ANY)]
+            return [("Flow", DataType.FLOW), ("Provider", DataType.ANY)]
 
         def execute(self, **kwargs):
             api_key = kwargs.get("API Key") or self.properties.get("api_key")
@@ -379,4 +387,4 @@ The `--sync` flag will automatically inject the missing `version` attribute into
 ---
 
 &nbsp;
-SVS Developer Docs - v1.5.0
+SVS Developer Docs - v1.6.0

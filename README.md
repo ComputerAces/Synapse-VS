@@ -20,6 +20,9 @@
     * **Hot-Reloading**: Auto-updates subgraphs when files change.
     * **Auto-Save**: Triggers 3 seconds after metadata changes.
     * **Session Restore**: Reopens previous tabs, layout, and viewports on launch.
+  * **Dynamic Multi-Format Plugins**: Drop raw Python (`.py`), Hard Nodes (`.spy`), or encrypted packages (`.zip`) into the `plugins/` folder for instant auto-registration.
+  * **Secure Asset Packaging**: Distribute node packs and subgraphs via password-protected AES-256 zips with interactive UI authentication.
+  * **Defensive Node Execution**: Intelligent "Fallback Rule" ensures nodes run using static properties if wired inputs are missing, preventing graph crashes.
 * **Extensible Plugin System**: Easily add new nodes and providers in Python.
 
 ## 🖼️ Visual Overview

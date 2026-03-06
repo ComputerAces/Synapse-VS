@@ -18,6 +18,9 @@ def main():
     # 1. Setup Bridge
     manager = multiprocessing.Manager()
     bridge = AxonPulseBridge(manager)
+    
+    # [NEW] Second Pass Discovery for encrypted plugins/zips
+    axonpulse.nodes.discover_plugins(bridge)
 
     # 2. Parse Args
     import argparse

@@ -32,6 +32,7 @@ The standard base class for all nodes (`axonpulse/core/super_node.py`).
 - **Strict Typing**: Inputs and Outputs are defined via `define_schema()` using `DataType` enums.
 - **Event-Driven**: Logic is triggered via `register_handler("Flow", self.callback)` rather than overriding `execute()`.
 - **Async & Threading**: Native support for asynchronous handlers and threaded execution loops.
+- **Defensive Data Resolution (v2.1.0)**: Automatically falls back to static node properties if expected wired inputs are missing.
 
 ### 2. The Bridge (axonpulse/core/bridge.py)
 
@@ -39,6 +40,14 @@ A Zero-Copy Shared Memory layer for real-time IPC.
 
 - **Variable Vault**: Thread-safe storage for all graph variables.
 - **Local Mirroring**: Caches frequently accessed data to minimize lock contention.
+
+### 3. Asset Packaging Ecosystem
+
+SVS supports secure distribution of logic via standardized `.zip` packages.
+
+- **Interactive Auth**: Encrypted zips prompt the user for passwords via the UI bridge.
+- **Automated Extraction**: Packages are safely extracted to `plugins/extracted/` with dependency shielding.
+- **Hot-Loading**: Contents (nodes and subgraphs) are instantly registered into the active library upon successful authentication.
 
 ---
 
@@ -76,6 +85,8 @@ Used for legacy or internal nodes. detailed description but lacks structured I/O
 
 Used for simple, self-explanatory nodes.
 *Example: "Compares two values and branches based on the result."*
+
+### Schema Definition
 
 ### Schema Definition
 

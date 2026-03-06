@@ -175,23 +175,37 @@ class SuperNode(BaseNode):
         """
         trigger = kwargs.get("_trigger", "Flow")
         
-        # 1. Strict Type Casting
+        # 1. Strict Type Casting & Defensive Data Resolution (Fallback Rule)
         clean_args = {}
-        for name, val in kwargs.items():
-            if name.startswith("_"): 
-                clean_args[name] = val
+        
+        # First, copy all internal arguments (_trigger, _context, etc.)
+        for k, v in kwargs.items():
+            if k.startswith("_"):
+                clean_args[k] = v
+
+        # Priority resolution for defined inputs: Wire (kwargs) > Property (static)
+        for name, schema_val in self.input_schema.items():
+            target_type = schema_val.get("type", DataType.ANY) if isinstance(schema_val, dict) else schema_val
+            
+            # Skip triggers for data resolution
+            if target_type == DataType.FLOW:
                 continue
-                
-            # Check Schema
-            schema_val = self.input_schema.get(name)
-            if schema_val:
-                target_type = schema_val.get("type", DataType.ANY) if isinstance(schema_val, dict) else schema_val
+
+            # Apply Fallback: Use wire if available, else check node property
+            val = kwargs.get(name)
+            if val is None:
+                val = self.properties.get(name)
+            
+            if val is not None:
                 try:
                     clean_args[name] = TypeCaster.cast(val, target_type)
                 except Exception as e:
                     self.logger.warning(f"TypeCast error for {name}: {e}")
-                    clean_args[name] = val # Fallback
-            else:
+                    clean_args[name] = val
+
+        # Capture any dynamic wires not in schema (Additional Inputs)
+        for name, val in kwargs.items():
+            if not name.startswith("_") and name not in clean_args:
                 clean_args[name] = val
 
         # 2. Route to Handler
@@ -215,23 +229,34 @@ class SuperNode(BaseNode):
         """
         trigger = kwargs.get("_trigger", "Flow")
         
-        # 1. Strict Type Casting
+        # 1. Strict Type Casting & Defensive Data Resolution (Fallback Rule)
         clean_args = {}
-        for name, val in kwargs.items():
-            if name.startswith("_"): 
-                clean_args[name] = val
+        
+        # Copy internal arguments
+        for k, v in kwargs.items():
+            if k.startswith("_"):
+                clean_args[k] = v
+
+        # Fallback Resolution: Wire (kwargs) > Property (static)
+        for name, schema_val in self.input_schema.items():
+            target_type = schema_val.get("type", DataType.ANY) if isinstance(schema_val, dict) else schema_val
+            if target_type == DataType.FLOW:
                 continue
-                
-            # Check Schema
-            schema_val = self.input_schema.get(name)
-            if schema_val:
-                target_type = schema_val.get("type", DataType.ANY) if isinstance(schema_val, dict) else schema_val
+
+            val = kwargs.get(name)
+            if val is None:
+                val = self.properties.get(name)
+            
+            if val is not None:
                 try:
                     clean_args[name] = TypeCaster.cast(val, target_type)
                 except Exception as e:
                     self.logger.warning(f"TypeCast error for {name}: {e}")
-                    clean_args[name] = val # Fallback
-            else:
+                    clean_args[name] = val
+
+        # Capture dynamics
+        for name, val in kwargs.items():
+            if not name.startswith("_") and name not in clean_args:
                 clean_args[name] = val
 
         # 2. Route to Handler
