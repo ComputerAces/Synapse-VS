@@ -220,6 +220,10 @@ class MainWindow(QMainWindow, LayoutMixin, ActionsMixin, MenusMixin, FileOperati
 
             if not graph or not hasattr(graph, 'bridge') or not graph.bridge: 
                 return
+                
+            # [NEW: v2.4.6] Guard against animating dead graphs
+            if getattr(graph, 'execution_state', None) == getattr(graph, 'STATE_STOPPED', -1):
+                return
             
             # 3. Pull Highlights from Bridge
             highlights = graph.bridge.get("HIGHLIGHT_NODES", [])

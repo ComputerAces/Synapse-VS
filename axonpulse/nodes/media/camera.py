@@ -170,7 +170,7 @@ class CameraCaptureNode(ProviderNode):
     - Provider Flow: Active pulse during the session.
     - Provider ID: Used by downstream nodes to identify this capture source.
     """
-    version = "2.1.0"
+    version = "2.1.1"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
@@ -251,6 +251,19 @@ class CameraCaptureNode(ProviderNode):
         self.bridge.set(f"{self.node_id}_Provider ID", self.node_id, self.name)
         self.bridge.set(f"{self.node_id}_ActivePorts", ["Provider Flow"], self.name)
         return True
+
+    def cleanup_provider_context(self):
+        """
+        Force-stop the capture threads when the engine or provider terminates.
+        """
+        self.logger.info(f"[{self.name}] Cleaning up provider context...")
+        self._stop_recording()
+        
+        # Ensure 'ActivePorts' is cleared so the minimap/canvas stops blinking
+        self.bridge.set(f"{self.node_id}_ActivePorts", [], self.name)
+        
+        self._wait_for_threads()
+        super().cleanup_provider_context()
 
     def stop_capture_handler(self, **kwargs):
         self._stop_recording()
@@ -383,7 +396,7 @@ class CameraListNode(SuperNode):
     - Cameras: List of identified camera names.
     - Count: Total number of cameras found.
     """
-    version = "2.1.0"
+    version = "2.1.1"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

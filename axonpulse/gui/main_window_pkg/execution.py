@@ -201,6 +201,10 @@ class ExecutionMixin:
              graph = self.get_current_graph()
              if not graph: return
              
+             # [NEW: v2.4.6] Guard against animating dead graphs
+             if getattr(graph, 'execution_state', None) == getattr(graph, 'STATE_STOPPED', -1):
+                 return
+             
              canvas = graph.canvas
              needs_update = False
              
@@ -468,24 +472,29 @@ class ExecutionMixin:
             pass
 
         for item in graph.canvas.scene.items():
-            if hasattr(item, '_is_active'):
-                 item._is_active = False 
-            
-            if hasattr(item, '_is_running'):
-                 item._is_running = False
-                 item._running_since = 0
-                 # Clear ALL visual effects immediately (no fading on stop)
-                 if hasattr(item, '_is_fading'): item._is_fading = False
-                 if hasattr(item, '_is_fading_blue'): item._is_fading_blue = False
-                 if hasattr(item, '_is_pulsing_blue'): item._is_pulsing_blue = False
-                 if hasattr(item, '_is_waiting'): item._is_waiting = False
-                 if hasattr(item, '_is_error'): item._is_error = False
-                 if hasattr(item, '_is_next'): item._is_next = False
-                 item.update()
-            elif hasattr(item, 'start_port'): # Wire
-                 if hasattr(item, '_is_active'): item._is_active = False
-                 if hasattr(item, '_is_fading'): item._is_fading = False
-                 item.update()
+            # [NUCLEAR RESET] Force-reset all known visual flags regardless of hasattr
+            # This handles nodes, wires, and any other visual elements
+            try:
+                if hasattr(item, '_is_running'): item._is_running = False
+                if hasattr(item, '_is_active'): item._is_active = False 
+                if hasattr(item, '_is_fading'): item._is_fading = False
+                if hasattr(item, '_is_fading_blue'): item._is_fading_blue = False
+                if hasattr(item, '_is_pulsing_blue'): item._is_pulsing_blue = False
+                if hasattr(item, '_is_waiting'): item._is_waiting = False
+                if hasattr(item, '_is_error'): item._is_error = False
+                if hasattr(item, '_is_next'): item._is_next = False
+                if hasattr(item, '_is_running_service'): item._is_running_service = False
+                if hasattr(item, '_is_subgraph_active'): item._is_subgraph_active = False
+                if hasattr(item, '_running_since'): item._running_since = 0
+                
+                # Force immediate repaint
+                item.update()
+            except:
+                pass
+
+        # [NEW] Clear Minimap internal state
+        if hasattr(self, 'minimap'):
+            self.minimap.clear_highlights()
 
         if hasattr(self, '_current_running_node'):
              self._current_running_node = None

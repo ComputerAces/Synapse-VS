@@ -155,6 +155,22 @@ class AudioRecordNode(ProviderNode):
                 
         return True
 
+    def cleanup_provider_context(self):
+        """
+        Force-stop the recording thread when the engine or provider terminates.
+        """
+        self.logger.info(f"[{self.name}] Cleaning up provider context...")
+        self._stop_recording()
+        
+        # Ensure 'ActivePorts' is cleared so the minimap/canvas stops blinking
+        self.bridge.set(f"{self.node_id}_ActivePorts", [], self.name)
+        
+        if self._thread and self._thread.is_alive():
+            self.logger.info(f"[{self.name}] Waiting for audio thread to terminate...")
+            self._thread.join(timeout=1.5)
+            
+        super().cleanup_provider_context()
+
     def end_scope(self, **kwargs):
         _trigger = kwargs.get("_trigger")
         
@@ -204,6 +220,7 @@ class AudioRecordNode(ProviderNode):
         self._thread.start()
 
     def _stop_recording(self):
+        self._running = False
         self._stop_requested = True
 
     def _record_loop(self, filename, use_silence, silence_level, silence_length, sample_rate, channels, device_index, wait_for_sound):
@@ -224,7 +241,13 @@ class AudioRecordNode(ProviderNode):
             p = pyaudio.PyAudio()
             
             # Use default if -1 or invalid
-            target_device = device_index if device_index >= 0 else p.get_default_input_device_info()['index']
+            try:
+                target_device = int(device_index)
+            except:
+                target_device = -1
+
+            if target_device < 0:
+                target_device = p.get_default_input_device_info()['index']
             
             stream = p.open(
                 format=FORMAT, 

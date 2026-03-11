@@ -1,5 +1,5 @@
 import os
-import json
+import yaml
 from axonpulse.nodes.registry import NodeRegistry
 from axonpulse.utils.logger import main_logger as logger
 from axonpulse.utils.file_utils import smart_load
@@ -102,7 +102,7 @@ def load_graph_data(data, bridge, engine, source_file=None):
                 # Store the version in properties so it's saved in the next graph save
                 node.properties["node_version"] = current_ver
 
-        elif "properties" in n_data and ("graph_path" in n_data["properties"] or "Graph Path" in n_data["properties"] or "GraphPath" in n_data["properties"]):
+        elif "properties" in n_data and "Graph Path" in n_data["properties"]:
             # Fallback: It's a SubGraph, but maybe not registered by name yet.
             sg_cls = NodeRegistry.get_node_class("SubGraph Node")
             if sg_cls:
@@ -111,7 +111,7 @@ def load_graph_data(data, bridge, engine, source_file=None):
                  logger.error(f"Critical: SubGraph Node class not found.")
                  continue
         else:
-            logger.warning(f"Unknown node type in JSON: {node_type}")
+            logger.warning(f"Unknown node type: {node_type}")
             continue
 
         # Load properties for ALL nodes (Strict Cleanup)
@@ -121,7 +121,7 @@ def load_graph_data(data, bridge, engine, source_file=None):
         allowed_dynamic = set()
         for k, v in loaded_props.items():
             kl = k.lower().replace("_", " ")
-            if kl in ["additional inputs", "additionalinputs"]: 
+            if kl in ["additional inputs", "additionaloutputs"]: 
                  if isinstance(v, list):
                     allowed_dynamic.update(name.lower() for name in v)
             elif kl in ["additional outputs", "additionaloutputs"]:
@@ -172,9 +172,6 @@ def load_graph_data(data, bridge, engine, source_file=None):
             
             # 5. [PROTECTION] Dynamic Port Pattern Match (for nodes that allow dynamic expansion)
             if not matched and (getattr(node, "allow_dynamic_inputs", False) or getattr(node, "allow_dynamic_outputs", False)):
-                # [FIX] SubGraph nodes have both allow_dynamic_inputs AND allow_dynamic_outputs.
-                # Their port names are arbitrary (determined by child graph's Start/Return nodes),
-                # so pattern matching is impossible. Keep ALL properties for SubGraph-type nodes.
                 is_subgraph = getattr(node, "allow_dynamic_inputs", False) and getattr(node, "allow_dynamic_outputs", False)
                 if is_subgraph:
                     node.properties[k] = v
@@ -182,8 +179,6 @@ def load_graph_data(data, bridge, engine, source_file=None):
                 else:
                     for pattern in DYNAMIC_PATTERNS:
                         if re.fullmatch(pattern, k_normalized):
-                            # It looks like a dynamic port, keep it even if not in the Additional Inputs list
-                            # This prevents data loss for unwired dynamic ports.
                             node.properties[k] = v
                             matched = True
                             break
@@ -195,47 +190,38 @@ def load_graph_data(data, bridge, engine, source_file=None):
                 was_pruned = True
         
         # [NEW] Re-sync schema AFTER all properties (including Embedded Data) are loaded
-        # Moved below embedded injection to ensure dynamic ports build correctly
         if hasattr(node, '_parse_legacy_ports'):
             node._parse_legacy_ports()
             
         # Embedded SubGraph Handling
         embedded_subgraphs = data.get("embedded_subgraphs", {})
         
-        # Check both legacy and standardized keys for Graph Path
-        graph_path = node.properties.get("Graph Path") or \
-                     node.properties.get("GraphPath") or \
-                     node.properties.get("graph_path")
-        
-        # Check both legacy and standardized keys for Embedded Data
-        embedded_data = node.properties.get("Embedded Data") or \
-                        node.properties.get("EmbeddedData") or \
-                        node.properties.get("embedded_data")
+        # Check standardized keys for Graph Path and Embedded Data
+        graph_path = node.properties.get("Graph Path")
+        embedded_data = node.properties.get("Embedded Data")
 
         if graph_path and not embedded_data:
             if graph_path in embedded_subgraphs:
                 node.properties["Embedded Data"] = embedded_subgraphs[graph_path]
                 logger.info(f"[{node_name}] Injected embedded data from '{graph_path}'")
 
-        # [NEW] Re-sync schema AFTER embedded data is injected 
-        # so dynamic SubGraph ports can process the fallback cache immediately.
+        # [NEW] Re-sync schema AFTER embedded data is injected
         if hasattr(node, "sync_schema"):
             node.sync_schema()
 
         # Name Repair
         if (node.name.startswith("SubGraph") or node.name == node_type):
-            path = graph_path # Already resolved above with fallbacks
+            path = graph_path
             if path:
                 try:
                     name = None
-                    emb_data = embedded_data # Already resolved above
-                    if emb_data:
-                        name = emb_data.get("project_name", "").strip()
+                    if embedded_data:
+                        name = embedded_data.get("project_name", "").strip()
                         
                     if not name and os.path.exists(path):
-                         with open(path, 'r') as f:
-                             p_data = json.load(f)
-                             name = p_data.get("project_name", "").strip()
+                         p_data = smart_load(path)
+                         if p_data:
+                            name = p_data.get("project_name", "").strip()
                     
                     if not name:
                         name = os.path.splitext(os.path.basename(path))[0]
@@ -288,6 +274,7 @@ def load_favorites_into_registry():
         
         if os.path.exists(favorites_path):
              with open(favorites_path, 'r') as f:
+                 import json
                  favorites = json.load(f)
              
              for path in favorites:
@@ -304,13 +291,12 @@ def load_favorites_into_registry():
                          if was_modified:
                              from axonpulse.utils.file_utils import safe_save_graph
                              if safe_save_graph(path, data):
-                                 logger.info(f"Auto-Migrated favorite: {os.path.basename(path)} to latest schema.")
+                                  logger.info(f"Auto-Migrated favorite: {os.path.basename(path)} to latest schema.")
 
                          name = data.get("project_name", "").strip()
-                         # [FIX] Prioritize project_category over project_type
                          pcat = data.get("project_category", "").strip() or data.get("project_type", "Uncategorized")
                          pdesc = data.get("project_description", "").strip()
-                             
+                              
                          if not name:
                              name = os.path.splitext(os.path.basename(path))[0]
                                   
@@ -318,7 +304,6 @@ def load_favorites_into_registry():
                          current_favorite_labels.add(name)
                          
                          # Double Registration (Project Name AND File Name)
-                         # [FIX] Register filename as alias to prevent duplication in Node Library
                          filename_label = os.path.splitext(os.path.basename(path))[0]
                          if filename_label != name:
                              NodeRegistry.register_subgraph(filename_label, path, pcat, is_alias=True, description=pdesc)
@@ -336,6 +321,3 @@ def load_favorites_into_registry():
         
     except Exception as e:
         logger.warning(f"Failed to load favorites: {e}")
-
-# Alias for backward compatibility
-load_graph_from_json = load_graph_from_file

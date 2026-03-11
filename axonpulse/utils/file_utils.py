@@ -18,24 +18,19 @@ AxonPulseYAMLDumper.add_representer(str, str_presenter)
 
 def smart_load(path):
     """
-    Detects if a file is JSON or YAML based on its first non-whitespace character.
-    Returns the parsed data.
+    Loads a YAML file from the given path.
+    JSON support is deprecated and removed after v2.4.0 migration.
     """
     if not os.path.exists(path):
         return None
         
     with open(path, 'r', encoding='utf-8') as f:
-        content = f.read()
-        return parse_yaml_or_json(content)
+        return yaml.safe_load(f)
 
-def parse_yaml_or_json(text):
-    """Parses text as either JSON or YAML based on the first character."""
-    if not text: return None
-    content_start = text.strip()
-    if content_start.startswith('{'):
-        return json.loads(text)
-    else:
-        return yaml.safe_load(text)
+# Legacy Alias for GUI/Clipboard operations
+def parse_yaml_or_json(data):
+    """Parses a YAML string (legacy alias for GUI compatibility)."""
+    return yaml.safe_load(data)
 
 def serialize_to_yaml(data):
     """Returns a YAML string with block scalars and sorted keys."""

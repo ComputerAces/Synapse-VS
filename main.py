@@ -1,6 +1,5 @@
 import multiprocessing
 import sys
-import json
 from axonpulse.core.bridge import AxonPulseBridge
 from axonpulse.core.engine import ExecutionEngine
 import axonpulse.nodes # Triggers auto-discovery
@@ -55,32 +54,6 @@ def main():
         
         if was_modified:
             logger.info("Graph was modified during loading (migrations or dead property cleanup).")
-            
-            # [REPAIR LOGIC] Determine if we should prompt or auto-save
-            # [FIX] QProcess on Windows reports stdin.isatty()=True even though
-            # no interactive input is possible. Use fileno() check as a secondary guard.
-            try:
-                stdin_ok = sys.stdin.isatty() and sys.stdin.fileno() >= 0
-            except (OSError, ValueError, AttributeError):
-                stdin_ok = False
-            is_interactive = stdin_ok and not getattr(args, 'headless', False)
-            
-            should_save = False
-            if is_interactive:
-                from axonpulse.core.cli_forms import render_form_cli
-                schema = [{"label": "Save Changes", "type": "boolean", "default": "y"}]
-                result = render_form_cli("Repair & Migration", schema)
-                should_save = result.get("Save Changes")
-            else:
-                logger.info("Non-interactive or Headless mode detected. Automatically applying repairs.")
-                should_save = True
-
-            if should_save:
-                from axonpulse.utils.file_utils import safe_save_graph
-                if safe_save_graph(json_path, data):
-                    logger.info(f"Successfully saved fixed graph to {json_path}")
-                else:
-                    logger.error(f"Failed to save fixed graph to {json_path}")
 
         
         # Validation Logic
