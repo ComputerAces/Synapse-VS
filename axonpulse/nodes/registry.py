@@ -94,6 +94,16 @@ class NodeRegistry:
                      cls._categories[category].append(label)
 
     @classmethod
+    def is_path_registered(cls, path):
+        """Checks if a subgraph with the given path is already registered under any label."""
+        import os
+        path = os.path.abspath(path)
+        for node_cls in cls._nodes.values():
+            if hasattr(node_cls, 'graph_path') and os.path.abspath(node_cls.graph_path) == path:
+                return True
+        return False
+
+    @classmethod
     def unregister(cls, label):
         """Removes a node from the registry and cleanup category mappings."""
         if label in cls._nodes:

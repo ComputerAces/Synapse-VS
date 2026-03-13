@@ -51,6 +51,10 @@ def load_graph_from_file(path, bridge, engine):
  
     node_map, was_pruned = load_graph_data(data, bridge, engine, source_file=path)
     
+    # [NEW] After loading the main graph, refresh favorites.
+    # Pass embedded_subgraphs so favorites used in the graph can be fully registered without I/O.
+    load_favorites_into_registry(mapped_subgraphs=data.get("embedded_subgraphs"))
+    
     was_modified = was_migrated or was_pruned
     
     # [NEW] Auto-bump project version for modified graphs
@@ -268,8 +272,10 @@ def load_graph_data(data, bridge, engine, source_file=None):
 # Track registered favorite labels to allow cleanup
 _registered_favorite_labels = set()
 
-def load_favorites_into_registry():
-    """Registers Favorite SubGraphs into NodeRegistry so they can be instantiated."""
+def load_favorites_into_registry(mapped_subgraphs=None):
+    """Registers Favorite SubGraphs into NodeRegistry so they can be instantiated.
+    Optimized for startup speed: utilizes mapped_subgraphs if provided, otherwise performs lazy registration.
+    """
     global _registered_favorite_labels
     try:
         favorites_path = os.path.join(os.getcwd(), "favorites.json")
@@ -281,38 +287,45 @@ def load_favorites_into_registry():
                  favorites = json.load(f)
              
              for path in favorites:
-                 if os.path.exists(path):
-                     try:
-                         from axonpulse.utils.file_utils import smart_load
-                         data = smart_load(path)
-                         if not data:
-                             continue
-                             
-                         # [MIGRATION] Automatically patch favorites to latest version
-                         from axonpulse.core.schema import migrate_graph
-                         data, was_modified = migrate_graph(data)
-                         if was_modified:
-                             from axonpulse.utils.file_utils import safe_save_graph
-                             if safe_save_graph(path, data):
-                                  logger.info(f"Auto-Migrated favorite: {os.path.basename(path)} to latest schema.")
+                 if not os.path.exists(path):
+                     continue
+                 
+                 # Optimization 1: Skip if already registered
+                 if NodeRegistry.is_path_registered(path):
+                     # Find the label it was registered with to keep it in current_favorite_labels
+                     for label, node_cls in NodeRegistry._nodes.items():
+                         if hasattr(node_cls, 'graph_path') and os.path.abspath(node_cls.graph_path) == os.path.abspath(path):
+                             current_favorite_labels.add(label)
+                     continue
 
+                 try:
+                     name = None
+                     pcat = "Favorites"
+                     pdesc = "Favorite Subgraph"
+                     
+                     # Optimization 2: Use "Mapped" metadata from the current graph if available
+                     if mapped_subgraphs and path in mapped_subgraphs:
+                         data = mapped_subgraphs[path]
                          name = data.get("project_name", "").strip()
-                         pcat = data.get("project_category", "").strip() or data.get("project_type", "Uncategorized")
+                         pcat = data.get("project_category", "").strip() or data.get("project_type", "Favorites")
                          pdesc = data.get("project_description", "").strip()
+                         logger.debug(f"Registered favorite from mapped subgraphs: {os.path.basename(path)}")
+                     
+                     if not name:
+                         # Lazy Registration: Use filename, skip parsing/migration for speed
+                         name = os.path.splitext(os.path.basename(path))[0]
+                         logger.debug(f"Lazy-Registered favorite: {name}")
                               
-                         if not name:
-                             name = os.path.splitext(os.path.basename(path))[0]
-                                  
-                         NodeRegistry.register_subgraph(name, path, pcat, description=pdesc)
-                         current_favorite_labels.add(name)
-                         
-                         # Double Registration (Project Name AND File Name)
-                         filename_label = os.path.splitext(os.path.basename(path))[0]
-                         if filename_label != name:
-                             NodeRegistry.register_subgraph(filename_label, path, pcat, is_alias=True, description=pdesc)
-                             current_favorite_labels.add(filename_label)
-                     except Exception:
-                         pass
+                     NodeRegistry.register_subgraph(name, path, pcat, description=pdesc)
+                     current_favorite_labels.add(name)
+                     
+                     # Double Registration (Project Name AND File Name)
+                     filename_label = os.path.splitext(os.path.basename(path))[0]
+                     if filename_label != name:
+                         NodeRegistry.register_subgraph(filename_label, path, pcat, is_alias=True, description=pdesc)
+                         current_favorite_labels.add(filename_label)
+                 except Exception as e:
+                     logger.debug(f"Failed to lazy-load favorite {path}: {e}")
         
         # Cleanup: Unregister nodes that are no longer favorites
         removed_labels = _registered_favorite_labels - current_favorite_labels
