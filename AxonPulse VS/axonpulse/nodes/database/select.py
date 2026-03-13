@@ -17,7 +17,7 @@ class SQLSelectNode(BaseSQLNode):
     - Rows: List of matching records as dictionaries.
     - Count: The number of rows returned.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def define_schema(self):
         self.input_schema = {

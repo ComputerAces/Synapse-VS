@@ -1,41 +1,27 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Exit For", "Flow")
-class ExitForNode(SuperNode):
-    """
-    Terminates an active loop (For or Foreach) early.
-    
-    Acts as a 'break' statement. When triggered, it signals the parent loop 
-    node to stop iterating and transition to its completion 'Flow' output.
-    
-    Inputs:
-    - Flow: Trigger the break signal.
-    
-    Outputs:
-    - Flow: Pulse triggered after the signal is sent.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.do_work)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW
-        }
+@axon_node(category="Flow", version="2.3.0", node_label="Exit For")
+def ExitForNode(_bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Terminates an active loop (For or Foreach) early.
 
-    def do_work(self, **kwargs):
-        self.logger.info("EXIT FOR triggered")
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+Acts as a 'break' statement. When triggered, it signals the parent loop 
+node to stop iterating and transition to its completion 'Flow' output.
+
+Inputs:
+- Flow: Trigger the break signal.
+
+Outputs:
+- Flow: Pulse triggered after the signal is sent."""
+    _node.logger.info('EXIT FOR triggered')
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return True

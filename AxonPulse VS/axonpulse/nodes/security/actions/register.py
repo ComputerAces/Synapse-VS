@@ -18,7 +18,7 @@ class RegisterNode(BaseSecurityActionNode):
     - Flow: Triggered after the registration attempt.
     - Success: True if the account was created successfully.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

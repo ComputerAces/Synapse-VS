@@ -43,7 +43,7 @@ class FileReadNode(BaseFileOpNode):
     - Error Flow: Pulse triggered if the read fails or no provider is active.
     - Data: The resulting content (String or Bytes).
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def define_schema(self):
         self.input_schema = {
@@ -86,7 +86,7 @@ class FileWriteNode(BaseFileOpNode):
     - Flow: Pulse triggered on successful write.
     - Error Flow: Pulse triggered if the operation fails.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def define_schema(self):
         self.input_schema = {
@@ -127,7 +127,7 @@ class FileSeekNode(BaseFileOpNode):
     - Flow: Pulse triggered on successful movement.
     - Error Flow: Pulse triggered if the seek is invalid or fails.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def define_schema(self):
         self.input_schema = {
@@ -169,7 +169,7 @@ class FilePeekNode(BaseFileOpNode):
     - Error Flow: Pulse triggered if the operation fails.
     - Data: The content read.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def define_schema(self):
         self.input_schema = {
@@ -211,7 +211,7 @@ class FilePositionNode(BaseFileOpNode):
     - Error Flow: Pulse triggered if retrieval fails.
     - Position: The current integer byte offset.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def define_schema(self):
         self.input_schema = {"Flow": DataType.FLOW}

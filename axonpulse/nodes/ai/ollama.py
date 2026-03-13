@@ -93,12 +93,113 @@ class OllamaProvider(AIProvider):
             res = json.loads(response.read().decode('utf-8'))
             return res.get("message", {}).get("content", "")
 
+    def stream(self, system_prompt, user_prompt, files, model_override=None, **kwargs):
+        model = model_override if model_override else self.default_model
+        return_json = kwargs.get("return_json", False)
+        
+        images_b64 = []
+        text_context = ""
+        if isinstance(files, str): files = [files]
+        if files:
+            for f in files:
+                if not f or not os.path.exists(f): continue
+                mime, _ = mimetypes.guess_type(f)
+                if mime and mime.startswith("image"):
+                    with open(f, "rb") as im:
+                        images_b64.append(base64.b64encode(im.read()).decode('utf-8'))
+                else:
+                    with open(f, "r", encoding="utf-8", errors="ignore") as tf:
+                        text_context += f"\n--- File: {os.path.basename(f)} ---\n{tf.read()}\n"
+
+        messages = []
+        if system_prompt: messages.append({"role": "system", "content": system_prompt})
+        
+        content = user_prompt
+        if text_context: content += f"\n\nContext Files:{text_context}"
+        
+        user_msg = {"role": "user", "content": content}
+        if images_b64: user_msg["images"] = images_b64
+        messages.append(user_msg)
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "options": {"temperature": self.temperature}
+        }
+        if return_json: payload["format"] = "json"
+        
+        req = urllib.request.Request(f"{self.host}/api/chat", data=json.dumps(payload).encode('utf-8'))
+        req.add_header('Content-Type', 'application/json')
+        
+        with urllib.request.urlopen(req) as response:
+            in_thinking = False
+            for line in response:
+                if not line: continue
+                chunk = json.loads(line.decode('utf-8'))
+                if "message" in chunk and "content" in chunk["message"]:
+                    text = chunk["message"]["content"]
+                    
+                    if "<think>" in text and "</think>" in text:
+                        parts = text.split("<think>")
+                        if parts[0]: yield {"type": "content", "text": parts[0]}
+                        mid = parts[1].split("</think>")
+                        yield {"type": "thinking", "text": mid[0]}
+                        if mid[1]: yield {"type": "content", "text": mid[1]}
+                    elif "<think>" in text:
+                        in_thinking = True
+                        parts = text.split("<think>")
+                        if parts[0]: yield {"type": "content", "text": parts[0]}
+                        yield {"type": "thinking", "text": parts[1]}
+                    elif "</think>" in text:
+                        in_thinking = False
+                        parts = text.split("</think>")
+                        yield {"type": "thinking", "text": parts[0]}
+                        if parts[1]: yield {"type": "content", "text": parts[1]}
+                    elif in_thinking:
+                        yield {"type": "thinking", "text": text}
+                    else:
+                        yield {"type": "content", "text": text}
+                
+                if chunk.get("done"):
+                    break
+
     def get_models(self):
         url = f"{self.host}/api/tags"
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode('utf-8'))
             return [m['name'] for m in data.get('models', [])]
+
+    def get_capabilities(self, model_override=None):
+        model = model_override if model_override else self.default_model
+        caps = {"completion": True, "vision": False, "tools": False, "thinking": False}
+        try:
+            url = f"{self.host}/api/show"
+            payload = {"name": model}
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'))
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                # Models with image support usually have 'vision' in categories or specific projection layers
+                # We also check for 'thinking' based on model name/family if details are sparse
+                details = data.get("details", {})
+                family = details.get("family", "").lower()
+                
+                # Broad heuristics for Ollama
+                if "vision" in family or "llava" in model.lower():
+                    caps["vision"] = True
+                
+                if "thinking" in model.lower() or "deepseek-r1" in model.lower():
+                    caps["thinking"] = True
+
+                # Check if 'tools' appears in the template or parameters
+                template = data.get("template", "")
+                if "{{ .Tools }}" in template or "tool" in template.lower():
+                    caps["tools"] = True
+        except:
+            pass
+        return caps
 
 @NodeRegistry.register("Ollama Provider", "AI/Providers")
 class OllamaProviderNode(ProviderNode):

@@ -1,30 +1,41 @@
 import uuid
+
 import json
+
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
+
 from axonpulse.utils.logger import main_logger as logger
+
 from axonpulse.nodes.lib.provider_node import ProviderNode
+
+from typing import Any, List, Dict, Optional
+
+from axonpulse.core.types import DataType, TypeCaster
+
+from axonpulse.nodes.decorators import axon_node
 
 class ConnectionHandle:
     """
     Protocol-agnostic handle containing connection configuration.
     Passed between Provider nodes and Action nodes.
     """
+
     def __init__(self, protocol, config):
-        self.id = f"conn_{uuid.uuid4().hex[:8]}"
-        self.protocol = protocol # REST, WSS, gRPC
-        self.config = config     # Dictionary of settings (base_url, timeout, etc.)
+        self.id = f'conn_{uuid.uuid4().hex[:8]}'
+        self.protocol = protocol
+        self.config = config
 
     def __str__(self):
-        return f"[{self.protocol} Handle: {self.id}]"
+        return f'[{self.protocol} Handle: {self.id}]'
 
     def __repr__(self):
         return self.__str__()
 
-# --- PROVIDER NODES ---
-
-@NodeRegistry.register("REST Provider", "Connectivity/Providers")
+@NodeRegistry.register('REST Provider', 'Connectivity/Providers')
 class RESTProviderNode(ProviderNode):
     """
     Initializes a REST-based connection handle for communicating with web APIs.
@@ -41,52 +52,35 @@ class RESTProviderNode(ProviderNode):
     - Flow: Triggered after handle creation.
     - Handle: A ConnectionHandle object containing the REST configuration.
     """
-    version = "2.1.0"
-    provider_type = "REST"
+    version = '2.1.0'
+    provider_type = 'REST'
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
-        self.properties["Base URL"] = ""
-        self.properties["Port"] = 80
-        self.properties["Timeout"] = 30
-        self.properties["AuthStrategy"] = "Bearer"
+        self.properties['Base URL'] = ''
+        self.properties['Port'] = 80
+        self.properties['Timeout'] = 30
+        self.properties['AuthStrategy'] = 'Bearer'
 
     def register_handlers(self):
         super().register_handlers()
-        # Ensure 'Flow' from super triggers our custom handle creation too
-        # though ProviderNode.start_scope already triggers Provider Flow.
-        # We override start_scope or register_provider_context to set the handle.
 
     def define_schema(self):
         super().define_schema()
-        self.input_schema.update({
-            "Base URL": DataType.STRING,
-            "Port": DataType.NUMBER,
-            "Timeout": DataType.NUMBER,
-            "AuthStrategy": DataType.STRING
-        })
-        self.output_schema.update({
-            "Handle": DataType.ANY
-        })
+        self.input_schema.update({'Base URL': DataType.STRING, 'Port': DataType.NUMBER, 'Timeout': DataType.NUMBER, 'AuthStrategy': DataType.STRING})
+        self.output_schema.update({'Handle': DataType.ANY})
 
     def start_scope(self, **kwargs):
-        # Create handle before starting scope so it's available in context
-        base_url = kwargs.get("Base URL") or self.properties.get("Base URL")
-        port = kwargs.get("Port") or self.properties.get("Port", 80)
-        timeout = kwargs.get("Timeout") or self.properties.get("Timeout", 30)
-        auth = kwargs.get("AuthStrategy") or self.properties.get("AuthStrategy", "None")
-        
-        handle = ConnectionHandle("REST", {
-            "base_url": base_url,
-            "port": port,
-            "timeout": timeout,
-            "auth_strategy": auth
-        })
-        self.bridge.set(f"{self.node_id}_Handle", handle, self.name)
+        base_url = kwargs.get('Base URL') or self.properties.get('Base URL')
+        port = kwargs.get('Port') or self.properties.get('Port', 80)
+        timeout = kwargs.get('Timeout') or self.properties.get('Timeout', 30)
+        auth = kwargs.get('AuthStrategy') or self.properties.get('AuthStrategy', 'None')
+        handle = ConnectionHandle('REST', {'base_url': base_url, 'port': port, 'timeout': timeout, 'auth_strategy': auth})
+        self.bridge.set(f'{self.node_id}_Handle', handle, self.name)
         return super().start_scope(**kwargs)
 
-@NodeRegistry.register("WebSocket Provider", "Connectivity/Providers")
+@NodeRegistry.register('WebSocket Provider', 'Connectivity/Providers')
 class WebSocketProviderNode(ProviderNode):
     """
     Initializes a WebSocket connection handle for real-time bi-directional communication.
@@ -101,40 +95,31 @@ class WebSocketProviderNode(ProviderNode):
     - Flow: Triggered after handle creation.
     - Handle: A ConnectionHandle object containing the WebSocket configuration.
     """
-    version = "2.1.0"
-    provider_type = "SOCKET"
+    version = '2.1.0'
+    provider_type = 'SOCKET'
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
-        self.properties["URL"] = ""
-        self.properties["Reconnect"] = True
-        # super().__init__ calls define_schema and register_handlers
+        self.properties['URL'] = ''
+        self.properties['Reconnect'] = True
 
     def register_handlers(self):
         super().register_handlers()
 
     def define_schema(self):
         super().define_schema()
-        self.input_schema.update({
-            "URL": DataType.STRING,
-            "Reconnect": DataType.BOOLEAN
-        })
-        self.output_schema.update({
-            "Handle": DataType.ANY
-        })
+        self.input_schema.update({'URL': DataType.STRING, 'Reconnect': DataType.BOOLEAN})
+        self.output_schema.update({'Handle': DataType.ANY})
 
     def start_scope(self, **kwargs):
-        url = kwargs.get("URL") or self.properties.get("URL")
-        reconnect = kwargs.get("Reconnect") if kwargs.get("Reconnect") is not None else self.properties.get("Reconnect", True)
-        handle = ConnectionHandle("WSS", {
-            "url": url,
-            "reconnect": reconnect
-        })
-        self.bridge.set(f"{self.node_id}_Handle", handle, self.name)
+        url = kwargs.get('URL') or self.properties.get('URL')
+        reconnect = kwargs.get('Reconnect') if kwargs.get('Reconnect') is not None else self.properties.get('Reconnect', True)
+        handle = ConnectionHandle('WSS', {'url': url, 'reconnect': reconnect})
+        self.bridge.set(f'{self.node_id}_Handle', handle, self.name)
         return super().start_scope(**kwargs)
 
-@NodeRegistry.register("GRPC Provider", "Connectivity/Providers")
+@NodeRegistry.register('GRPC Provider', 'Connectivity/Providers')
 class GRPCProviderNode(ProviderNode):
     """
     Initializes a gRPC connection handle for high-performance RPC communication.
@@ -148,232 +133,128 @@ class GRPCProviderNode(ProviderNode):
     - Flow: Triggered after handle creation.
     - Handle: A ConnectionHandle object containing the gRPC configuration.
     """
-    version = "2.1.0"
-    provider_type = "GRPC"
+    version = '2.1.0'
+    provider_type = 'GRPC'
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
         self.is_native = True
-        self.properties["Server"] = "localhost:50051"
-        # super().__init__ calls define_schema and register_handlers
+        self.properties['Server'] = 'localhost:50051'
 
     def register_handlers(self):
         super().register_handlers()
 
     def define_schema(self):
         super().define_schema()
-        self.input_schema.update({
-            "Server": DataType.STRING
-        })
-        self.output_schema.update({
-            "Handle": DataType.ANY
-        })
+        self.input_schema.update({'Server': DataType.STRING})
+        self.output_schema.update({'Handle': DataType.ANY})
 
     def start_scope(self, **kwargs):
-        target = kwargs.get("Server") or self.properties.get("Server")
-        handle = ConnectionHandle("gRPC", {
-            "target": target
-        })
-        self.bridge.set(f"{self.node_id}_Handle", handle, self.name)
+        target = kwargs.get('Server') or self.properties.get('Server')
+        handle = ConnectionHandle('gRPC', {'target': target})
+        self.bridge.set(f'{self.node_id}_Handle', handle, self.name)
         return super().start_scope(**kwargs)
 
-@NodeRegistry.register("Net Request", "Connectivity/Actions")
-class NetRequestNode(SuperNode):
-    """
-    Executes a high-level network request using the active Network Provider context.
-    Supports RESTful APIs and basic gRPC stub calls with identity-based authentication.
-    
-    Inputs:
-    - Flow: Trigger the network request.
-    - Method: The HTTP method to use (GET, POST, etc.).
-    - Endpoint: The specific API path relative to the Base URL.
-    - Payload: The data to send (Dictionary for JSON, or raw string/bytes).
-    - App ID: Optional identifier for retrieving authentication credentials.
-    
-    Outputs:
-    - Flow: Triggered after the request completes.
-    - Error Flow: Triggered if the request fails (network error, timeout).
-    - Response: The raw text or data returned by the server.
-    - Status: The numeric HTTP status code (e.g., 200, 404).
-    """
-    version = "2.1.0"
+@axon_node(category="Connectivity/Actions", version="2.3.0", node_label="Net Request", outputs=['Error Flow', 'Response', 'Status'])
+def NetRequestNode(Method: str, Endpoint: str, Payload: Any, App_ID: str = 'Global', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Executes a high-level network request using the active Network Provider context.
+Supports RESTful APIs and basic gRPC stub calls with identity-based authentication.
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.required_providers = ["Network Provider"]
-        self.properties["App ID"] = "Global"
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
+Inputs:
+- Flow: Trigger the network request.
+- Method: The HTTP method to use (GET, POST, etc.).
+- Endpoint: The specific API path relative to the Base URL.
+- Payload: The data to send (Dictionary for JSON, or raw string/bytes).
+- App ID: Optional identifier for retrieving authentication credentials.
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.make_request)
+Outputs:
+- Flow: Triggered after the request completes.
+- Error Flow: Triggered if the request fails (network error, timeout).
+- Response: The raw text or data returned by the server.
+- Status: The numeric HTTP status code (e.g., 200, 404)."""
+    method = str(Method or kwargs.get('Method', 'GET')).upper()
+    endpoint = str(Endpoint or kwargs.get('Endpoint', ''))
+    payload = Payload if Payload is not None else kwargs.get('Payload')
+    app_id = kwargs.get('App ID') or _node.properties.get('App ID', 'Global')
+    provider_id = self.get_provider_id('Network Provider')
+    if not provider_id:
+        msg = 'No Network Provider found in scope.'
+        _node.logger.error(msg)
+        _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow', 'Flow'], _node.name)
+    else:
+        pass
+    base_url = _bridge.get(f'{provider_id}_Base URL')
+    proxy = _bridge.get(f'{provider_id}_Proxy')
+    headers = _bridge.get(f'{provider_id}_Headers') or {}
+    if not base_url:
+        msg = 'Network Provider has no Base URL.'
+        _node.logger.error(msg)
+        _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow', 'Flow'], _node.name)
+    else:
+        pass
+    identity = _bridge.get_identity(app_id)
+    auth_headers = headers.copy()
+    if identity and identity.auth_payload:
+        auth = identity.auth_payload
+        if 'bearer_token' in auth:
+            auth_headers['Authorization'] = f"Bearer {auth['bearer_token']}"
+        elif 'basic_auth' in auth:
+            auth_headers['Authorization'] = f"Basic {auth['basic_auth']}"
+        else:
+            pass
+    else:
+        pass
+    import requests
+    url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+    proxies = {'http': proxy, 'https': proxy} if proxy else None
+    try:
+        resp = requests.request(method=method, url=url, json=payload if isinstance(payload, dict) else None, data=payload if not isinstance(payload, dict) else None, headers=auth_headers, proxies=proxies, timeout=30)
+        _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    except Exception as e:
+        msg = f'Network Request Failed: {e}'
+        _node.logger.error(msg)
+        _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow', 'Flow'], _node.name)
+    finally:
+        pass
+    return {'Response': msg, 'Response': msg, 'Response': resp.text, 'Status': resp.status_code, 'Response': msg, 'Status': 0}
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Method": DataType.STRING,
-            "Endpoint": DataType.STRING,
-            "Payload": DataType.ANY,
-            "App ID": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Error Flow": DataType.FLOW,
-            "Response": DataType.ANY,
-            "Status": DataType.NUMBER
-        }
 
-    def make_request(self, Method=None, Endpoint=None, Payload=None, **kwargs):
-        method = str(Method or kwargs.get("Method", "GET")).upper()
-        endpoint = str(Endpoint or kwargs.get("Endpoint", ""))
-        payload = Payload if Payload is not None else kwargs.get("Payload")
-        app_id = kwargs.get("App ID") or self.properties.get("App ID", "Global")
+@axon_node(category="Connectivity/Actions", version="2.3.0", node_label="Net Stream", outputs=['Error Flow'])
+def NetStreamNode(Message: Any, App_ID: str, _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Pushes data messages through an established streaming connection in the active Network Provider context.
 
-        provider_id = self.get_provider_id("Network Provider")
-        if not provider_id:
-            msg = "No Network Provider found in scope."
-            self.logger.error(msg)
-            self.bridge.set(f"{self.node_id}_Response", msg, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow", "Flow"], self.name)
-            return True
+Inputs:
+- Flow: Trigger the message push.
+- Message: The data or object to transmit through the stream.
 
-        base_url = self.bridge.get(f"{provider_id}_Base URL")
-        proxy = self.bridge.get(f"{provider_id}_Proxy")
-        headers = self.bridge.get(f"{provider_id}_Headers") or {}
-
-        if not base_url:
-            msg = "Network Provider has no Base URL."
-            self.logger.error(msg)
-            self.bridge.set(f"{self.node_id}_Response", msg, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow", "Flow"], self.name)
-            return True
-
-        identity = self.bridge.get_identity(app_id)
-        auth_headers = headers.copy()
-        if identity and identity.auth_payload:
-            auth = identity.auth_payload
-            # Note: Network Provider doesn't strictly define auth_strategy yet, 
-            # so we check bearer_token as default.
-            if "bearer_token" in auth:
-                auth_headers["Authorization"] = f"Bearer {auth['bearer_token']}"
-            elif "basic_auth" in auth:
-                auth_headers["Authorization"] = f"Basic {auth['basic_auth']}"
-
-        import requests
-        url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        proxies = {"http": proxy, "https": proxy} if proxy else None
-        
-        try:
-            resp = requests.request(
-                method=method,
-                url=url,
-                json=payload if isinstance(payload, dict) else None,
-                data=payload if not isinstance(payload, dict) else None,
-                headers=auth_headers,
-                proxies=proxies,
-                timeout=30
-            )
-            self.bridge.set(f"{self.node_id}_Response", resp.text, self.name)
-            self.bridge.set(f"{self.node_id}_Status", resp.status_code, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        except Exception as e:
-            msg = f"Network Request Failed: {e}"
-            self.logger.error(msg)
-            self.bridge.set(f"{self.node_id}_Response", msg, self.name)
-            self.bridge.set(f"{self.node_id}_Status", 0, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow", "Flow"], self.name)
-
+Outputs:
+- Flow: Triggered after the message is sent.
+- Error Flow: Triggered if the transmission fails."""
+    msg = Message if Message is not None else kwargs.get('Message')
+    app_id = kwargs.get('App ID') or _node.properties.get('App ID', 'Global')
+    provider_id = self.get_provider_id('Network Provider')
+    if not provider_id:
+        _node.logger.error('No Network Provider found.')
+        _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow', 'Flow'], _node.name)
         return True
+    else:
+        pass
+    _node.logger.info(f'Pushing message to stream...')
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return True
 
-@NodeRegistry.register("Net Stream", "Connectivity/Actions")
-class NetStreamNode(SuperNode):
-    """
-    Pushes data messages through an established streaming connection in the active Network Provider context.
-    
-    Inputs:
-    - Flow: Trigger the message push.
-    - Message: The data or object to transmit through the stream.
-    
-    Outputs:
-    - Flow: Triggered after the message is sent.
-    - Error Flow: Triggered if the transmission fails.
-    """
-    version = "2.1.0"
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.required_providers = ["Network Provider"]
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
+@axon_node(category="Connectivity/Actions", version="2.3.0", node_label="Net Listener", outputs=['Message'])
+def NetListenerNode(App_ID: str = 'Global', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Establishes an event listener on the active Network Provider to capture incoming messages.
+Triggers the graph sequence whenever new data is received.
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.push_stream)
+Inputs:
+- Flow: Initialize the listener.
+- App ID: Optional identifier for isolation/authentication.
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Message": DataType.ANY,
-            "App ID": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Error Flow": DataType.FLOW
-        }
-
-    def push_stream(self, Message=None, **kwargs):
-        msg = Message if Message is not None else kwargs.get("Message")
-        app_id = kwargs.get("App ID") or self.properties.get("App ID", "Global")
-        provider_id = self.get_provider_id("Network Provider")
-        if not provider_id:
-            self.logger.error("No Network Provider found.")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow", "Flow"], self.name)
-            return True
-        
-        # In a real implementation, we would get the socket/client from the provider context.
-        # For now, we simulate the transmission success.
-        self.logger.info(f"Pushing message to stream...")
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
-
-@NodeRegistry.register("Net Listener", "Connectivity/Actions")
-class NetListenerNode(SuperNode):
-    """
-    Establishes an event listener on the active Network Provider to capture incoming messages.
-    Triggers the graph sequence whenever new data is received.
-    
-    Inputs:
-    - Flow: Initialize the listener.
-    - App ID: Optional identifier for isolation/authentication.
-    
-    Outputs:
-    - Flow: Triggered every time a new message is received.
-    - Message: The incoming data payload.
-    """
-    version = "2.1.0"
-
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.required_providers = ["Network Provider"]
-        self.properties["App ID"] = "Global"
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
-
-    def register_handlers(self):
-        self.register_handler("Flow", self.register_listener)
-
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "App ID": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Message": DataType.ANY
-        }
-
-    def register_listener(self, **kwargs):
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+Outputs:
+- Flow: Triggered every time a new message is received.
+- Message: The incoming data payload."""
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return True

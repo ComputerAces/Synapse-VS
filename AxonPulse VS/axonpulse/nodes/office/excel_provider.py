@@ -20,7 +20,7 @@ class ExcelProviderNode(ProviderNode):
     - Provider ID: Identifier for automation node targeting.
     - Flow: Pulse triggered after the scope is closed.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         self.provider_type = "Excel Provider"

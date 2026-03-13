@@ -1,59 +1,40 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
+
 import json
 
-@NodeRegistry.register("String To Data", "Data")
-class StringToDataNode(SuperNode):
-    """
-    Parses a JSON-formatted string into a structured Data object (Dictionary or List).
-    
-    Inputs:
-    - Flow: Trigger the conversion.
-    - String: The JSON string to parse.
-    
-    Outputs:
-    - Flow: Triggered if parsing is successful.
-    - Error Flow: Triggered if the string is not valid JSON.
-    - Data: The resulting Dictionary or List.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["String"] = ""
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "String": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Error Flow": DataType.FLOW,
-            "Data": DataType.ANY
-        }
+from axonpulse.nodes.decorators import axon_node
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.convert)
+@axon_node(category="Data", version="2.3.0", node_label="String To Data", outputs=['Error Flow', 'Data'])
+def StringToDataNode(String: str = '', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Parses a JSON-formatted string into a structured Data object (Dictionary or List).
 
-    def convert(self, String=None, **kwargs):
-        val = String if String is not None else kwargs.get("String") or self.properties.get("String", "")
-        
-        if not val:
-            self.bridge.set(f"{self.node_id}_Data", {}, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-            return True
-            
-        try:
-            result = json.loads(val)
-            self.bridge.set(f"{self.node_id}_Data", result, self.name)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        except Exception as e:
-            self.logger.error(f"String To Data Error: {e}")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
-            
-        return True
+Inputs:
+- Flow: Trigger the conversion.
+- String: The JSON string to parse.
+
+Outputs:
+- Flow: Triggered if parsing is successful.
+- Error Flow: Triggered if the string is not valid JSON.
+- Data: The resulting Dictionary or List."""
+    val = String if String is not None else kwargs.get('String') or _node.properties.get('String', '')
+    if not val:
+        _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    else:
+        pass
+    try:
+        result = json.loads(val)
+        _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    except Exception as e:
+        _node.logger.error(f'String To Data Error: {e}')
+        _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow'], _node.name)
+    finally:
+        pass
+    return {'Data': {}, 'Data': result}

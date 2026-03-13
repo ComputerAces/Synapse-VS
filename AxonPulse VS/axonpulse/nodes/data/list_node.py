@@ -1,84 +1,58 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
+
 import re
 
-@NodeRegistry.register("List Node", "Data")
-class ListNode(SuperNode):
-    """
-    Creates a new list from multiple dynamic inputs.
-    Each input port designated as 'Item X' is collected into the resulting list.
-    
-    Inputs:
-    - Flow: Trigger the list creation.
-    - [Dynamic]: Various 'Item' inputs to include in the list.
-    
-    Outputs:
-    - Flow: Triggered after the list is created.
-    - List: The resulting Python list.
-    - Length: The number of items in the list.
-    """
-    version = "2.1.0"
-    allow_dynamic_inputs = True
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        if "Additional Inputs" not in self.properties:
-            self.properties["Additional Inputs"] = []
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.create_list)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW
-        }
-        # Dynamic inputs
-        additional = self.properties.get("Additional Inputs", [])
-        for name in additional:
-            self.input_schema[name] = DataType.ANY
-            
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "List": DataType.LIST,
-            "Length": DataType.INTEGER
-        }
+@axon_node(category="Data", version="2.3.0", node_label="List Node", outputs=['List', 'Length'])
+def ListNode(_bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Creates a new list from multiple dynamic inputs.
+Each input port designated as 'Item X' is collected into the resulting list.
 
-    def create_list(self, **kwargs):
-        items = []
-        
-        # Collect all defined Item ports from Additional Inputs
-        additional = self.properties.get("Additional Inputs", [])
-        item_pattern = re.compile(r"^Item (\d+)$", re.IGNORECASE)
-        
-        for port_name in additional:
-            match = item_pattern.match(port_name)
-            if not match:
-                continue
-                
-            # SuperNode passes args in kwargs if they match schema keys
-            val = kwargs.get(port_name)
-            
-            # If not in kwargs (not wired or None), check properties (Case Insensitive to handle UI bugs)
+Inputs:
+- Flow: Trigger the list creation.
+- [Dynamic]: Various 'Item' inputs to include in the list.
+
+Outputs:
+- Flow: Triggered after the list is created.
+- List: The resulting Python list.
+- Length: The number of items in the list."""
+    items = []
+    additional = _node.properties.get('Additional Inputs', [])
+    item_pattern = re.compile('^Item (\\d+)$', re.IGNORECASE)
+    for port_name in additional:
+        match = item_pattern.match(port_name)
+        if not match:
+            continue
+        else:
+            pass
+        val = kwargs.get(port_name)
+        if val is None:
+            val = _node.properties.get(port_name)
             if val is None:
-                val = self.properties.get(port_name)
-                if val is None:
-                    search_key = port_name.lower()
-                    for k, v in self.properties.items():
-                        if k.lower() == search_key:
-                            val = v
-                            break
-            
-            if val is not None:
-                items.append(val)
-        
-        length = len(items)
-        
-        self.bridge.set(f"{self.node_id}_List", items, self.name)
-        self.bridge.set(f"{self.node_id}_Length", length, self.name)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        
-        return True
+                search_key = port_name.lower()
+                for (k, v) in _node.properties.items():
+                    if k.lower() == search_key:
+                        val = v
+                        break
+                    else:
+                        pass
+            else:
+                pass
+        else:
+            pass
+        if val is not None:
+            items.append(val)
+        else:
+            pass
+    length = len(items)
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return {'List': items, 'Length': length}

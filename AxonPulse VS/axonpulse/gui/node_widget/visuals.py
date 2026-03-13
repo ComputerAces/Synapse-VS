@@ -50,6 +50,13 @@ class NodeVisualsMixin:
     def highlight_pulse(self, duration=1000):
         """Triggers a transient highlight pulse."""
         self._is_running = True
+        
+        # [NEW] Highlight Incoming Wires
+        if hasattr(self, "inputs"):
+            for port in self.inputs:
+                for wire in port.wires:
+                    wire.highlight_active()
+
         # Background
         from PyQt6.QtGui import QLinearGradient
         grad = QLinearGradient(0, 0, 0, self.height)

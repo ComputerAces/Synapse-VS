@@ -22,12 +22,7 @@ class PortItem(QGraphicsItem):
         self.current_color = self.color
         self.wires = [] 
         
-        # [TYPE SYSTEM] Append abbreviation to label for Data Ports
         display_name = self.name
-        if self.data_type and self.data_type != DataType.FLOW and self.data_type != DataType.PROVIDER_FLOW:
-            abbr = DataType.get_abbreviation(self.data_type)
-            if abbr and abbr != "?":
-                display_name = f"{self.name} ({abbr})"
         
         self.label = QGraphicsTextItem(display_name, self)
         self.label.setDefaultTextColor(QColor("#dddddd"))

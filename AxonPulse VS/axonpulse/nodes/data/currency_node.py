@@ -1,60 +1,38 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Currency", "Data")
-class CurrencyNode(SuperNode):
-    """
-    Standardizes a numerical value into a currency format (rounded to 2 decimal places).
-    
-    Inputs:
-    - Flow: Trigger the currency formatting.
-    - Value: The raw numerical value to process.
-    
-    Outputs:
-    - Flow: Triggered after the value is formatted.
-    - Result: The formatted numerical value (2-decimal float).
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Value"] = 0.00
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.process_currency)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Value": DataType.NUMBER
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Result": DataType.NUMBER
-        }
+@axon_node(category="Data", version="2.3.0", node_label="Currency")
+def CurrencyNode(Value: float = 0.0, _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Standardizes a numerical value into a currency format (rounded to 2 decimal places).
 
-    def process_currency(self, Value=None, **kwargs):
-        # 1. Resolve raw value
-        is_val_provided = Value is not None or "Value" in kwargs
-        raw = Value if Value is not None else kwargs.get("Value") or self.properties.get("Value", 0.00)
-        
-        # 2. Sanitize/Normalize
-        try:
-            val = float(raw)
-        except (ValueError, TypeError):
-            val = 0.00
-            
-        # Round to 2 decimals for currency standard
-        val = round(val, 2)
-        
-        # 3. Update internal property if set via Flow
-        if is_val_provided:
-             self.properties["Value"] = val
+Inputs:
+- Flow: Trigger the currency formatting.
+- Value: The raw numerical value to process.
 
-        self.bridge.set(f"{self.node_id}_Result", val, self.name)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+Outputs:
+- Flow: Triggered after the value is formatted.
+- Result: The formatted numerical value (2-decimal float)."""
+    is_val_provided = Value is not None or 'Value' in kwargs
+    raw = Value if Value is not None else kwargs.get('Value') or _node.properties.get('Value', 0.0)
+    try:
+        val = float(raw)
+    except (ValueError, TypeError):
+        val = 0.0
+    finally:
+        pass
+    val = round(val, 2)
+    if is_val_provided:
+        _node.properties['Value'] = val
+    else:
+        pass
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return val

@@ -289,12 +289,10 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         start_count = 0
         return_count = 0
         for node_id, node in self.nodes.items():
-            node_type = type(node).__name__
-            if "StartNode" in node_type or node_type == "Start Node":
+            ntype = getattr(node, "node_type", "")
+            if ntype == "Start Node":
                 start_count += 1
-            elif hasattr(node, 'node_type') and "Start" in str(getattr(node, 'node_type', '')):
-                start_count += 1
-            if "ReturnNode" in node_type or "Return" in node_type:
+            elif ntype == "Return Node":
                 return_count += 1
         
         if start_count == 0:
@@ -422,17 +420,43 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
 
         finally:
             with self._lock:
+                # Cleanup visual states from bridge before stopping services
+                self._clear_all_visuals()
+                
                 # Only root thread should shutdown services if it's truly the end
-                # Note: SubGraphs should not stop master services, only their own.
-                # stop_all_services only cleans up nodes registered to *this engine's* registry.
                 self.stop_all_services()
             
             # If root thread, shutdown dispatcher
-            # Actually, we should only shutdown if we are the MASTER thread.
-            # Master thread is the one that started with START_NODE.
-            # branches should just exit.
             pass
+
+    def _clear_all_visuals(self):
+        """Resets all visual activity highlights and minimap dots in the bridge."""
+        if not self.bridge: return
+        
+        logger.info("Clearing session visual activity from bridge...")
+        clear_data = {}
+        
+        # 1. Reset Node Highlights and Activity
+        for node_id in self.nodes.keys():
+            clear_data[f"{node_id}_ActivePorts"] = None
+            clear_data[f"{node_id}_Condition"] = None
+            clear_data[f"{node_id}_ActiveWires"] = None
+            # SubGraph node activity bubble
+            clear_data[f"{node_id}_SubGraphActivity"] = False
             
+        # 2. Reset System Stats that cause UI "blinking" or persistence
+        clear_data["_AXON_BREAKPOINT_ACTIVE"] = False
+        
+        # 3. Apply Batch Update
+        try:
+            self.bridge.set_batch(clear_data, source_node_id="Engine_Cleanup")
+            
+            # 4. Bubble Up if child engine
+            if self.parent_bridge and self.parent_node_id:
+                self.parent_bridge.bubble_set(f"{self.parent_node_id}_SubGraphActivity", False, "Engine_Cleanup")
+        except Exception as e:
+            logger.debug(f"Visual cleanup failed (likely bridge shutdown): {e}")
+
     def _run_branch(self, start_node_id, initial_stack, trigger_port, priority, delay):
         """
         Isolated execution for a parallel branch.
@@ -504,8 +528,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
 
 
         # 1. Barrier/Return check
-        node_type = type(node).__name__
-        is_return = "ReturnNode" in node_type or "Return" in node_type
+        ntype = getattr(node, "node_type", "")
+        is_return = ntype == "Return Node"
         if is_return:
             active_scope = context_stack[-1] if context_stack else "ROOT"
             

@@ -59,7 +59,7 @@ class ImageSegmentationAnythingNode(SuperNode):
     - Segments: List of detected mask objects with bbox and compliance data.
     - Count: The total number of identified segments.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     required_libraries = ["segment_anything", "torch", "huggingface_hub"]
 
     def __init__(self, node_id, name, bridge):

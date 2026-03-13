@@ -1,63 +1,41 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Excel Commander", "IO/Documents")
-class ExcelCommanderNode(SuperNode):
-    """
-    Executes automated commands or macros within an Excel workbook.
-    
-    This node interacts with an active Excel Provider scope. If no provider 
-    is active, it can optionally open a file directly if 'File Path' is provided.
-    
-    Inputs:
-    - Flow: Trigger command execution.
-    - File Path: The absolute path to the workbook (optional if using a Provider).
-    - Command: The instruction or macro name to execute.
-    
-    Outputs:
-    - Flow: Pulse triggered after the command completes.
-    - Result: The return value or status from Excel.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    required_providers = ["Excel Provider"]
-    
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["File Path"] = ""
-        self.properties["Command"] = ""
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "File Path": DataType.STRING,
-            "Command": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Result": DataType.ANY
-        }
+from axonpulse.nodes.decorators import axon_node
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.run_command)
+@axon_node(category="IO/Documents", version="2.3.0", node_label="Excel Commander")
+def ExcelCommanderNode(File_Path: str = '', Command: str = '', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Executes automated commands or macros within an Excel workbook.
 
-    def run_command(self, File_Path=None, Command=None, **kwargs):
-        path = File_Path if File_Path is not None else kwargs.get("File Path") or self.properties.get("File Path", "")
-        if not path:
-            provider_id = self.get_provider_id("Excel Provider")
-            if provider_id:
-                path = self.bridge.get(f"{provider_id}_File Path")
-        
-        cmd = Command or kwargs.get("Command") or self.properties.get("Command")
-        
-        # logic... (Placeholder for actual automation logic)
-        result = f"Executed: {cmd} on {path}"
-        self.logger.info(result)
-        self.bridge.set(f"{self.node_id}_Result", result, self.name)
-        
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+This node interacts with an active Excel Provider scope. If no provider 
+is active, it can optionally open a file directly if 'File Path' is provided.
+
+Inputs:
+- Flow: Trigger command execution.
+- File Path: The absolute path to the workbook (optional if using a Provider).
+- Command: The instruction or macro name to execute.
+
+Outputs:
+- Flow: Pulse triggered after the command completes.
+- Result: The return value or status from Excel."""
+    path = File_Path if File_Path is not None else kwargs.get('File Path') or _node.properties.get('File Path', '')
+    if not path:
+        provider_id = self.get_provider_id('Excel Provider')
+        if provider_id:
+            path = _bridge.get(f'{provider_id}_File Path')
+        else:
+            pass
+    else:
+        pass
+    cmd = Command or kwargs.get('Command') or _node.properties.get('Command')
+    result = f'Executed: {cmd} on {path}'
+    _node.logger.info(result)
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return result

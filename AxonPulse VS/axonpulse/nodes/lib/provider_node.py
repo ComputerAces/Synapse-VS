@@ -18,7 +18,7 @@ class ProviderNode(SuperNode):
     - Error Flow: Pulse triggered if initialization fails.
     - Provider ID: The unique node ID of the active provider.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

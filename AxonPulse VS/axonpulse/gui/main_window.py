@@ -40,7 +40,7 @@ def run_headless(file_path):
     # 3. Find Start Node
     start_node_id = None
     for node_id, node in node_map.items():
-        if node.__class__.__name__ == "StartNode":
+        if getattr(node, "node_type", "") == "Start Node":
             start_node_id = node_id
             break
             

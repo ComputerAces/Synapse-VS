@@ -1,105 +1,54 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.utils.datetime_utils import add_to_datetime, subtract_from_datetime
+
 from axonpulse.core.date_units import DateUnitType
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Date Add", "Data/DateTime")
-class DateAddNode(SuperNode):
-    """
-    Adds a specified amount of time to a provided date string and returns the new date.
-    
-    Inputs:
-    - Flow: Execution trigger.
-    - Date: The starting date string (ISO format or 'now').
-    - Amount: The numeric value to add to the date.
-    - Unit: The time unit (Milliseconds, Seconds, Minutes, Hours, Day, Week, Month, Year).
-    
-    Outputs:
-    - Flow: Triggered once the calculation is complete.
-    - Result: The calculated date as a string.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Date"] = ""
-        self.properties["Amount"] = "1"
-        self.properties["Unit"] = "Day"
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Date": DataType.STRING,
-            "Amount": DataType.INT,
-            "Unit": DateUnitType
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Result": DataType.STRING
-        }
+from axonpulse.nodes.decorators import axon_node
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.calculate_date_add)
+@axon_node(category="Data/DateTime", version="2.3.0", node_label="Date Add")
+def DateAddNode(Date: str = '', Amount: Any = '1', Unit: Any = 'Day', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Adds a specified amount of time to a provided date string and returns the new date.
 
-    def calculate_date_add(self, Date=None, Amount=None, Unit=None, **kwargs):
-        date_val = Date if Date is not None else self.properties.get("Date", "")
-        amount = Amount if Amount is not None else self.properties.get("Amount", "1")
-        unit = Unit if Unit is not None else self.properties.get("Unit", "Day")
-        
-        result = add_to_datetime(date_val, amount, unit)
-        self.bridge.set(f"{self.node_id}_Result", result, self.name)
-        return True
+Inputs:
+- Flow: Execution trigger.
+- Date: The starting date string (ISO format or 'now').
+- Amount: The numeric value to add to the date.
+- Unit: The time unit (Milliseconds, Seconds, Minutes, Hours, Day, Week, Month, Year).
 
-@NodeRegistry.register("Date Subtract", "Data/DateTime")
-class DateSubtractNode(SuperNode):
-    """
-    Subtracts a specified amount of time from a provided date string and returns the new date.
-    
-    Inputs:
-    - Flow: Execution trigger.
-    - Date: The starting date string (ISO format or 'now').
-    - Amount: The numeric value to subtract from the date.
-    - Unit: The time unit (Milliseconds, Seconds, Minutes, Hours, Day, Week, Month, Year).
-    
-    Outputs:
-    - Flow: Triggered once the calculation is complete.
-    - Result: The calculated date as a string.
-    """
-    version = "2.1.0"
+Outputs:
+- Flow: Triggered once the calculation is complete.
+- Result: The calculated date as a string."""
+    date_val = Date if Date is not None else _node.properties.get('Date', '')
+    amount = Amount if Amount is not None else _node.properties.get('Amount', '1')
+    unit = Unit if Unit is not None else _node.properties.get('Unit', 'Day')
+    result = add_to_datetime(date_val, amount, unit)
+    return result
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Date"] = ""
-        self.properties["Amount"] = "1"
-        self.properties["Unit"] = "Day"
-        self.define_schema()
-        self.register_handlers()
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Date": DataType.STRING,
-            "Amount": DataType.INT,
-            "Unit": DateUnitType
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Result": DataType.STRING
-        }
+@axon_node(category="Data/DateTime", version="2.3.0", node_label="Date Subtract")
+def DateSubtractNode(Date: str = '', Amount: Any = '1', Unit: Any = 'Day', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Subtracts a specified amount of time from a provided date string and returns the new date.
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.calculate_date_subtract)
+Inputs:
+- Flow: Execution trigger.
+- Date: The starting date string (ISO format or 'now').
+- Amount: The numeric value to subtract from the date.
+- Unit: The time unit (Milliseconds, Seconds, Minutes, Hours, Day, Week, Month, Year).
 
-    def calculate_date_subtract(self, Date=None, Amount=None, Unit=None, **kwargs):
-        date_val = Date if Date is not None else self.properties.get("Date", "")
-        amount = Amount if Amount is not None else self.properties.get("Amount", "1")
-        unit = Unit if Unit is not None else self.properties.get("Unit", "Day")
-        
-        result = subtract_from_datetime(date_val, amount, unit)
-        self.bridge.set(f"{self.node_id}_Result", result, self.name)
-        return True
+Outputs:
+- Flow: Triggered once the calculation is complete.
+- Result: The calculated date as a string."""
+    date_val = Date if Date is not None else _node.properties.get('Date', '')
+    amount = Amount if Amount is not None else _node.properties.get('Amount', '1')
+    unit = Unit if Unit is not None else _node.properties.get('Unit', 'Day')
+    result = subtract_from_datetime(date_val, amount, unit)
+    return result

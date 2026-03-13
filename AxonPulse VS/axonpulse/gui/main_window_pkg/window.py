@@ -218,7 +218,38 @@ class MainWindow(QMainWindow, LayoutMixin, ActionsMixin, MenusMixin, FileOperati
             if hasattr(self, 'miniworld'):
                 self.miniworld.update_maps()
 
+            # 3. Update UI Labels (Services, Environments, Threads) - [FIX] Move before early return
+            env_count = 0
+            thread_count = 0
+            service_count = 0
+            
+            for i in range(self.central_tabs.count()):
+                w = self.central_tabs.widget(i)
+                if isinstance(w, GraphWidget):
+                    if w.execution_state == w.STATE_RUNNING:
+                        env_count += 1
+                        
+                    if hasattr(w, 'engine') and w.engine:
+                        env_count += len(w.engine.dispatcher.active_processes)
+                        
+                        if hasattr(w.engine, 'service_registry'):
+                            service_count += len(w.engine.service_registry)
+                            
+                        # [NEW] Thread Tracking
+                        if hasattr(w.engine, 'thread_manager') and w.engine.thread_manager:
+                            try:
+                                thread_count += len(w.engine.thread_manager.active_threads)
+                            except: pass
+                            
+            self.env_count_label.setText(f"Environments: {env_count}")
+            self.service_count_label.setText(f"Services: {service_count}")
+            self.thread_count_label.setText(f"Threads: {thread_count}")
+
             if not graph or not hasattr(graph, 'bridge') or not graph.bridge: 
+                return
+                
+            # [NEW: v2.4.6] Guard against animating dead graphs
+            if getattr(graph, 'execution_state', None) == getattr(graph, 'STATE_STOPPED', -1):
                 return
             
             # 3. Pull Highlights from Bridge
@@ -245,32 +276,6 @@ class MainWindow(QMainWindow, LayoutMixin, ActionsMixin, MenusMixin, FileOperati
                         if getattr(item, "_is_running", False) or getattr(item, "_is_fading", False):
                             item.update()
             
-            # 5. Update UI Labels (Services, Environments, Threads)
-            env_count = 0
-            thread_count = 0
-            service_count = 0
-            
-            for i in range(self.central_tabs.count()):
-                w = self.central_tabs.widget(i)
-                if isinstance(w, GraphWidget):
-                    if w.execution_state == w.STATE_RUNNING:
-                        env_count += 1
-                        
-                    if hasattr(w, 'engine') and w.engine:
-                        env_count += len(w.engine.dispatcher.active_processes)
-                        
-                        if hasattr(w.engine, 'service_registry'):
-                            service_count += len(w.engine.service_registry)
-                            
-                        # [NEW] Thread Tracking
-                        if hasattr(w.engine, 'thread_manager') and w.engine.thread_manager:
-                            try:
-                                thread_count += len(w.engine.thread_manager.active_threads)
-                            except: pass
-                            
-            self.env_count_label.setText(f"Environments: {env_count}")
-            self.service_count_label.setText(f"Services: {service_count}")
-            self.thread_count_label.setText(f"Threads: {thread_count}")
             
         except BrokenPipeError:
             # Manager likely dead or shutting down

@@ -19,7 +19,7 @@ class WhileNode(LoopNode):
     - Body: Pulse triggered for each iteration while the condition is met.
     - Index: The current iteration count (0-based).
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

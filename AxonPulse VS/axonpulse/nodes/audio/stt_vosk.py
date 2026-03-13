@@ -68,7 +68,7 @@ class STTVoskProviderNode(ProviderNode):
     - Flow: Active pulse.
     - Provider Flow: Active Provider pulse.
     """
-    version = "2.2.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

@@ -18,7 +18,7 @@ class LoggingProviderNode(ProviderNode):
     Outputs:
     - Done: Pulse triggered once the service is ready.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

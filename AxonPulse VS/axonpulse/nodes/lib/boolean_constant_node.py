@@ -1,48 +1,28 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Boolean Type", "Logic")
-class BooleanTypeNode(SuperNode):
-    """
-    A constant boolean node that outputs a fixed True or False value.
-    Useful for setting toggles or flags within a graph.
-    
-    Inputs:
-    - Flow: Triggered upon execution.
-    - Value: The constant boolean value to output.
+from typing import Any, List, Dict, Optional
 
-    Outputs:
-    - Flow: Triggered upon execution.
-    - Result: The constant boolean value.
-    """
-    version = "2.1.0"
+from axonpulse.core.types import DataType, TypeCaster
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Value"] = "True"
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Value": DataType.BOOLEAN
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Result": DataType.BOOLEAN
-        }
+@axon_node(category="Logic", version="2.3.0", node_label="Boolean Type")
+def BooleanTypeNode(Value: bool = 'True', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """A constant boolean node that outputs a fixed True or False value.
+Useful for setting toggles or flags within a graph.
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.process_boolean)
+Inputs:
+- Flow: Triggered upon execution.
+- Value: The constant boolean value to output.
 
-    def process_boolean(self, **kwargs):
-        # This node just returns its property.
-        prop_val = self.properties.get("Value", "True")
-        val = (str(prop_val).lower() == "true")
-            
-        self.bridge.set(f"{self.node_id}_Result", val, self.name)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+Outputs:
+- Flow: Triggered upon execution.
+- Result: The constant boolean value."""
+    prop_val = _node.properties.get('Value', 'True')
+    val = str(prop_val).lower() == 'true'
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return val

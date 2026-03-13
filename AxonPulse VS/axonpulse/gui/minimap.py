@@ -23,6 +23,21 @@ class MinimapWidget(QWidget):
         """Recalculate bounds and trigger repaint."""
         self.update()
         
+    def clear_highlights(self):
+        """Resets internal tracking and node-specific minimap flags."""
+        self.last_active_node = None
+        
+        graph = self.graph if self.graph else self.main_window.get_current_graph()
+        if graph and graph.canvas and graph.canvas.scene:
+            for item in graph.canvas.scene.items():
+                if hasattr(item, '_minimap_fade_start'):
+                    item._minimap_fade_start = 0
+                if hasattr(item, '_is_fading_blue'):
+                    item._is_fading_blue = False
+        
+        # Force a full redraw of the minimap
+        self.update()
+        
     def paintEvent(self, event):
         """Draw the minimap."""
         painter = QPainter(self)
@@ -173,9 +188,12 @@ class MinimapWidget(QWidget):
                         self.last_active_node = node
                 
                 is_waiting = getattr(node, '_is_waiting', False)
-                if node.node and getattr(node.node, "bridge", None):
-                    is_running_service = node.node.bridge.get(f"{node.node.node_id}_IsServiceRunning")
-                    is_subgraph_active = node.node.bridge.get(f"{node.node.node_id}_SubGraphActivity")
+                if node.node and hasattr(node.node, "bridge") and node.node.bridge:
+                    try:
+                        is_running_service = node.node.bridge.get(f"{node.node.node_id}_IsServiceRunning")
+                        is_subgraph_active = node.node.bridge.get(f"{node.node.node_id}_SubGraphActivity")
+                    except:
+                        pass
                     
         is_last_active = (getattr(self, 'last_active_node', None) == node)
 

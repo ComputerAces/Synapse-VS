@@ -58,7 +58,74 @@ class GeminiProvider(AIProvider):
     def stream(self, system_prompt, user_prompt, files, model_override=None, **kwargs):
         model = model_override if model_override else self.model
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?key={self.api_key}"
-        yield "Gemini streaming implementation..."
+        
+        contents = []
+        text_context = ""
+        parts = [{"text": user_prompt}]
+        
+        if isinstance(files, str): files = [files]
+        if files:
+            for f in files:
+                if not f or not os.path.exists(f): continue
+                mime, _ = mimetypes.guess_type(f)
+                if mime and mime.startswith("image"):
+                    with open(f, "rb") as im:
+                        b64_data = base64.b64encode(im.read()).decode('utf-8')
+                        parts.append({"inline_data": {"mime_type": mime, "data": b64_data}})
+                else:
+                    with open(f, "r", encoding="utf-8", errors="ignore") as tf:
+                        text_context += f"\n--- File: {os.path.basename(f)} ---\n{tf.read()}\n"
+
+        if text_context: parts[0]["text"] += f"\n\nContext Files:{text_context}"
+        contents.append({"role": "user", "parts": parts})
+
+        payload = {"contents": contents}
+        if system_prompt:
+            payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
+            
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'))
+        req.add_header('Content-Type', 'application/json')
+        
+        with urllib.request.urlopen(req) as response:
+            # Gemini returns a JSON array of candidates in chunks
+            # Note: For simplicity and since we are using standard urllib, we read the whole response
+            # then yield chunks. Real-time streaming would require a different approach for chunks.
+            # But the logic below follows the yielding pattern expected by AskAINode.
+            raw_data = response.read().decode('utf-8')
+            try:
+                data_list = json.loads(raw_data)
+                for chunk in data_list:
+                    for candidate in chunk.get("candidates", []):
+                        for part in candidate.get("content", {}).get("parts", []):
+                            text = part.get("text", "")
+                            if "thought" in part:
+                                yield {"type": "thinking", "text": part["thought"]}
+                            
+                            if text:
+                                if "<think>" in text and "</think>" in text:
+                                    parts = text.split("<think>")
+                                    if parts[0]: yield {"type": "content", "text": parts[0]}
+                                    mid = parts[1].split("</think>")
+                                    yield {"type": "thinking", "text": mid[0]}
+                                    if mid[1]: yield {"type": "content", "text": mid[1]}
+                                elif "<think>" in text:
+                                    parts = text.split("<think>")
+                                    if parts[0]: yield {"type": "content", "text": parts[0]}
+                                    yield {"type": "thinking", "text": parts[1]}
+                                elif "</think>" in text:
+                                    parts = text.split("</think>")
+                                    yield {"type": "thinking", "text": parts[0]}
+                                    if parts[1]: yield {"type": "content", "text": parts[1]}
+                                else:
+                                    yield {"type": "content", "text": text}
+            except Exception as e:
+                self.logger.error(f"Gemini Streaming Parse Error: {e}")
+                try:
+                    data = json.loads(raw_data)
+                    text = data['candidates'][0]['content']['parts'][0]['text']
+                    yield {"type": "content", "text": text}
+                except:
+                    pass
 
     def count_tokens(self, text, model_override=None):
         model = model_override if model_override else self.model
@@ -79,6 +146,19 @@ class GeminiProvider(AIProvider):
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode('utf-8'))
             return [m['name'].split('/')[-1] for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
+
+    def get_capabilities(self, model_override=None):
+        model = (model_override if model_override else self.model).lower()
+        caps = {"completion": True, "vision": False, "tools": True, "thinking": False}
+        
+        # Gemini 1.5+ generally all support vision
+        if "gemini-1.5" in model or "gemini-pro-vision" in model or "gemini-2.0" in model:
+            caps["vision"] = True
+        
+        if "thinking" in model:
+            caps["thinking"] = True
+            
+        return caps
 
 @NodeRegistry.register("Gemini Provider", "AI/Providers")
 class GeminiProviderNode(ProviderNode):

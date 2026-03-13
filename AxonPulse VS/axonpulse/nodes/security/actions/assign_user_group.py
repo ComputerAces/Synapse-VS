@@ -17,7 +17,7 @@ class AssignUserGroupNode(BaseSecurityActionNode):
     - Flow: Triggered after the operation is attempted.
     - Success: True if the user was successfully added to the group.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

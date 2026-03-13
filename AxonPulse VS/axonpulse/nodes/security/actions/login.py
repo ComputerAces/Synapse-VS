@@ -19,7 +19,7 @@ class LoginNode(BaseSecurityActionNode):
     - Error Flow: Pulse triggered if authentication fails or an error occurs.
     - Authenticated: Boolean status of the login attempt.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

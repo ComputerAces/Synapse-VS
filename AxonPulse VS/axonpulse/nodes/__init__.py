@@ -1,6 +1,6 @@
 import os
 import importlib.util
-import json
+from axonpulse.utils.file_utils import smart_load
 
 # Clean Recursive Loader
 _DISCOVERY_COMPLETED = False
@@ -40,6 +40,7 @@ def discover_plugins(bridge=None):
         import inspect
         from axonpulse.core.super_node import SuperNode
         from axonpulse.nodes.lib.provider_node import ProviderNode
+        from importlib.machinery import SourceFileLoader
 
         if getattr(NodeRegistry, "_PLUGINS_LOADED", False) and bridge is None:
             return
@@ -64,14 +65,16 @@ def discover_plugins(bridge=None):
             for file in files:
                 path = os.path.join(root, file)
                 
-                # 1. Handle .syp Subgraphs
+                # 1. Handle .syp Subgraphs (Now using YAML smart_load)
                 if file.endswith(".syp"):
                     category = "Plugins"
                     label = file.replace(".syp", "").replace("_", " ").title()
                     
                     try:
-                        with open(path, 'r') as f:
-                            data = json.load(f)
+                        data = smart_load(path)
+                        if not data:
+                             print(f"[Plugins] Could not load {file}")
+                             continue
                         
                         from axonpulse.core.schema import migrate_graph
                         data, was_modified = migrate_graph(data)
@@ -98,9 +101,6 @@ def discover_plugins(bridge=None):
                 elif file.endswith(".spy") or (file.endswith(".py") and file != "__init__.py"):
                     try:
                         module_name = f"axonpulse_plugin_{file.split('.')[0]}"
-                        
-                        # Force SourceFileLoader to support .spy extension
-                        from importlib.machinery import SourceFileLoader
                         loader = SourceFileLoader(module_name, path)
                         spec = importlib.util.spec_from_loader(module_name, loader)
                         
@@ -113,13 +113,10 @@ def discover_plugins(bridge=None):
                             for name, cls in inspect.getmembers(module, inspect.isclass):
                                 try:
                                     if issubclass(cls, SuperNode) and cls not in (SuperNode, ProviderNode):
-                                        # Strict module matching (with fallback for dynamically named modules)
                                         cls_mod = inspect.getmodule(cls)
                                         if cls_mod == module or cls.__module__ == module_name:
                                             label = getattr(cls, "node_label", name)
                                             category = getattr(cls, "node_category", "Custom Nodes")
-                                            
-                                            # Register with Registry
                                             NodeRegistry.register(label, category)(cls)
                                             print(f"[Plugins] Registered Hard Node: {label} (Category: {category})")
                                             seen_labels.add(label)
@@ -136,10 +133,7 @@ def discover_plugins(bridge=None):
                         zip_name = file.replace(".zip", "")
                         extract_path = os.path.join(plugins_dir, "extracted", zip_name)
                         
-                        # Check if extraction is needed
-                        needs_extraction = not os.path.exists(extract_path)
-                        
-                        if needs_extraction:
+                        if not os.path.exists(extract_path):
                             password = None
                             if is_zip_encrypted(path):
                                 if bridge:
@@ -153,29 +147,21 @@ def discover_plugins(bridge=None):
                                     continue
                             
                             print(f"[Plugins] Extracting package: {file} -> {zip_name}...")
-                            if extract_package(path, extract_path, password=password):
-                                # Immediately scan the newly extracted folder for nodes/subgraphs
-                                # We temporarily clear the guard or just call discovery on the new path
-                                pass 
-                            else:
+                            if not extract_package(path, extract_path, password=password):
                                 print(f"[Plugins] Extraction failed for {file}.")
                                 continue
 
-                        # If we have an extracted path (either just now or previously), scan it
                         if os.path.exists(extract_path):
-                            # We don't recurse discover_plugins because of the guard,
-                            # but we can scan the files in the extracted dir.
                             for root_ext, _, files_ext in os.walk(extract_path):
                                 for f_ext in files_ext:
                                     ext_full_path = os.path.join(root_ext, f_ext)
-                                    # Reuse the logic for .syp and .spy
-                                    # (Note: This is a bit repetitive, in a refactor we'd move these to helper functions)
                                     if f_ext.endswith(".syp"):
                                         label = f_ext.replace(".syp", "").replace("_", " ").title()
                                         category = "Plugins"
                                         try:
-                                            with open(ext_full_path, 'r') as f:
-                                                data = json.load(f)
+                                            data = smart_load(ext_full_path)
+                                            if not data:
+                                                continue
                                             from axonpulse.core.schema import migrate_graph
                                             data, was_modified = migrate_graph(data)
                                             if was_modified:
@@ -189,10 +175,8 @@ def discover_plugins(bridge=None):
                                             print(f"[Plugins] Package Metadata error in {f_ext}: {e}")
 
                                     elif f_ext.endswith(".spy") or (f_ext.endswith(".py") and f_ext != "__init__.py"):
-                                        # Hard Node logic... (reusing the spec/loader part)
                                         try:
                                             module_name_ext = f"axonpulse_plugin_pkg_{zip_name}_{f_ext.split('.')[0]}"
-                                            from importlib.machinery import SourceFileLoader
                                             loader_ext = SourceFileLoader(module_name_ext, ext_full_path)
                                             spec_ext = importlib.util.spec_from_loader(module_name_ext, loader_ext)
                                             if spec_ext and spec_ext.loader:

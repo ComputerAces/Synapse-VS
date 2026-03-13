@@ -24,7 +24,7 @@ class SubGraphNode(SuperNode):
     - Error Flow: Pulse triggered if the subgraph fails to load or execute.
     - [Dynamic Outputs]: Data variables returned from the subgraph's Return node.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     allow_dynamic_inputs = True
     allow_dynamic_outputs = True
 

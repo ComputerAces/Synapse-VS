@@ -398,14 +398,13 @@ class GraphSerializer:
                         wire = Wire(start_port); wire.end_port = end_port
                         if wire not in start_port.wires: start_port.wires.append(wire)
                         if wire not in end_port.wires: end_port.wires.append(wire)
-                        self.scene.addItem(wire); wire.update_style_from_port(start_port); wire.update_path()
+                        self.scene.addItem(wire); wire.update_path()
 
             # [FIX] Final Style Sync Pass
             # Ensuring Provider Flow wires correctly detect their status AFTER all wires are drawn.
             for item in self.scene.items():
                 if isinstance(item, Wire):
                     if item.start_port:
-                        item.update_style_from_port(item.start_port)
                         item.update_path()
 
         if "frames" in data:
@@ -512,14 +511,13 @@ class GraphSerializer:
                         wire = Wire(start_port); wire.end_port = end_port
                         if wire not in start_port.wires: start_port.wires.append(wire)
                         if wire not in end_port.wires: end_port.wires.append(wire)
-                        self.scene.addItem(wire); wire.update_style_from_port(start_port); wire.update_path()
+                        self.scene.addItem(wire); wire.update_path()
 
             # [FIX] Final Style Sync Pass for Pasted Items
             for item in new_items:
                 if isinstance(item, NodeWidget):
                     for port in item.ports:
                         for wire in port.wires:
-                            wire.update_style_from_port(wire.start_port if wire.start_port else wire.end_port)
                             wire.update_path()
 
         # 4. Frames

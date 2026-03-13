@@ -1,104 +1,60 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Global Var Set", "Workflow/Variables")
-class GlobalVarSetNode(SuperNode):
-    """
-    Sets a variable at the global (root) level, accessible by any graph or subgraph.
-    If the variable doesn't exist, it is created.
-    
-    Inputs:
-    - Flow: Trigger the update.
-    - Var Name: The name of the variable.
-    - Value: The value to set.
-    
-    Outputs:
-    - Flow: Pulse triggered after the variable is set.
-    """
-    version = "1.0.1"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Var Name"] = ""
-        self.properties["Value"] = None
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.do_work)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Var Name": DataType.STRING,
-            "Value": DataType.ANY
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW
-        }
+@axon_node(category="Workflow/Variables", version="2.3.0", node_label="Global Var Set")
+def GlobalVarSetNode(Var_Name: str = '', Value: Any = None, _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Sets a variable at the global (root) level, accessible by any graph or subgraph.
+If the variable doesn't exist, it is created.
 
-    def do_work(self, **kwargs):
-        name = kwargs.get("Var Name") or self.properties.get("Var Name")
-        val = kwargs.get("Value") or self.properties.get("Value")
-        
-        if not name:
-            self.logger.warning("Global Var Set: No variable name provided.")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-            return True
+### Inputs:
+- Flow (flow): Trigger the update.
+- Var Name (string): The name of the variable.
+- Value (any): The value to set.
 
-        # bubble_set ensures it reaches the root registry
-        self.bridge.bubble_set(name, val, source_node_id=self.node_id, scope_id="Global")
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+### Outputs:
+- Flow (flow): Pulse triggered after the variable is set."""
+    name = kwargs.get('Var Name') or _node.properties.get('Var Name')
+    val = kwargs.get('Value') or _node.properties.get('Value')
+    if not name:
+        _node.logger.warning('Global Var Set: No variable name provided.')
+        _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
         return True
+    else:
+        pass
+    _bridge.bubble_set(name, val, source_node_id=_node_id, scope_id='Global')
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return True
 
-@NodeRegistry.register("Global Var Get", "Workflow/Variables")
-class GlobalVarGetNode(SuperNode):
-    """
-    Retrieves a variable from the global (root) level.
-    
-    Inputs:
-    - Flow: Trigger the retrieval.
-    - Var Name: The name of the variable.
-    
-    Outputs:
-    - Flow: Pulse triggered after retrieval.
-    - Value: The current value of the global variable.
-    """
-    version = "1.0.1"
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Var Name"] = ""
-        self.define_schema()
-        self.register_handlers()
+@axon_node(category="Workflow/Variables", version="2.3.0", node_label="Global Var Get", outputs=['Value'])
+def GlobalVarGetNode(Var_Name: str = '', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Retrieves a variable from the global (root) level.
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.do_work)
+### Inputs:
+- Flow (flow): Trigger the retrieval.
+- Var Name (string): The name of the variable.
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Var Name": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Value": DataType.ANY
-        }
-
-    def do_work(self, **kwargs):
-        name = kwargs.get("Var Name") or self.properties.get("Var Name")
-        
-        if not name:
-            self.logger.warning("Global Var Get: No variable name provided.")
-            self.set_output("Value", None)
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-            return True
-
-        val = self.bridge.get(name, scope_id="Global")
-        self.set_output("Value", val)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
+### Outputs:
+- Flow (flow): Pulse triggered after retrieval.
+- Value (any): The current value of the global variable."""
+    name = kwargs.get('Var Name') or _node.properties.get('Var Name')
+    if not name:
+        _node.logger.warning('Global Var Get: No variable name provided.')
+        _node.set_output('Value', None)
+        _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
         return True
-
+    else:
+        pass
+    val = _bridge.get(name, scope_id='Global')
+    _node.set_output('Value', val)
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return True

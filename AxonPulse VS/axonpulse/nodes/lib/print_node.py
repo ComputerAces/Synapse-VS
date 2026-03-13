@@ -1,44 +1,28 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Print", "System/Terminal")
-class PrintNode(SuperNode):
-    """
-    Outputs a message to the system terminal or console.
-    Useful for debugging and tracking graph execution flow.
-    
-    Inputs:
-    - Flow: Trigger the print operation.
-    - Message: The string message to display.
-    
-    Outputs:
-    - Flow: Pulse triggered after the message is printed.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True # Run in main process for faster console output
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.do_print)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Message": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW
-        }
+@axon_node(category="System/Terminal", version="2.3.0", node_label="Print")
+def PrintNode(Message: str, _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Outputs a message to the system terminal or console.
+Useful for debugging and tracking graph execution flow.
 
-    def do_print(self, Message=None, **kwargs):
-        # inputs are passed by port name (e.g. "Message")
-        message = Message if Message is not None else kwargs.get("Message") or "Hello AxonPulse!"
-        print(f"[{self.name}] OUTPUT: {message}")
-        self.bridge.set(f"last_msg_{self.name}", message, self.name)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+Inputs:
+- Flow: Trigger the print operation.
+- Message: The string message to display.
+
+Outputs:
+- Flow: Pulse triggered after the message is printed."""
+    message = Message if Message is not None else kwargs.get('Message') or 'Hello AxonPulse!'
+    print(f'[{_node.name}] OUTPUT: {message}')
+    _bridge.set(f'last_msg_{_node.name}', message, _node.name)
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return True

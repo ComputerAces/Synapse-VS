@@ -1,39 +1,29 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from datetime import datetime
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Time", "System/Time")
-class TimeNode(SuperNode):
-    """
-    Captures the current system date and time.
-    Returns the timestamp in a standardized format inside AxonPulse tags.
-    
-    Inputs:
-    - Flow: Trigger the time capture.
-    
-    Outputs:
-    - Flow: Pulse triggered after time is captured.
-    - Time: The current timestamp string (e.g., #[2024-05-20 12:00:00]#).
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def define_schema(self):
-        self.input_schema = {"Flow": DataType.FLOW}
-        self.output_schema = {"Flow": DataType.FLOW, "Time": DataType.STRING}
+from axonpulse.nodes.decorators import axon_node
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.capture_time)
+@axon_node(category="System/Time", version="2.3.0", node_label="Time", outputs=['Time'])
+def TimeNode(_bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Captures the current system date and time.
+Returns the timestamp in a standardized format inside AxonPulse tags.
 
-    def capture_time(self, **kwargs):
-        now_raw = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        now = f"#[{now_raw}]#"
-        self.bridge.set(f"{self.node_id}_Time", now, self.name)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+Inputs:
+- Flow: Trigger the time capture.
+
+Outputs:
+- Flow: Pulse triggered after time is captured.
+- Time: The current timestamp string (e.g., #[2024-05-20 12:00:00]#)."""
+    now_raw = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = f'#[{now_raw}]#'
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return now

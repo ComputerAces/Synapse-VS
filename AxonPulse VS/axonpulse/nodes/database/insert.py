@@ -16,7 +16,7 @@ class SQLInsertNode(BaseSQLNode):
     - Flow: Triggered after the insertion is complete.
     - Affected Rows: The number of rows inserted (typically 1).
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def define_schema(self):
         self.input_schema = {

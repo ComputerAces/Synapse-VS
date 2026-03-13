@@ -83,7 +83,7 @@ class TTSParlerProvider(ProviderNode):
     Outputs:
     - Done: Pulse triggered once the engine is ready.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     required_libraries = ["parler_tts", "torch", "transformers"]
 
     def __init__(self, node_id, name, bridge):

@@ -24,14 +24,20 @@ class Wire(QGraphicsPathItem):
         self.setZValue(-1) # Draw behind nodes
         
         # Style
-        self.color = QColor("#cccccc") # Default
+        self.color = QColor("#cccccc") # Legacy base color
+        self.start_color = QColor("#cccccc")
+        self.end_color = QColor("#cccccc")
         self.width = 3 # Thicker wires requested
         
         # Determine Color based on Port Type
         if self.start_port:
-            self.update_style_from_port(self.start_port)
-        elif self.end_port:
-            self.update_style_from_port(self.end_port)
+            self.start_color = self.get_color_from_port(self.start_port)
+            self.color = self.start_color
+        
+        if self.end_port:
+            self.end_color = self.get_color_from_port(self.end_port)
+            if not self.start_port:
+                self.color = self.end_color
         
         self.pen = QPen(self.color, self.width)
         self.setPen(self.pen)
@@ -39,53 +45,52 @@ class Wire(QGraphicsPathItem):
         self.update_path()
         self.setAcceptHoverEvents(True)
 
-    def update_style_from_port(self, port):
-        # Reset width default (Global Resize: "sized up to fit")
-        self.width = 4 # Default for data wires (was 6)
+    def get_color_from_port(self, port):
+        # Default Logic
+        color = QColor("#cccccc")
+        self.width = 4
 
         # 1. Use Typed Color if available
         if hasattr(port, 'data_type') and port.data_type in TYPE_COLORS:
              hex_col = TYPE_COLORS[port.data_type]
-             self.color = QColor(hex_col)
+             color = QColor(hex_col)
              
              # [PROVIDER SPECIAL] Thicker Wires for Provider Flow
              if self.check_provider_scope(port):
-                 self.color = QColor("#D11575") # Deep Pink
+                 color = QColor("#D11575") # Deep Pink
                  self.width = 6
-                 return # Provider scope is final
+                 return color
                  
              # [ERROR FLOW CHECK]
              elif self.check_error_flow(port):
-                 self.color = QColor("#8B0000") # Dark Red
+                 color = QColor("#8B0000") # Dark Red
                  self.width = 6
-                 return
+                 return color
                  
              # [STANDARD FLOW CHECK] 
              # Match new vibrant green (#2ECC71) or legacy dark green
-             curr_col = self.color.name().lower()
+             curr_col = color.name().lower()
              if curr_col == "#2ecc71" or curr_col == "#006400":
                  self.width = 6
-                 return
+                 return color
                  
-             # [CRITICAL FIX] If it's ANY (Gray) but the name/class says it's Flow,
-             # don't return here! Let it fall through to the heuristics.
              if port.data_type != DataType.ANY:
-                 return
+                 return color
 
         # 2. Check explicit class from PortItem (Meta-Tag Support)
         if hasattr(port, 'port_class') and port.port_class != "auto":
             if port.port_class == "flow":
                 if self.check_provider_scope(port):
-                    self.color = QColor("#D11575") # Deep Pink
+                    color = QColor("#D11575") # Deep Pink
                     self.width = 6
                 else:
-                    self.color = QColor("#006400") # Dark Green (Inactive)
+                    color = QColor("#006400") # Dark Green (Inactive)
                     self.width = 6
             else:
                 # Default Data
-                self.color = QColor("#00008b")
+                color = QColor("#00008b")
                 self.width = 4
-            return
+            return color
 
         # 3. Fallback to Name Heuristic (Legacy)
         name = port.name.lower()
@@ -94,19 +99,20 @@ class Wire(QGraphicsPathItem):
         error_names = ["error", "error flow", "panic", "failure", "fail", "catch"]
         
         if name in error_names or any(n in name for n in error_names):
-             self.color = QColor("#8B0000") # Dark Red
+             color = QColor("#8B0000") # Dark Red
              self.width = 6
         elif name in flow_names or "flow" in name or any(fn in name for fn in ["success", "done", "exec", "trigger", "next"]):
              if self.check_provider_scope(port):
-                self.color = QColor("#D11575")
+                color = QColor("#D11575")
                 self.width = 6
              else:
-                self.color = QColor("#2ECC71") # Vibrant Green
+                color = QColor("#2ECC71") # Vibrant Green
                 self.width = 6
         else:
-             # ONLY set Blue if it's not already something else (like Green from Step 1)
-             if self.color.name().lower() == "#cccccc": # Only if still default
-                self.color = QColor("#00008b") # Dark Blue (Data)
+             if color.name().lower() == "#cccccc": 
+                color = QColor("#00008b") # Dark Blue (Data)
+        
+        return color
 
     def check_error_flow(self, port):
         """Checks if a port is an error/panic flow."""
@@ -188,15 +194,17 @@ class Wire(QGraphicsPathItem):
         # Update positions from ports if they exist
         if self.start_port:
             self.start_pos = self.start_port.scenePos()
-            self.update_style_from_port(self.start_port) # Update color if connected
+            self.start_color = self.get_color_from_port(self.start_port)
             
         if self.end_port:
             self.end_pos = self.end_port.scenePos()
-            if not self.start_port: # Only update from end if start is missing
-                  self.update_style_from_port(self.end_port)
+            self.end_color = self.get_color_from_port(self.end_port)
 
-        self.pen.setColor(self.color)
-        self.pen.setWidth(self.width) # [FIX] Ensure pen width is updated
+        # Legacy fallback
+        if self.start_port: self.color = self.start_color
+        elif self.end_port: self.color = self.end_color
+
+        self.pen.setWidth(self.width)
         self.setPen(self.pen)
 
         path = QPainterPath()
@@ -321,8 +329,21 @@ class Wire(QGraphicsPathItem):
                 self._is_active = False
                 alpha = 0
         
-        # 1. Draw Base Wire (Pink Outline for Provider Flow)
-        super().paint(painter, option, widget)
+        # 1. Draw Base Wire (Gradient Support)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        from PyQt6.QtGui import QLinearGradient
+        grad = QLinearGradient(self.start_pos, self.end_pos)
+        grad.setColorAt(0, self.start_color)
+        grad.setColorAt(1, self.end_color)
+        
+        grad_pen = QPen(grad, self.width)
+        grad_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(grad_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(self.path())
+        painter.restore()
         
         # [PROVIDER FLOW SPECIAL] Draw Green Core
         # Check against our distinct provider color (#D11575)

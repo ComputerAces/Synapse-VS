@@ -16,7 +16,7 @@ class SQLQueryNode(BaseSQLNode):
     - Rows: List of records returned by the query.
     - Count: The number of rows returned.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def define_schema(self):
         self.input_schema = {

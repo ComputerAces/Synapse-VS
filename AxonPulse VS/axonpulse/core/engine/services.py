@@ -144,6 +144,7 @@ class ServiceMixin:
                 try:
                     node.terminate()
                     self.bridge.set(f"{node_id}_IsServiceRunning", False, "Engine")
+                    self.bridge.set(f"{node_id}_ActivePorts", None, "Engine_Cleanup")
                     print(f"[SERVICE_STOP] {node_id}")
                 except (BrokenPipeError, EOFError, ConnectionResetError):
                     pass

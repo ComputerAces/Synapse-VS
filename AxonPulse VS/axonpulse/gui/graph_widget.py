@@ -454,7 +454,29 @@ class GraphWidget(QWidget):
             line = line.strip()
             if not line:
                 continue
-            
+                
+            # 1. Non-visual Logging (Always Process)
+            if "[DEBUG]" in line:
+                clean_line = line.replace("[DEBUG]", "").strip()
+                clean_line = clean_line.replace("<br>", "\n")
+                self.debug_buffer.append(clean_line)
+                self.output_received.emit(clean_line, "debug")
+                continue
+                
+            if not (line.startswith("[NODE_START]") or line.startswith("[NODE_STOP]") or 
+                    line.startswith("[FLOW]") or line.startswith("[AXON_SUBGRAPH") or
+                    line.startswith("[NODE_PREVIEW]") or line.startswith("[PROVIDER_PULSE]") or
+                    line.startswith("[NODE_WAITING") or line.startswith("[NODE]") or
+                    line.startswith("[SERVICE_START]") or line.startswith("[SERVICE_STOP]")):
+                self.console_buffer.append(line)
+                self.output_received.emit(line, "console")
+                continue
+                
+            # 2. Visual State Signals (Guard against delayed event loop processing after stop)
+            if getattr(self, "execution_state", None) == getattr(self, "STATE_STOPPED", -1):
+                continue # Safely ignore ghost highlights arriving late
+                
+            # 3. Apply Visual States
             if line.startswith("[FLOW]"):
                 self.output_received.emit(line, "flow")
             elif line.startswith("[NODE_START]"):
@@ -469,26 +491,6 @@ class GraphWidget(QWidget):
             elif line.startswith("[SERVICE_STOP]"):
                 node_id = line.replace("[SERVICE_STOP]", "").strip()
                 self.bridge.set(f"{node_id}_IsServiceRunning", False, "stdout_sync")
-            elif line.startswith("[FLOW]"):
-                try:
-                    # Format: [FLOW] source_id -> target_id
-                    parts = line.replace("[FLOW]", "").strip().split("->")
-                    if len(parts) == 2:
-                        src_id = parts[0].strip()
-                        tgt_id = parts[1].strip()
-                        
-                        # Find matching wire in scene
-                        if self.canvas and self.canvas.scene:
-                            for item in self.canvas.scene.items():
-                                # Check if it's a Wire
-                                if hasattr(item, 'trigger_flow') and hasattr(item, 'start_port') and hasattr(item, 'end_port'):
-                                    # Check connectivity
-                                    s_node = item.start_port.node if item.start_port else None
-                                    t_node = item.end_port.node if item.end_port else None
-                                    
-                                    if s_node and t_node and s_node.node_id == src_id and t_node.node_id == tgt_id:
-                                        item.trigger_flow()
-                except: pass
             elif line.startswith("[AXON_SUBGRAPH_ACTIVITY]"):
                 node_id = line.replace("[AXON_SUBGRAPH_ACTIVITY]", "").strip()
                 self.bridge.set(f"{node_id}_SubGraphActivity", True, "stdout_sync")
@@ -514,13 +516,13 @@ class GraphWidget(QWidget):
                             mode = parts[1]
                             b64_data = parts[2]
                         
-                        # Inline lookup (GraphWidget doesn't inherit ExecutionMixin)
                         from axonpulse.gui.node_widget.widget import NodeWidget as NW
                         target_node = None
-                        for item in self.canvas.scene.items():
-                            if isinstance(item, NW) and item.node and str(item.node.node_id) == node_id:
-                                target_node = item
-                                break
+                        if getattr(self, "canvas", None) and getattr(self.canvas, "scene", None):
+                            for item in self.canvas.scene.items():
+                                if isinstance(item, NW) and item.node and str(item.node.node_id) == node_id:
+                                    target_node = item
+                                    break
                         
                         if target_node and hasattr(target_node, "set_preview_data"):
                             target_node.set_preview_data(mode, b64_data)
@@ -533,14 +535,6 @@ class GraphWidget(QWidget):
                 self.output_received.emit(line, "node_waiting_pulse")
             elif line.startswith("[NODE_WAITING_START]"):
                 self.output_received.emit(line, "node_waiting_start")
-            elif "[DEBUG]" in line:
-                clean_line = line.replace("[DEBUG]", "").strip()
-                clean_line = clean_line.replace("<br>", "\n")
-                self.debug_buffer.append(clean_line)
-                self.output_received.emit(clean_line, "debug")
-            else:
-                self.console_buffer.append(line)
-                self.output_received.emit(line, "console")
     
     def _handle_stderr(self):
         data = self.process.readAllStandardError()
@@ -565,5 +559,9 @@ class GraphWidget(QWidget):
         if os.path.exists(stop_file):
             try: os.remove(stop_file)
             except: pass
+            
+        # [NEW: V2.4.5] Purge local bridge to clear stale SubGraph & Service UI flags
+        if hasattr(self, 'bridge') and self.bridge:
+            self.bridge.clear()
             
         self._set_state(self.STATE_STOPPED)

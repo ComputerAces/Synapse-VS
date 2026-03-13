@@ -1,42 +1,27 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("End Node", "Logic/Control Flow")
-class EndNode(SuperNode):
-    """
-    Terminates the execution of the current branch.
-    
-    When flow reaches this node, the execution engine stops processing further nodes 
-    in this specific sequence. It is used to mark the logical conclusion of a 
-    workflow where no further output pulse is desired.
-    
-    Inputs:
-    - Flow: Execution trigger.
+from typing import Any, List, Dict, Optional
 
-    Outputs:
-    - None: This node is a terminator and has no outputs.
-    """
-    version = "2.1.0"
+from axonpulse.core.types import DataType, TypeCaster
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
-    
-    def register_handlers(self):
-        self.register_handler("Flow", self.end_execution)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        # Terminators are forbidden from having output ports
-        self.input_schema = {
-            "Flow": DataType.FLOW
-        }
-        self.output_schema = {}
+@axon_node(category="Logic/Control Flow", version="2.3.0", node_label="End Node")
+def EndNode(_bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Terminates the execution of the current branch.
 
-    def end_execution(self, **kwargs):
-        # We generally do NOT continue flow here if it's an "End" node,
-        # but the original had output ports. If we want to allow pass-through:
-        self.bridge.set(f"{self.node_id}_ActivePorts", [], self.name)
-        return True
+When flow reaches this node, the execution engine stops processing further nodes 
+in this specific sequence. It is used to mark the logical conclusion of a 
+workflow where no further output pulse is desired.
+
+Inputs:
+- Flow: Execution trigger.
+
+Outputs:
+- None: This node is a terminator and has no outputs."""
+    _bridge.set(f'{_node_id}_ActivePorts', [], _node.name)
+    return True

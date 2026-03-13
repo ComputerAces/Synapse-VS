@@ -30,7 +30,7 @@ class RedisProviderNode(ProviderNode):
     - Flow: Triggered when the provider is initialized.
     - Connected: True if connection was successful.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
@@ -103,7 +103,7 @@ class BaseRedisNode(SuperNode):
     Required Provider:
     - Redis: Provides client connectivity.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     required_providers = ["REDIS"]
 
     def __init__(self, node_id, name, bridge):
@@ -131,7 +131,7 @@ class RedisSetNode(BaseRedisNode):
     - Flow: Triggered after the set is successful.
     - Success: True if the operation succeeded.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
@@ -199,7 +199,7 @@ class RedisGetNode(BaseRedisNode):
     - Value: The data fetched from Redis.
     - Found: True if the key exists.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
@@ -262,7 +262,7 @@ class RedisDeleteNode(BaseRedisNode):
     - Flow: Triggered after deletion.
     - Success: True if the deletion command was sent successfully.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
@@ -317,7 +317,7 @@ class RedisKeysNode(BaseRedisNode):
     - Flow: Triggered after keys are listed.
     - Keys: List of matching key names.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
@@ -368,7 +368,7 @@ class RedisPublishNode(BaseRedisNode):
     - Flow: Triggered after publishing.
     - Subscribers: Number of clients that received the message.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)
@@ -422,7 +422,7 @@ class RedisSubscribeNode(BaseRedisNode):
     - Message: The content of the received message.
     - Channel: The channel where the message originated.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

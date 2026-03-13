@@ -1,78 +1,64 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Add Documents", "AI/Vector")
-class AddDocumentsNode(SuperNode):
-    """
-    Indexes text documents into a connected Vector Database Provider.
-    Requires an Embedding Provider to generate vectors for the documents.
-    
-    ### Inputs:
-    - Flow (flow): Trigger execution.
-    - Documents (list): A list of text strings (or a single string) to be indexed.
-    - Metadata (list): Optional list of dictionaries containing metadata for each document.
-    
-    ### Outputs:
-    - Flow (flow): Triggered after indexing is complete.
-    - Success (boolean): True if the documents were successfully added, False otherwise.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.required_providers = ["VECTOR", "EMBED"]
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.do_work)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Documents": DataType.LIST,
-            "Metadata": DataType.LIST
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Success": DataType.BOOLEAN
-        }
+@axon_node(category="AI/Vector", version="2.3.0", node_label="Add Documents", outputs=['Success'])
+def AddDocumentsNode(Documents: list, Metadata: list, _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Indexes text documents into a connected Vector Database Provider.
+Requires an Embedding Provider to generate vectors for the documents.
 
-    def do_work(self, **kwargs):
-        documents = kwargs.get("Documents") or self.properties.get("Documents", [])
-        metadata = kwargs.get("Metadata") or self.properties.get("Metadata", [])
-        
-        if isinstance(documents, str):
-            documents = [documents]
-            
-        # Resolved via Provider Flow
-        db_provider_id = self.get_provider_id("Vector Database Provider")
-        database = self.bridge.get(f"{db_provider_id}_Database") if db_provider_id else None
-        
-        emb_provider_id = self.get_provider_id("Embedding Provider")
-        embedding_provider = self.bridge.get(f"{emb_provider_id}_Provider") if emb_provider_id else None
+### Inputs:
+- Flow (flow): Trigger execution.
+- Documents (list): A list of text strings (or a single string) to be indexed.
+- Metadata (list): Optional list of dictionaries containing metadata for each document.
 
-        if not database or not embedding_provider or not documents:
-            missing = []
-            if not database: missing.append("Vector Database")
-            if not embedding_provider: missing.append("Embedding Provider")
-            if not documents: missing.append("Documents")
-            raise RuntimeError(f"[{self.name}] Missing required inputs or providers: {', '.join(missing)}")
-
-        db = database.get("db")
-        table_name = database.get("table")
-
-        try:
-            embeddings = embedding_provider.embed_documents(documents)
-            count = db.add(table_name, documents, embeddings, metadata=metadata)
-            self.logger.info(f"Indexed {count} documents into '{table_name}'.")
-            self.bridge.set(f"{self.node_id}_Success", True, self.name)
-        except Exception as e:
-            self.logger.error(f"Failed to add documents: {e}")
-            self.bridge.set(f"{self.node_id}_Success", False, self.name)
-            
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
-
+### Outputs:
+- Flow (flow): Triggered after indexing is complete.
+- Success (boolean): True if the documents were successfully added, False otherwise."""
+    documents = kwargs.get('Documents') or _node.properties.get('Documents', [])
+    metadata = kwargs.get('Metadata') or _node.properties.get('Metadata', [])
+    if isinstance(documents, str):
+        documents = [documents]
+    else:
+        pass
+    db_provider_id = self.get_provider_id('Vector Database Provider')
+    database = _bridge.get(f'{db_provider_id}_Database') if db_provider_id else None
+    emb_provider_id = self.get_provider_id('Embedding Provider')
+    embedding_provider = _bridge.get(f'{emb_provider_id}_Provider') if emb_provider_id else None
+    if not database or not embedding_provider or (not documents):
+        missing = []
+        if not database:
+            missing.append('Vector Database')
+        else:
+            pass
+        if not embedding_provider:
+            missing.append('Embedding Provider')
+        else:
+            pass
+        if not documents:
+            missing.append('Documents')
+        else:
+            pass
+        raise RuntimeError(f"[{_node.name}] Missing required inputs or providers: {', '.join(missing)}")
+    else:
+        pass
+    db = database.get('db')
+    table_name = database.get('table')
+    try:
+        embeddings = embedding_provider.embed_documents(documents)
+        count = db.add(table_name, documents, embeddings, metadata=metadata)
+        _node.logger.info(f"Indexed {count} documents into '{table_name}'.")
+    except Exception as e:
+        _node.logger.error(f'Failed to add documents: {e}')
+    finally:
+        pass
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return False

@@ -1,49 +1,31 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("String Uppercase", "Data")
-class StringUppercaseNode(SuperNode):
-    """
-    Converts all characters in a text string to uppercase.
-    
-    Inputs:
-    - Flow: Trigger the conversion.
-    - Value: The source text string.
-    
-    Outputs:
-    - Flow: Triggered after conversion.
-    - Result: The uppercase version of the string.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Value"] = ""
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.process_uppercase)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Value": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Result": DataType.STRING
-        }
+@axon_node(category="Data", version="2.3.0", node_label="String Uppercase")
+def StringUppercaseNode(Value: str = '', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Converts all characters in a text string to uppercase.
 
-    def process_uppercase(self, Value=None, **kwargs):
-        val = Value if Value is not None else kwargs.get("Value") or self.properties.get("Value", "")
-        if val is None:
-            val = ""
-        
-        result = str(val).upper()
-        
-        self.bridge.set(f"{self.node_id}_Result", result, self.name)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+Inputs:
+- Flow: Trigger the conversion.
+- Value: The source text string.
+
+Outputs:
+- Flow: Triggered after conversion.
+- Result: The uppercase version of the string."""
+    val = Value if Value is not None else kwargs.get('Value') or _node.properties.get('Value', '')
+    if val is None:
+        val = ''
+    else:
+        pass
+    result = str(val).upper()
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return result

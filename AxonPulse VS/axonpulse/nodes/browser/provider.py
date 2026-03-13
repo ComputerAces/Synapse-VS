@@ -110,7 +110,7 @@ class BrowserProviderNode(ProviderNode):
     - Done: Triggered upon closing the browser and exiting the scope.
     - Provider Flow: Active while the browser is running.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

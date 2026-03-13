@@ -1,69 +1,47 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Data Type", "Data")
-class DataTypeNode(SuperNode):
-    """
-    Checks the underlying type of the provided Data and routes execution
-    flow accordingly.
-    
-    Inputs:
-    - Flow: Trigger type check.
-    - Data: Any data to check.
-    
-    Outputs:
-    - String Flow: Triggered if Data is a string.
-    - Number Flow: Triggered if Data is an integer or float.
-    - Boolean Flow: Triggered if Data is True or False.
-    - List Flow: Triggered if Data is a List, Tuple, or Set.
-    - Dict Flow: Triggered if Data is a Dictionary / JSON object.
-    - None Flow: Triggered if Data is None or Empty.
-    - Unknown Flow: Triggered if the type is unrecognized (e.g., custom object or binary).
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Data": DataType.ANY
-        }
-        self.output_schema = {
-            "String Flow": DataType.FLOW,
-            "Number Flow": DataType.FLOW,
-            "Boolean Flow": DataType.FLOW,
-            "List Flow": DataType.FLOW,
-            "Dict Flow": DataType.FLOW,
-            "None Flow": DataType.FLOW,
-            "Unknown Flow": DataType.FLOW
-        }
+from axonpulse.nodes.decorators import axon_node
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.check_type)
+@axon_node(category="Data", version="2.3.0", node_label="Data Type", outputs=['String Flow', 'Number Flow', 'Boolean Flow', 'List Flow', 'Dict Flow', 'None Flow', 'Unknown Flow'])
+def DataTypeNode(Data: Any, _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Checks the underlying type of the provided Data and routes execution
+flow accordingly.
 
-    def check_type(self, Data=None, **kwargs):
-        data_obj = Data if Data is not None else self.properties.get("Data")
+Inputs:
+- Flow: Trigger type check.
+- Data: Any data to check.
 
-        active_port = "Unknown Flow"
-
-        if data_obj is None:
-            active_port = "None Flow"
-        elif isinstance(data_obj, str):
-            active_port = "String Flow"
-        elif isinstance(data_obj, bool):  # Note: bool inherits from int in Python, check bool first!
-            active_port = "Boolean Flow"
-        elif isinstance(data_obj, (int, float)):
-            active_port = "Number Flow"
-        elif isinstance(data_obj, (list, tuple, set)):
-            active_port = "List Flow"
-        elif isinstance(data_obj, dict):
-            active_port = "Dict Flow"
-
-        self.bridge.set(f"{self.node_id}_ActivePorts", [active_port], self.name)
-        return True
+Outputs:
+- String Flow: Triggered if Data is a string.
+- Number Flow: Triggered if Data is an integer or float.
+- Boolean Flow: Triggered if Data is True or False.
+- List Flow: Triggered if Data is a List, Tuple, or Set.
+- Dict Flow: Triggered if Data is a Dictionary / JSON object.
+- None Flow: Triggered if Data is None or Empty.
+- Unknown Flow: Triggered if the type is unrecognized (e.g., custom object or binary)."""
+    data_obj = Data if Data is not None else _node.properties.get('Data')
+    active_port = 'Unknown Flow'
+    if data_obj is None:
+        active_port = 'None Flow'
+    elif isinstance(data_obj, str):
+        active_port = 'String Flow'
+    elif isinstance(data_obj, bool):
+        active_port = 'Boolean Flow'
+    elif isinstance(data_obj, (int, float)):
+        active_port = 'Number Flow'
+    elif isinstance(data_obj, (list, tuple, set)):
+        active_port = 'List Flow'
+    elif isinstance(data_obj, dict):
+        active_port = 'Dict Flow'
+    else:
+        pass
+    _bridge.set(f'{_node_id}_ActivePorts', [active_port], _node.name)
+    return True

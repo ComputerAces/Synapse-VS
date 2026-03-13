@@ -15,7 +15,7 @@ class SQLExecuteNode(BaseSQLNode):
     - Flow: Triggered after the command is executed.
     - Affected Rows: The number of rows affected by the command.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def define_schema(self):
         self.input_schema = {

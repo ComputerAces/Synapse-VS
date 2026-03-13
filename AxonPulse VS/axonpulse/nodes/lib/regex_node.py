@@ -1,64 +1,43 @@
 import re
+
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Regex", "Data/Strings")
-class RegexNode(SuperNode):
-    """
-    Checks if a string matches a regular expression pattern.
-    
-    Inputs:
-    - Flow: Execution trigger.
-    - Text: The string to search.
-    - Pattern: The regular expression pattern.
-    
-    Outputs:
-    - Flow: Triggered after search.
-    - Found: True if a match was found.
-    - Matches: List of all matches found.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Text"] = ""
-        self.properties["Pattern"] = ""
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Text": DataType.STRING,
-            "Pattern": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Found": DataType.BOOLEAN,
-            "Matches": DataType.LIST
-        }
+from axonpulse.nodes.decorators import axon_node
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.handle_regex)
+@axon_node(category="Data/Strings", version="2.3.0", node_label="Regex", outputs=['Found', 'Matches'])
+def RegexNode(Text: str = '', Pattern: str = '', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Checks if a string matches a regular expression pattern.
 
-    def handle_regex(self, Text=None, Pattern=None, **kwargs):
-        text = Text if Text is not None else kwargs.get("Text") or self.properties.get("Text", "")
-        pattern = Pattern if Pattern is not None else kwargs.get("Pattern") or self.properties.get("Pattern", "")
-        
-        matches = []
-        found = False
-        
-        try:
-            if pattern and text:
-                matches = re.findall(pattern, str(text))
-                found = len(matches) > 0
-        except Exception as e:
-            self.logger.error(f"Regex Error: {e}")
-            
-        self.bridge.set(f"{self.node_id}_Found", found, self.name)
-        self.bridge.set(f"{self.node_id}_Matches", matches, self.name)
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        
-        return True
+Inputs:
+- Flow: Execution trigger.
+- Text: The string to search.
+- Pattern: The regular expression pattern.
+
+Outputs:
+- Flow: Triggered after search.
+- Found: True if a match was found.
+- Matches: List of all matches found."""
+    text = Text if Text is not None else kwargs.get('Text') or _node.properties.get('Text', '')
+    pattern = Pattern if Pattern is not None else kwargs.get('Pattern') or _node.properties.get('Pattern', '')
+    matches = []
+    found = False
+    try:
+        if pattern and text:
+            matches = re.findall(pattern, str(text))
+            found = len(matches) > 0
+        else:
+            pass
+    except Exception as e:
+        _node.logger.error(f'Regex Error: {e}')
+    finally:
+        pass
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return {'Found': found, 'Matches': matches}

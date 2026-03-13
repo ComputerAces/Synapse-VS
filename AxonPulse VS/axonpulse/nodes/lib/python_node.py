@@ -33,7 +33,7 @@ class PythonNode(SuperNode):
     - Std Out: Pulse triggered for each printed line from the script.
     - Text Out: The string content of the printed line.
     """
-    version = "2.1.0"
+    version = "2.3.0"
     allow_dynamic_inputs = True
     allow_dynamic_outputs = True
 

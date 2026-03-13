@@ -31,7 +31,7 @@ class ShellNode(SuperNode):
     - TextOut: The most recent line from stdout/stderr (Service mode).
     - EnvResult: The environment path that was actually used.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

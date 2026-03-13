@@ -1,68 +1,54 @@
 import os
+
 import shutil
+
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
+
 from axonpulse.utils.path_utils import resolve_project_path
 
-@NodeRegistry.register("Move File", "File System")
-class MoveNode(SuperNode):
-    """
-    Moves or renames a file or directory to a new location.
-    
-    Uses high-level shell operations to relocate items across the file system. 
-    Supports project variable resolution for both Source and Destination.
-    
-    Inputs:
-    - Flow: Trigger the move operation.
-    - Source: The absolute current path of the item.
-    - Dest: The absolute destination path (including new name if applicable).
-    
-    Outputs:
-    - Flow: Pulse triggered on successful move.
-    - Error Flow: Pulse triggered if the move fails or source is missing.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Source"] = ""
-        self.properties["Dest"] = ""
+from axonpulse.core.types import DataType, TypeCaster
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Source": DataType.STRING,
-            "Dest": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Error Flow": DataType.FLOW
-        }
+from axonpulse.nodes.decorators import axon_node
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.move_item)
+@axon_node(category="File System", version="2.3.0", node_label="Move File", outputs=['Error Flow'])
+def MoveNode(Source: str = '', Dest: str = '', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Moves or renames a file or directory to a new location.
 
-    def move_item(self, Source=None, Dest=None, **kwargs):
-        src = Source if Source is not None else kwargs.get("Source") or self.properties.get("Source", self.properties.get("Source", ""))
-        dst = Dest if Dest is not None else kwargs.get("Dest") or self.properties.get("Dest", self.properties.get("Dest", ""))
-        
-        # [PROJECT VARS] Resolve paths against project variables
-        src = resolve_project_path(src, self.bridge)
-        dst = resolve_project_path(dst, self.bridge)
-        
-        if not src or not os.path.exists(src):
-            self.logger.error(f"Error: Source not found {src}")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
-            return True
-            
-        try:
-            shutil.move(src, dst)
-            self.logger.info(f"Moved {src} -> {dst}")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-            return True
-        except Exception as e:
-            self.logger.error(f"Move Error: {e}")
-            self.bridge.set(f"{self.node_id}_ActivePorts", ["Error Flow"], self.name)
+Uses high-level shell operations to relocate items across the file system. 
+Supports project variable resolution for both Source and Destination.
+
+Inputs:
+- Flow: Trigger the move operation.
+- Source: The absolute current path of the item.
+- Dest: The absolute destination path (including new name if applicable).
+
+Outputs:
+- Flow: Pulse triggered on successful move.
+- Error Flow: Pulse triggered if the move fails or source is missing."""
+    src = Source if Source is not None else kwargs.get('Source') or _node.properties.get('Source', _node.properties.get('Source', ''))
+    dst = Dest if Dest is not None else kwargs.get('Dest') or _node.properties.get('Dest', _node.properties.get('Dest', ''))
+    src = resolve_project_path(src, _bridge)
+    dst = resolve_project_path(dst, _bridge)
+    if not src or not os.path.exists(src):
+        _node.logger.error(f'Error: Source not found {src}')
+        _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow'], _node.name)
         return True
+    else:
+        pass
+    try:
+        shutil.move(src, dst)
+        _node.logger.info(f'Moved {src} -> {dst}')
+        _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+        return True
+    except Exception as e:
+        _node.logger.error(f'Move Error: {e}')
+        _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow'], _node.name)
+    finally:
+        pass
+    return True

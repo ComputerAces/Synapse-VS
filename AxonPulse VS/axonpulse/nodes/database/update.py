@@ -17,7 +17,7 @@ class SQLUpdateNode(BaseSQLNode):
     - Flow: Triggered after the update is complete.
     - Affected Rows: The number of rows updated.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def define_schema(self):
         self.input_schema = {

@@ -1,96 +1,54 @@
 from axonpulse.core.super_node import SuperNode
+
 from axonpulse.nodes.registry import NodeRegistry
+
 from axonpulse.core.types import DataType
 
-@NodeRegistry.register("Last Error Node", "Flow/Error Handling")
-class LastErrorNode(SuperNode):
-    """
-    Retrieves information about the most recent error caught by the engine.
-    
-    This node is typically used within a Catch block or immediately after a 
-    failure to inspect error details such as the message, node ID, and trace.
-    
-    Inputs:
-    - Flow: Trigger the retrieval.
-    
-    Outputs:
-    - Flow: Pulse triggered after retrieval.
-    - Error Object: An Error object containing Message, Node ID, and context.
-    """
-    version = "2.1.0"
+from typing import Any, List, Dict, Optional
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.define_schema()
-        self.register_handlers()
+from axonpulse.core.types import DataType, TypeCaster
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.get_last_error)
+from axonpulse.nodes.decorators import axon_node
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Error Object": DataType.ANY
-        }
+@axon_node(category="Flow/Error Handling", version="2.3.0", node_label="Last Error Node", outputs=['Error Object'])
+def LastErrorNode(_bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Retrieves information about the most recent error caught by the engine.
 
-    def get_last_error(self, **kwargs):
-        from axonpulse.core.data import ErrorObject
-        
-        # Attempt to grab the most recent global error if one exists
-        last_err = self.bridge.get("_SYSTEM_GLOBAL_LAST_ERROR")
-        if not last_err:
-             last_err = ErrorObject("System", "Last Error Node", {}, "No error recorded.")
-        
-        self.bridge.set(f"{self.node_id}_Error Object", last_err, self.name)
-        self.logger.info("Error object retrieved.")
-        
-        self.bridge.set(f"{self.node_id}_ActivePorts", ["Flow"], self.name)
-        return True
+This node is typically used within a Catch block or immediately after a 
+failure to inspect error details such as the message, node ID, and trace.
+
+Inputs:
+- Flow: Trigger the retrieval.
+
+Outputs:
+- Flow: Pulse triggered after retrieval.
+- Error Object: An Error object containing Message, Node ID, and context."""
+    from axonpulse.core.data import ErrorObject
+    last_err = _bridge.get('_SYSTEM_GLOBAL_LAST_ERROR')
+    if not last_err:
+        last_err = ErrorObject('System', 'Last Error Node', {}, 'No error recorded.')
+    else:
+        pass
+    _node.logger.info('Error object retrieved.')
+    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+    return last_err
 
 
-@NodeRegistry.register("Raise Error", "Flow/Error Handling")
-class RaiseErrorNode(SuperNode):
-    """
-    Artificially triggers an error to halt execution or test Error Handling.
-    
-    When flow reaches this node, it forces a Python exception with the 
-    specified message, which will be caught by any active Try/Catch blocks.
-    
-    Inputs:
-    - Flow: Trigger the error.
-    - Message: The custom error message to report.
-    
-    Outputs:
-    - Flow: Pulse triggered on success (rarely reached due to error).
-    - Error: Pulse triggered if the engine supports non-halting errors.
-    """
-    version = "2.1.0"
+@axon_node(category="Flow/Error Handling", version="2.3.0", node_label="Raise Error", outputs=['Error'])
+def RaiseErrorNode(Message: str = 'Manual Error Triggered', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+    """Artificially triggers an error to halt execution or test Error Handling.
 
-    def __init__(self, node_id, name, bridge):
-        super().__init__(node_id, name, bridge)
-        self.is_native = True
-        self.properties["Message"] = "Manual Error Triggered"
-        self.define_schema()
-        self.register_handlers()
+When flow reaches this node, it forces a Python exception with the 
+specified message, which will be caught by any active Try/Catch blocks.
 
-    def register_handlers(self):
-        self.register_handler("Flow", self.raise_error)
+Inputs:
+- Flow: Trigger the error.
+- Message: The custom error message to report.
 
-    def define_schema(self):
-        self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Message": DataType.STRING
-        }
-        self.output_schema = {
-            "Flow": DataType.FLOW,
-            "Error": DataType.FLOW
-        }
-
-    def raise_error(self, Message=None, **kwargs):
-        msg = Message if Message is not None else kwargs.get("Message") or self.properties.get("Message", "Manual Error Triggered")
-        self.logger.error(f"Raising manual exception: {msg}")
-        raise Exception(msg)
+Outputs:
+- Flow: Pulse triggered on success (rarely reached due to error).
+- Error: Pulse triggered if the engine supports non-halting errors."""
+    msg = Message if Message is not None else kwargs.get('Message') or _node.properties.get('Message', 'Manual Error Triggered')
+    _node.logger.error(f'Raising manual exception: {msg}')
+    raise Exception(msg)
+    return True

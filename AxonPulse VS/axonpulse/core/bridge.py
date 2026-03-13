@@ -139,6 +139,26 @@ class AxonPulseBridge:
         # manager remains None in child processes unless re-initialized
         # This is fine as child processes don't typically need to spawn child managers
 
+    def clear(self):
+        """
+        Safely clears transient variables from the bridge's root and local registries.
+        This is primarily used by the GUI to purge stale status flags 
+        (like _IsServiceRunning or _SubGraphActivity) when execution fully stops.
+        """
+        try:
+            # Clear local GUI transient state
+            if self._variables_registry:
+                self._variables_registry.clear()
+            
+            # Clear the lock owners to avoid stale tracking
+            if self._lock_owners:
+                self._lock_owners.clear()
+                
+            logger.debug("[Bridge] Local variable registry and lock owners explicitly cleared.")
+        except Exception as e:
+            logger.warning(f"[Bridge] Error clearing bridge registry: {e}")
+
+
 
     # --- Identity & Session Manager (ISM) ---
 
@@ -429,11 +449,11 @@ class AxonPulseBridge:
         for key, value in data_dict.items():
             scoped_key = f"{target_scope}:{key}"
             
-            # [TIMEOUT LOCK] Wait up to 10 seconds for the lock
+            # [TIMEOUT LOCK] Wait up to 2.0 seconds for the lock
             lock = self._get_lock(scoped_key)
-            acquired = lock.acquire(timeout=10.0)
+            acquired = lock.acquire(timeout=2.0)
             if not acquired:
-                logger.error(f"[TIMEOUT] Failed to acquire lock for '{scoped_key}' after 10s. Forcing overlap.")
+                logger.error(f"[TIMEOUT] Failed to acquire lock for '{scoped_key}' after 2s. Forcing overlap.")
                 # We do not return here, we proceed without the lock to prevent deadlocks (User Request)
                 
             try:
@@ -510,9 +530,9 @@ class AxonPulseBridge:
         scoped_key = f"{target_scope}:{key}"
         
         lock = self._get_lock(scoped_key)
-        acquired = lock.acquire(timeout=10.0)
+        acquired = lock.acquire(timeout=2.0)
         if not acquired:
-            logger.error(f"[TIMEOUT] Failed to acquire lock for mutating '{scoped_key}' after 10s. Forcing overlap.")
+            logger.error(f"[TIMEOUT] Failed to acquire lock for mutating '{scoped_key}' after 2s. Forcing overlap.")
             
         try:
             # 1. Read Current Data
@@ -615,11 +635,11 @@ class AxonPulseBridge:
             # 1. Serialize
             data_bytes = msgpack.packb(value, default=msgpack_encode, use_bin_type=True)
             
-            # [TIMEOUT LOCK] Wait up to 10 seconds for the lock
+            # [TIMEOUT LOCK] Wait up to 2.0 seconds for the lock
             lock = self._get_lock(scoped_key)
-            acquired = lock.acquire(timeout=10.0)
+            acquired = lock.acquire(timeout=2.0)
             if not acquired:
-                logger.error(f"[TIMEOUT] Failed to acquire lock for '{scoped_key}' after 10s. Forcing overlap.")
+                logger.error(f"[TIMEOUT] Failed to acquire lock for '{scoped_key}' after 2s. Forcing overlap.")
             
             try:
                 # 2. Get Deterministic SHM Name (Reuse block)
@@ -692,9 +712,9 @@ class AxonPulseBridge:
         scoped_key = f"{target_scope}:{key}"
         
         lock = self._get_lock(scoped_key)
-        acquired = lock.acquire(timeout=10.0)
+        acquired = lock.acquire(timeout=2.0)
         if not acquired:
-            logger.error(f"[TIMEOUT] Failed to acquire lock for incrementing '{scoped_key}' after 10s. Forcing overlap.")
+            logger.error(f"[TIMEOUT] Failed to acquire lock for incrementing '{scoped_key}' after 2s. Forcing overlap.")
             
         try:
             val = self.get(key, 0, scope_id=target_scope)
@@ -781,7 +801,7 @@ class AxonPulseBridge:
                 except OSError:
                     return False
 
-    def lock(self, key, node_id, timeout=10.0):
+    def lock(self, key, node_id, timeout=2.0):
         """
         Attempts to conceptually 'lock' a variable key for exclusive access by a node.
         Includes a Watchdog that verifies if the lock owner's OS Process ID is still alive.

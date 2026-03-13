@@ -14,7 +14,7 @@ class LogoutNode(BaseSecurityActionNode):
     Outputs:
     - Flow: Triggered after session data has been cleared.
     """
-    version = "2.1.0"
+    version = "2.3.0"
 
     def __init__(self, node_id, name, bridge):
         super().__init__(node_id, name, bridge)

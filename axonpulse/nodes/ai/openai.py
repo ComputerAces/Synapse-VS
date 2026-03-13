@@ -56,7 +56,58 @@ class OpenAIProvider(AIProvider):
             return res['choices'][0]['message']['content']
 
     def stream(self, system_prompt, user_prompt, files, model_override=None, **kwargs):
-        yield "OpenAI streaming implementation..."
+        model = model_override if model_override else self.model
+        url = f"{self.base_url}/chat/completions"
+        
+        content_block = [{"type": "text", "text": user_prompt}]
+        text_context = ""
+        if isinstance(files, str): files = [files]
+        if files:
+            for f in files:
+                if not f or not os.path.exists(f): continue
+                mime, _ = mimetypes.guess_type(f)
+                if mime and mime.startswith("image"):
+                     with open(f, "rb") as im:
+                         b64_data = base64.b64encode(im.read()).decode('utf-8')
+                         data_url = f"data:{mime};base64,{b64_data}"
+                         content_block.append({"type": "image_url", "image_url": {"url": data_url}})
+                else:
+                    with open(f, "r", encoding="utf-8", errors="ignore") as tf:
+                        text_context += f"\n--- File: {os.path.basename(f)} ---\n{tf.read()}\n"
+        
+        if text_context: content_block[0]["text"] += f"\n\nContext Files:{text_context}"
+
+        messages = []
+        if system_prompt: messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": content_block})
+        
+        payload = {"model": model, "messages": messages, "stream": True}
+        
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'))
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('Authorization', f'Bearer {self.api_key}')
+        
+        with urllib.request.urlopen(req) as response:
+            for line in response:
+                if not line: continue
+                line = line.decode('utf-8').strip()
+                if not line.startswith("data: "): continue
+                if line == "data: [DONE]": break
+                
+                try:
+                    chunk = json.loads(line[6:])
+                    delta = chunk['choices'][0].get('delta', {})
+                    
+                    # Modern thinking models (o1/o3) use reasoning_content
+                    reasoning = delta.get('reasoning_content')
+                    if reasoning:
+                        yield {"type": "thinking", "text": reasoning}
+                    
+                    content = delta.get('content')
+                    if content:
+                        yield {"type": "content", "text": content}
+                except:
+                    continue
 
     def count_tokens(self, text, model_override=None):
         try:
@@ -74,6 +125,18 @@ class OpenAIProvider(AIProvider):
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode('utf-8'))
             return [m['id'] for m in data.get('data', [])]
+
+    def get_capabilities(self, model_override=None):
+        model = (model_override if model_override else self.model).lower()
+        caps = {"completion": True, "vision": False, "tools": True, "thinking": False}
+        
+        if "gpt-4o" in model or "gpt-4-vision" in model or "gpt-4-turbo" in model:
+            caps["vision"] = True
+        
+        if model.startswith("o1") or model.startswith("o3"):
+            caps["thinking"] = True
+            
+        return caps
 
 @NodeRegistry.register("OpenAI Provider", "AI/Providers")
 class OpenAIProviderNode(ProviderNode):

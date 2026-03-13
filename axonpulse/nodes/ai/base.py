@@ -35,3 +35,23 @@ class AIProvider:
     def get_models(self):
         """Returns list of available models."""
         return []
+
+    def get_capabilities(self, model_override=None):
+        """
+        Returns a dictionary of supported features for the selected model.
+        Default assumes text completion only.
+        """
+        return {
+            "completion": True,
+            "vision": False,
+            "tools": False,
+            "thinking": False
+        }
+
+    def stream(self, system_prompt, user_prompt, files, model_override=None, **kwargs):
+        """
+        Default streaming implementation that falls back to non-streaming generation.
+        Returns a generator yielding a single content chunk.
+        """
+        res = self.generate(system_prompt, user_prompt, files, model_override, **kwargs)
+        yield {"type": "content", "text": res}
