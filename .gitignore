@@ -42,7 +42,7 @@ Synapse VS/
 test_*.*
 sig.txt
 launch_sig.txt
-
+recording.wav
 # Build artifacts
 dist/
 build/

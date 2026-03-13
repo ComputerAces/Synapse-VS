@@ -48,16 +48,93 @@ class SuperNode(BaseNode):
         Explicitly refresh input_types and output_types from the current 
         schema and properties. Should be called after properties are loaded.
         """
-        _ = self.default_inputs
-        _ = self.default_outputs
+        self._build_ports()
+
+    def _get_composed_input_schema(self):
+        """Calculates the full input schema by merging class, custom, and dynamic ports."""
+        # 1. Start with Class Schema
+        final_schema = self.input_schema.copy()
+        
+        # 2. Merge Custom Schema (from User/UI)
+        custom = self.properties.get("CustomInputSchema", {})
+        for name, type_str in custom.items():
+            try:
+                final_schema[name] = DataType(type_str)
+            except:
+                final_schema[name] = DataType.ANY
+
+        # 3. Merge "Additional Inputs" (GUI-specific dynamic ports)
+        type_map = self.properties.get("input_types", {})
+        if not type_map: type_map = self.properties.get("custom_input_schema", {})
+        
+        if "Additional Inputs" in self.properties and isinstance(self.properties["Additional Inputs"], list):
+            for name in self.properties["Additional Inputs"]:
+                if name not in final_schema:
+                    t_val = type_map.get(name)
+                    try:
+                        final_schema[name] = DataType(t_val) if t_val else DataType.ANY
+                    except Exception:
+                        final_schema[name] = DataType.ANY
+        
+        # 4. Handle Flow trigger override
+        if "Flow" in self.handlers and "Flow" not in final_schema:
+            final_schema["Flow"] = DataType.FLOW
+            
+        return final_schema
+
+    def _get_composed_output_schema(self):
+        """Calculates the full output schema."""
+        # 1. Start with Class Schema
+        final_schema = self.output_schema.copy()
+        
+        # 2. Merge Custom Schema
+        custom = self.properties.get("CustomOutputSchema", {})
+        for name, type_str in custom.items():
+            try:
+                final_schema[name] = DataType(type_str)
+            except:
+                final_schema[name] = DataType.ANY
+
+        # 3. Merge "Additional Outputs" (GUI-specific dynamic ports)
+        type_map = self.properties.get("output_types", {})
+        if not type_map: type_map = self.properties.get("custom_output_schema", {})
+        
+        if "Additional Outputs" in self.properties and isinstance(self.properties["Additional Outputs"], list):
+            for name in self.properties["Additional Outputs"]:
+                if name not in final_schema:
+                    t_val = type_map.get(name)
+                    try:
+                        final_schema[name] = DataType(t_val) if t_val else DataType.ANY
+                    except Exception:
+                        final_schema[name] = DataType.ANY
+                        
+        # 4. Standard Flow convention
+        if "Flow" not in final_schema:
+            final_schema["Flow"] = DataType.FLOW
+            
+        return final_schema
+
+    def _build_ports(self):
+        """
+        [FIX] Dedicated initialization method to register ports in the BaseNode maps.
+        This provides a single place for the 'side-effects' of registering ports.
+        """
+        # Build Inputs
+        in_schema = self._get_composed_input_schema()
+        for name, dtype_val in in_schema.items():
+            dtype = dtype_val.get("type", DataType.ANY) if isinstance(dtype_val, dict) else dtype_val
+            self.add_input(name, dtype)
+            
+        # Build Outputs
+        out_schema = self._get_composed_output_schema()
+        for name, dtype_val in out_schema.items():
+            dtype = dtype_val.get("type", DataType.ANY) if isinstance(dtype_val, dict) else dtype_val
+            self.add_output(name, dtype)
 
     def set_output(self, port_name, value):
         """
         Write an output value using the PortRegistry's UUID-based bridge key.
         Also writes the legacy key for backward compatibility.
-        
-        Usage:  self.set_output("Average", 0.5)
-        Replaces: self.bridge.set(f"{self.node_id}_{port_name}", value, self.name)
         """
         # UUID-based key (primary)
         registry = getattr(self.bridge, '_port_registry', None)
@@ -66,7 +143,7 @@ class SuperNode(BaseNode):
             self.bridge.set(uuid_key, value, self.name)
         
         # Legacy key (backward compatibility)
-        if self.is_legacy:
+        if hasattr(self, "is_legacy") and self.is_legacy:
             self.bridge.set(f"{self.node_id}_{port_name}", value, self.name)
 
     def define_schema(self):
@@ -93,87 +170,30 @@ class SuperNode(BaseNode):
 
     @property
     def default_inputs(self):
-        # 1. Start with Class Schema
-        final_schema = self.input_schema.copy()
-        
-        # 2. Merge Custom Schema (from User/UI)
-        custom = self.properties.get("CustomInputSchema", {})
-        for name, type_str in custom.items():
-            try:
-                final_schema[name] = DataType(type_str)
-            except:
-                final_schema[name] = DataType.ANY
-
-        # [NEW] Merge "Additional Inputs" (GUI-specific dynamic ports)
-        # Type fallback order: 'input_types' -> 'custom_input_schema'
-        type_map = self.properties.get("input_types", {})
-        if not type_map: type_map = self.properties.get("custom_input_schema", {})
-        
-        for key in ["Additional Inputs"]:
-            if key in self.properties and isinstance(self.properties[key], list):
-                for name in self.properties[key]:
-                    if name not in final_schema:
-                        t_val = type_map.get(name)
-                        try:
-                            final_schema[name] = DataType(t_val) if t_val else DataType.ANY
-                        except Exception:
-                            final_schema[name] = DataType.ANY
-
-        # 3. Generate Ports
+        """Idempotent getter for the UI to discover input ports."""
+        schema = self._get_composed_input_schema()
         ports = []
-        for name, dtype_val in final_schema.items():
+        # Ensure Flow is first if present
+        if "Flow" in schema:
+            ports.append(("Flow", schema.pop("Flow")))
+            
+        for name, dtype_val in schema.items():
             dtype = dtype_val.get("type", DataType.ANY) if isinstance(dtype_val, dict) else dtype_val
             ports.append((name, dtype))
-            # Also register with BaseNode mechanism for checking
-            self.add_input(name, dtype)
-        
-        # Ensure 'Flow' is present if handled
-        if "Flow" in self.handlers and "Flow" not in final_schema:
-            ports.insert(0, ("Flow", DataType.FLOW))
-            self.add_input("Flow", DataType.FLOW)
-            
         return ports
 
     @property
     def default_outputs(self):
-        # 1. Start with Class Schema
-        final_schema = self.output_schema.copy()
-        
-        # 2. Merge Custom Schema
-        custom = self.properties.get("CustomOutputSchema", {})
-        for name, type_str in custom.items():
-            try:
-                final_schema[name] = DataType(type_str)
-            except:
-                final_schema[name] = DataType.ANY
-
-        # [NEW] Merge "Additional Outputs" (GUI-specific dynamic ports)
-        # Type fallback order: 'output_types' -> 'custom_output_schema'
-        type_map = self.properties.get("output_types", {})
-        if not type_map: type_map = self.properties.get("custom_output_schema", {})
-        
-        for key in ["Additional Outputs"]:
-            if key in self.properties and isinstance(self.properties[key], list):
-                for name in self.properties[key]:
-                    if name not in final_schema:
-                        t_val = type_map.get(name)
-                        try:
-                            final_schema[name] = DataType(t_val) if t_val else DataType.ANY
-                        except Exception:
-                            final_schema[name] = DataType.ANY
-
-        # 3. Generate Ports
+        """Idempotent getter for the UI to discover output ports."""
+        schema = self._get_composed_output_schema()
         ports = []
-        for name, dtype_val in final_schema.items():
+        # Ensure Flow is first if present
+        if "Flow" in schema:
+            ports.append(("Flow", schema.pop("Flow")))
+            
+        for name, dtype_val in schema.items():
             dtype = dtype_val.get("type", DataType.ANY) if isinstance(dtype_val, dict) else dtype_val
             ports.append((name, dtype))
-            self.add_output(name, dtype)
-            
-        # Ensure 'Flow' is present (standard convention)
-        if "Flow" not in final_schema:
-            ports.insert(0, ("Flow", DataType.FLOW))
-            self.add_output("Flow", DataType.FLOW)
-            
         return ports
 
     async def execute_async(self, **kwargs):
