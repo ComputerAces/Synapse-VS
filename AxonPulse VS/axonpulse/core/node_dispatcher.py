@@ -33,7 +33,7 @@ class NodeDispatcher:
         
         # Executors initialized lazily
         self._native_executor = None
-        self._serial_executor = None
+        self._serial_executors = {} # key -> ThreadPoolExecutor(max_workers=1)
         self._executor = None # Process pool
         self._async_loop = None
         self._async_thread = None
@@ -46,13 +46,38 @@ class NodeDispatcher:
                     self._native_executor = ThreadPoolExecutor(max_workers=32)
         return self._native_executor
 
-    def _get_serial_executor(self):
-        if self._serial_executor is None:
+    def _get_affinity_key(self, node, context_stack):
+        """
+        Determines the affinity key for a node to ensure serial execution on a specific thread.
+        Usually tied to a Browser Provider ID.
+        """
+        # 1. Explicit Affinity Key
+        key = getattr(node, "affinity_key", None)
+        if key: return key
+
+        # 2. Browser Node itself (The Provider)
+        if getattr(node, "is_browser_node", False):
+            return node.node_id
+
+        # 3. Contextual Affinity (Action nodes inside a Browser Provider scope)
+        if context_stack and self.bridge:
+            # Usage: bridge.get_provider_id(stack, type)
+            provider_id = self.bridge.get_provider_id(context_stack, "Browser Provider")
+            if provider_id:
+                return provider_id
+        
+        return "default_serial"
+
+    def _get_serial_executor(self, key="default_serial"):
+        if key not in self._serial_executors:
             with self._lock:
-                if self._serial_executor is None:
-                    self.logger.info("Lazy-initializing Serial ThreadPool (max_workers=1)...")
-                    self._serial_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="AxonPulseSerialWorker")
-        return self._serial_executor
+                if key not in self._serial_executors:
+                    self.logger.info(f"Lazy-initializing Serial ThreadPool for key: {key} (max_workers=1)...")
+                    self._serial_executors[key] = ThreadPoolExecutor(
+                        max_workers=1, 
+                        thread_name_prefix=f"AxonPulseSerial-{key[:8]}"
+                    )
+        return self._serial_executors[key]
 
     def _get_executor(self):
         """Returns the ProcessPoolExecutor, lazily initialized."""
@@ -104,7 +129,8 @@ class NodeDispatcher:
         if getattr(node, "is_native", False):
             # [FIX] Use Serial Executor if thread affinity is required (e.g. Browser/Playwright)
             if getattr(node, "is_browser_node", False) or getattr(node, "is_serial", False):
-                ft = self._get_serial_executor().submit(self._execute_native_task, node, inputs)
+                key = self._get_affinity_key(node, context_stack)
+                ft = self._get_serial_executor(key).submit(self._execute_native_task, node, inputs)
             else:
                 ft = self._get_native_executor().submit(self._execute_native_task, node, inputs)
             return PooledFuture(ft)
@@ -163,8 +189,10 @@ class NodeDispatcher:
         self.logger.info("Shutting down Worker Pools...")
         if self._native_executor:
             self._native_executor.shutdown(wait=False)
-        if self._serial_executor:
-            self._serial_executor.shutdown(wait=False)
+        
+        for key, executor in self._serial_executors.items():
+            executor.shutdown(wait=False)
+            
         if self._executor:
             self._executor.shutdown(wait=False)
 
