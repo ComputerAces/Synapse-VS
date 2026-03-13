@@ -269,6 +269,10 @@ class BaseNode(abc.ABC):
     def execute(self, **kwargs):
         pass
 
+    def is_handler_async(self, trigger):
+        """Returns True if the handler for the given trigger is asynchronous."""
+        return False
+
     def join(self):
         if self.process:
             self.process.join()

@@ -63,8 +63,11 @@ class NodeDispatcher:
             inputs["_hijack_provider_id"] = handler_node_id
             inputs["_is_hijacked"] = True
 
-        # 1. Async Node
-        if getattr(node, "is_async", False):
+        # 1. Async Detection (Node Flag or specific Trigger Handler)
+        trigger = inputs.get("_trigger", "Flow")
+        is_async_exec = getattr(node, "is_async", False) or node.is_handler_async(trigger)
+
+        if is_async_exec:
             future = FutureResult()
             asyncio.run_coroutine_threadsafe(self._execute_async_wrapper(node, inputs, future), self.async_loop)
             return future

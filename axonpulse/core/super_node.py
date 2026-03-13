@@ -271,32 +271,21 @@ class SuperNode(BaseNode):
         # 2. Route to Handler
         handler = self.handlers.get(trigger)
         if handler:
-            # Handle Async handlers in Sync Context
+            # [FIX] Refuse to run async handlers in sync context.
+            # The NodeDispatcher must route these upstream.
             if inspect.iscoroutinefunction(handler):
-                # We are in a sync execute, but handler is async.
-                # If we are here, likely the node was not flagged as is_async=True properly or engine called sync.
-                # Try to run it.
-                import asyncio
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                
-                if loop.is_running():
-                    # This is tricky if loop is running. 
-                    # But usually execute() is called in a separate process without a loop yet?
-                    # Or inside a thread.
-                    # For safety, we should probably warn or try run_until_complete if possible.
-                    self.logger.warning(f"Async handler called in sync execute for {trigger}")
-                    return asyncio.run_coroutine_threadsafe(handler(**clean_args), loop).result()
-                else:
-                     return loop.run_until_complete(handler(**clean_args))
+                self.logger.error(f"Sync dispatch tried to execute async handler for '{trigger}' on {self.name}. Routing failure!")
+                return False
             
             return handler(**clean_args)
         else:
             self.logger.warning(f"No handler registered for trigger: {trigger}")
             return True
+
+    def is_handler_async(self, trigger):
+        """Checks if the method registered for the trigger is a coroutine."""
+        handler = self.handlers.get(trigger)
+        return inspect.iscoroutinefunction(handler)
 
     def main(self, **kwargs):
         """Default handler for 'Flow'."""
