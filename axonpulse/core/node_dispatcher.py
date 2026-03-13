@@ -159,6 +159,14 @@ class FutureResult:
         self._error = e
         self._event.set()
         
+    def done(self):
+        """Standard check for completion."""
+        return self._event.is_set()
+
+    def is_ready(self):
+        """Alias for done."""
+        return self.done()
+
     def wait(self):
         self._event.wait()
         if self._error:
@@ -175,6 +183,13 @@ class PooledFuture:
     def __init__(self, future):
         self.future = future
         
+    def done(self):
+        """Check if underlying future is finished."""
+        return self.future.done()
+        
+    def is_ready(self):
+        return self.done()
+
     def wait(self):
         # Result() blocks until done and re-raises exceptions
         return self.future.result()

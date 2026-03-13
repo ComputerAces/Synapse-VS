@@ -75,24 +75,39 @@ def load_graph_from_file(path, bridge, engine):
     return node_map, was_modified, data
 
 
-def load_graph_data(data, bridge, engine, source_file=None):
+def load_graph_data(data, bridge, engine, source_file=None, existing_nodes=None):
     """
     Core logic to instantiate nodes and connect wires from graph data.
     Shared between main loader and SubGraph execution.
+    :param existing_nodes: Dictionary of {id: node_instance} to reuse (Surgical Patching)
     Returns: (node_map, was_pruned)
     """
     node_map = {} # id -> Node Instance
     was_pruned = False
+    existing_nodes = existing_nodes or {}
 
     # 1. Soft Migration (Ensure internal data is up-to-date even if file isn't)
     from axonpulse.core.schema import migrate_graph
     data, _ = migrate_graph(data)
 
     # 1. Create Nodes
+    # 1. Create Nodes
     for n_data in data["nodes"]:
         node_id = n_data["id"]
         node_type = n_data["type"]
         node_name = n_data.get("name", node_type)
+        
+        
+        # [SURGICAL PATCHING] Reuse existing node if it matches type
+        if node_id in existing_nodes:
+            old_node = existing_nodes[node_id]
+            current_type = getattr(old_node, "node_type", "Unknown")
+            if current_type == node_type:
+                old_node.properties.update(n_data.get("properties", {}))
+                node_map[node_id] = old_node
+                continue
+            else:
+                 logger.info(f"[LiveSwap] Node {node_id} type mismatch ({current_type} != {node_type}). Re-instantiating.")
         
         node_class = NodeRegistry.get_node_class(node_type)
         

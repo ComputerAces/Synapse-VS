@@ -34,8 +34,8 @@ class DecoratedNode(SuperNode):
             if p_name in ["_bridge", "_node", "_node_id", "kwargs"] or p_name.startswith("_"):
                 continue
             
-            # Map underscores back to spaces if needed (heuristic)
-            original_name = p_name.replace("_", " ")
+            # Map underscores back to spaces and TitleCase the name (The Mandate)
+            original_name = p_name.replace("_", " ").title().strip()
             self.input_params.append(p_name)
             self.input_mapping[p_name] = original_name
             
@@ -122,7 +122,9 @@ class DecoratedNode(SuperNode):
                 if port != "Flow":
                     self.set_output(port, result)
             
-            return True
+            # [FIX] Return the actual result to the engine so it can be captured as {id}_Condition
+            # If the result is None (void function), return True to continue flow.
+            return result if result is not None else True
         except Exception as e:
             self.logger.error(f"Error in decorated node {self.name}: {e}")
             return False
@@ -141,19 +143,16 @@ def axon_node(category: str, version: str = "1.0.0", outputs: List[str] = None, 
             # Insert spaces before capital letters (CamelCase -> Camel Case)
             label = re.sub(r'([a-z])([A-Z])', r'\1 \2', raw_name)
             
-            # [FIX] If the label contains spaces or underscores, we can safely title() it.
-            # But if it's already a clean string like "ReturnNode", we want "Return Node".
-            # re.sub above handles "ReturnNode" -> "Return Node". 
             # Replace underscores with spaces
             label = label.replace("_", " ")
             
-            # Apply title case ONLY to parts separated by spaces to preserve internal caps if needed 
-            # (though title() is usually fine if spaces exist).
-            label = label.title()
+            # Apply title case to get standardized 'Word Word' format
+            label = label.title().strip()
 
-            # Remove "Node" suffix if it exists after conversion
             if label.endswith(" Node"):
                 label = label[:-5]
+
+        # Create a dynamic wrapper class with a unique name for pickling
 
         # Create a dynamic wrapper class with a unique name for pickling
         class_name = f"Node_{func.__name__}"

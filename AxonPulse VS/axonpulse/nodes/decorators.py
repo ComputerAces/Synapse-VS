@@ -34,8 +34,8 @@ class DecoratedNode(SuperNode):
             if name in ["_bridge", "_node", "_node_id", "kwargs"] or name.startswith("_"):
                 continue
             
-            # Map underscores back to spaces if needed (heuristic)
-            original_name = name.replace("_", " ")
+            # Map underscores back to spaces and TitleCase the name (The Mandate)
+            original_name = name.replace("_", " ").title().strip()
             self.input_params.append(name)
             self.input_mapping[name] = original_name
             
@@ -46,7 +46,6 @@ class DecoratedNode(SuperNode):
         # Restore execution flags after SuperNode/BaseNode init
         self.is_native = is_native
         self.is_async = is_async
-        self.name = self.func.__name__.replace("_", " ").title()
 
     def define_schema(self):
         # Build Inputs
@@ -135,11 +134,11 @@ def axon_node(category: str, version: str = "1.0.0", outputs: List[str] = None, 
         else:
             # Fallback: handle CamelCase and underscores
             raw_name = func.__name__
-            # Insert spaces before capital letters
+            # Insert spaces before capital letters (CamelCase -> Camel Case)
             label = re.sub(r'([a-z])([A-Z])', r'\1 \2', raw_name)
             # Replace underscores with spaces
-            label = label.replace("_", " ").title()
-            # Remove "Node" suffix if it exists after conversion
+            label = label.replace("_", " ").title().strip()
+
             if label.endswith(" Node"):
                 label = label[:-5]
 

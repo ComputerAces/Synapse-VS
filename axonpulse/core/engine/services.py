@@ -121,14 +121,23 @@ class ServiceMixin:
     Handles background services and hot-reload checks.
     """
     def _check_hot_reload(self):
-        """Checks if the source file has been modified. Returns True if modified."""
+        """Checks if the source file has been modified or a force-reload signal is present."""
         if not self.source_file or not os.path.exists(self.source_file):
             return False
 
+        # 1. Check Bridge Signal (Targeted Scope)
+        if hasattr(self, "bridge") and self.bridge:
+            # ExecutionEngine sets self.bridge.default_scope to the filename
+            if self.bridge.get("_SYSTEM_FORCE_RELOAD", scope_id=self.bridge.default_scope):
+                logger.info(f"Hot Reload Signal Detected for scope: {self.bridge.default_scope}")
+                self.bridge.set("_SYSTEM_FORCE_RELOAD", False, scope_id=self.bridge.default_scope)
+                return True
+
+        # 2. Check File MTime
         try:
             current_mtime = os.path.getmtime(self.source_file)
             if current_mtime > self._last_mtime:
-                logger.info(f"Hot Reload Detected: {self.source_file}")
+                logger.info(f"Hot Reload (File) Detected: {self.source_file}")
                 self._last_mtime = current_mtime
                 return True
         except Exception:

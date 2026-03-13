@@ -132,8 +132,11 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             new_node_ids = set(new_node_data.keys())
             
             # 2. Add New Nodes / Update Existing
-            # Temporarily bypass the engine's connect/register to manually patch
-            load_graph_data(data, self.bridge, self)
+            # Clear wires before reloading (they will be repopulated by load_graph_data)
+            self.wires = []
+            
+            node_map, was_pruned = load_graph_data(data, self.bridge, self, existing_nodes=self.nodes)
+            self.nodes = node_map
             
             # 3. Handle Deletions
             deleted_ids = old_node_ids - new_node_ids
@@ -366,7 +369,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                 # Deferred Hot Reload Check
                 now = time.time()
                 if now - self._last_reload_check > self._reload_interval:
-                    if self._check_hot_reload():
+                    if self._check_hot_reload() or self.bridge.get("_SYSTEM_FORCE_RELOAD"):
+                        self.bridge.set("_SYSTEM_FORCE_RELOAD", False, "Engine")
                         self.hot_reload_graph()
                     
                     # [NEW] Check for Node Upgrades
@@ -680,6 +684,23 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         
         try:
             result_future = self.dispatcher.dispatch(node, node_inputs, context_stack)
+            
+            # [LIVE SWAP] Non-blocking wait loop for node completion
+            # This allows the engine to handle Hot Reload, Pause, and Controls DURATION node execution.
+            while not result_future.done():
+                # [FIX] Immediate check for Reload Signal during long-running nodes
+                if self._check_hot_reload():
+                    self.hot_reload_graph()
+                
+                # Check for Global Stop Signal
+                if self._check_stop_signal():
+                    logger.warning(f"Stop signal received while waiting for {node.name}. Pulse dropped.")
+                    self._decrement_scope_counts(pulse_stack)
+                    return False
+                
+                self._handle_controls()
+                time.sleep(0.01) # Yield CPU
+
             exec_result = result_future.wait()
             self.bridge.pin_all()
         except Exception as e:
@@ -699,7 +720,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             return True
 
         if self.trace and not self.headless: print(f"[NODE_STOP] {node_id}", flush=True)
-        if exec_result is not None: self.bridge.bubble_set(f"{node_id}_Condition", exec_result, "Engine_Sync")
+        if exec_result is not None: 
+            self.bridge.bubble_set(f"{node_id}_Condition", exec_result, "Engine_Sync", scope_id=self.bridge.default_scope)
         self._handle_wireless(node, context_stack)
 
         # [YIELD HANDLING] Check for Special Yield Signals in Result
