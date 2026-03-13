@@ -1,5 +1,6 @@
 import os
 import yaml
+import re
 from axonpulse.nodes.registry import NodeRegistry
 from axonpulse.utils.logger import main_logger as logger
 from axonpulse.utils.file_utils import smart_load
@@ -10,6 +11,14 @@ SYSTEM_PROPERTIES = {
     "Graph Path", "Embedded Data", "Is Debug", "Header Color",
     "Additional Inputs", "Additional Outputs", "Cases"
 }
+
+# [OPTIMIZATION] Pre-compiled dynamic patterns for property matching
+_DYNAMIC_PATTERNS_RAW = [
+    r"item \d+", r"case \d+", r"image [a-z]", r"last image", r"user present", 
+    r"var \d+", r"port \d+", r"input \d+", r"output \d+", r"camera index",
+    r"var.*", r"arg.*", r"param.*", r"last .* image", r"curr.* image", r"prev.* image"
+]
+DYNAMIC_PATTERNS_COMPILED = [re.compile(p) for p in _DYNAMIC_PATTERNS_RAW]
 
 def load_graph_from_file(path, bridge, engine):
     data = smart_load(path)
@@ -132,12 +141,6 @@ def load_graph_data(data, bridge, engine, source_file=None):
                     allowed_dynamic.update(name.lower() for name in v)
             
         # We use a list of keys to safely iterate while deleting from the dict
-        import re
-        DYNAMIC_PATTERNS = [
-            r"item \d+", r"case \d+", r"image [a-z]", r"last image", r"user present", 
-            r"var \d+", r"port \d+", r"input \d+", r"output \d+", r"camera index",
-            r"var.*", r"arg.*", r"param.*", r"last .* image", r"curr.* image", r"prev.* image"
-        ]
 
         for k in list(loaded_props.keys()):
             v = loaded_props[k]
@@ -177,8 +180,8 @@ def load_graph_data(data, bridge, engine, source_file=None):
                     node.properties[k] = v
                     matched = True
                 else:
-                    for pattern in DYNAMIC_PATTERNS:
-                        if re.fullmatch(pattern, k_normalized):
+                    for pattern in DYNAMIC_PATTERNS_COMPILED:
+                        if pattern.fullmatch(k_normalized):
                             node.properties[k] = v
                             matched = True
                             break
