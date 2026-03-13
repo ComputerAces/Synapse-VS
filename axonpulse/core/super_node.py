@@ -66,7 +66,8 @@ class SuperNode(BaseNode):
             self.bridge.set(uuid_key, value, self.name)
         
         # Legacy key (backward compatibility)
-        self.bridge.set(f"{self.node_id}_{port_name}", value, self.name)
+        if self.is_legacy:
+            self.bridge.set(f"{self.node_id}_{port_name}", value, self.name)
 
     def define_schema(self):
         """
