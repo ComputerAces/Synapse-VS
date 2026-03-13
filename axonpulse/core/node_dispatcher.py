@@ -29,26 +29,56 @@ class NodeDispatcher:
         self.running = True
         self.is_child = is_child
         self.bridge = bridge 
+        self._lock = threading.Lock()
         
-        # Native Task Pool (Parallel Threaded Native execution)
-        self.native_executor = ThreadPoolExecutor(max_workers=32)
+        # Executors initialized lazily
+        self._native_executor = None
+        self._serial_executor = None
+        self._executor = None # Process pool
+        self._async_loop = None
+        self._async_thread = None
+        
+    def _get_native_executor(self):
+        if self._native_executor is None:
+            with self._lock:
+                if self._native_executor is None:
+                    self.logger.info("Lazy-initializing Native ThreadPool (max_workers=32)...")
+                    self._native_executor = ThreadPoolExecutor(max_workers=32)
+        return self._native_executor
 
-        # [NEW] Serial Executor (For nodes requiring thread affinity like Playwright/Serial)
-        self.serial_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="AxonPulseSerialWorker")
+    def _get_serial_executor(self):
+        if self._serial_executor is None:
+            with self._lock:
+                if self._serial_executor is None:
+                    self.logger.info("Lazy-initializing Serial ThreadPool (max_workers=1)...")
+                    self._serial_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="AxonPulseSerialWorker")
+        return self._serial_executor
 
-        # AsyncIO Worker
-        self.async_loop = asyncio.new_event_loop()
-        self.async_thread = threading.Thread(target=self._async_loop_runner, name="AxonPulseAsyncWorker", daemon=True)
-        self.async_thread.start()
-        
-        # Heavy Worker Pool
-        self.executor = ProcessPoolExecutor()
-        
+    def _get_executor(self):
+        """Returns the ProcessPoolExecutor, lazily initialized."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    self.logger.info("Lazy-initializing ProcessPoolExecutor...")
+                    self._executor = ProcessPoolExecutor()
+        return self._executor
+
+    def _ensure_async_worker(self):
+        """Ensures the AsyncIO loop and thread are running."""
+        if self._async_thread is None:
+            with self._lock:
+                if self._async_thread is None:
+                    self.logger.info("Lazy-initializing AsyncIO Worker Thread...")
+                    self._async_loop = asyncio.new_event_loop()
+                    self._async_thread = threading.Thread(target=self._async_loop_runner, name="AxonPulseAsyncWorker", daemon=True)
+                    self._async_thread.start()
+        return self._async_loop
+
     def _async_loop_runner(self):
         """Runs the AsyncIO loop in a separate thread."""
-        asyncio.set_event_loop(self.async_loop)
+        asyncio.set_event_loop(self._async_loop)
         self.logger.info("AsyncIO Worker Thread Started.")
-        self.async_loop.run_forever()
+        self._async_loop.run_forever()
 
     def dispatch(self, node, inputs, context_stack=[]):
         """
@@ -69,21 +99,22 @@ class NodeDispatcher:
 
         if is_async_exec:
             future = FutureResult()
-            asyncio.run_coroutine_threadsafe(self._execute_async_wrapper(node, inputs, future), self.async_loop)
+            loop = self._ensure_async_worker()
+            asyncio.run_coroutine_threadsafe(self._execute_async_wrapper(node, inputs, future), loop)
             return future
 
         # 2. Native Node
         if getattr(node, "is_native", False):
             # [FIX] Use Serial Executor if thread affinity is required (e.g. Browser/Playwright)
             if getattr(node, "is_browser_node", False) or getattr(node, "is_serial", False):
-                ft = self.serial_executor.submit(self._execute_native_task, node, inputs)
+                ft = self._get_serial_executor().submit(self._execute_native_task, node, inputs)
             else:
-                ft = self.native_executor.submit(self._execute_native_task, node, inputs)
+                ft = self._get_native_executor().submit(self._execute_native_task, node, inputs)
             return PooledFuture(ft)
             
         # 3. Heavy/Process Node
         else:
-            ft = self.executor.submit(_run_node_task, node, inputs)
+            ft = self._get_executor().submit(_run_node_task, node, inputs)
             return PooledFuture(ft)
     
     def _execute_native_task(self, node, inputs):
@@ -125,17 +156,20 @@ class NodeDispatcher:
             except: pass
 
         # Stop Async Loop
-        if self.async_loop.is_running():
-            self.async_loop.call_soon_threadsafe(self.async_loop.stop)
+        if self._async_loop and self._async_loop.is_running():
+            self._async_loop.call_soon_threadsafe(self._async_loop.stop)
             
-        if self.async_thread.is_alive():
-            self.async_thread.join(timeout=1.0)
+        if self._async_thread and self._async_thread.is_alive():
+            self._async_thread.join(timeout=1.0)
             
         # Shutdown Pools
         self.logger.info("Shutting down Worker Pools...")
-        self.native_executor.shutdown(wait=False)
-        self.serial_executor.shutdown(wait=False)
-        self.executor.shutdown(wait=False)
+        if self._native_executor:
+            self._native_executor.shutdown(wait=False)
+        if self._serial_executor:
+            self._serial_executor.shutdown(wait=False)
+        if self._executor:
+            self._executor.shutdown(wait=False)
 
         # 5. Global Cleanup (Kill any orphans) — ONLY for root-level engines
         if not self.is_child:
