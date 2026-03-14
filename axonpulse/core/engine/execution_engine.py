@@ -86,6 +86,27 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.current_pulse_stack = None # [NEW] Pulse currently being processed
         self._lock = threading.RLock() # [NEW] Protect pulse counts and terminations (Reentrant)
         self.deferred_returns = {} # {scope_id: payload_dict} Lockbox for early returns
+        self._stop_event = threading.Event()
+        
+        # [NEW] Register with CleanupManager for signal-driven stop
+        from axonpulse.utils.cleanup import CleanupManager
+        CleanupManager.register_engine(self)
+
+
+    def stop(self):
+        """Signals the engine to stop execution and terminate background services."""
+        logger.info(f"Engine stop requested for scope: {self.bridge.default_scope}")
+        self._stop_event.set()
+        
+        # 1. Signal to the bridge so nodes and subgraphs can react
+        self.bridge.set("_SYSTEM_STOP", True, "System")
+        
+        # 2. Pulse the speed file if applicable to break out of waiting loops
+        if self.speed_file and os.path.exists(self.speed_file):
+            try:
+                with open(self.speed_file, 'w') as f:
+                    f.write("1") 
+            except: pass
         
 
 
@@ -917,7 +938,11 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             self.trace = trace_enabled
 
     def _check_stop_signal(self):
-        """Checks bridge and optional stop file for termination request."""
+        """Checks for stop signals from internal events, bridge, or file system."""
+        # 0. Internal Event Check
+        if hasattr(self, "_stop_event") and self._stop_event.is_set():
+            return True
+
         # 1. Bridge Check (Own)
         try:
             if self.bridge.get("_SYSTEM_STOP"):

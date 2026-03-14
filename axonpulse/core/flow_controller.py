@@ -1,6 +1,7 @@
 import heapq
 import time
 import threading
+from collections import deque
 from axonpulse.utils.logger import setup_logger
 
 class FlowController:
@@ -8,40 +9,55 @@ class FlowController:
     Manages the execution flow (Queue, Branching, and Signal Routing).
     Decides WHAT runs next, but not HOW it runs.
     
-    Updated to use Priority Queue and Delayed Execution.
+    Hybrid Optimization:
+    - collections.deque for O(1) Default Priority (0) tasks.
+    - heapq for O(log N) Elevated/Low Priority and Delayed tasks.
     """
     def __init__(self, start_node_id, initial_stack=None, trace=True):
         self.logger = setup_logger("FlowController")
         
-        # Priority Queue Item: (-priority, arrival_order, node_id, context_stack, trigger_port)
-        # Python's heapq is a min-heap. We want max priority first, so negating priority.
-        # arrival_order ensures FIFO for same priority.
-        self.queue = []
-        self.counter = 0 # Monotonic counter for arrival order
+        # 1. Default Priority Queue (O(1) pop/push for 99% of nodes)
+        # Entry: (node_id, context_stack, trigger_port)
+        self.default_queue = deque()
         
-        # Delayed Queue: List of (wake_time, item_tuple)
+        # 2. Specialty Priority Queue (O(log N))
+        # Entry: (neg_prio, arrival_order, node_id, context_stack, trigger_port)
+        self.priority_queue = []
+        
+        # 3. Delayed Queue (O(log N))
+        # Entry: (wake_time, priority_item_tuple)
         self.delayed_queue = []
         
+        self.counter = 0 # Monotonic counter for priority_queue arrival order
         self.executed_nodes = set()
         self.trace = trace
         self._lock = threading.Lock() # Thread safety for queue operations
         
-        # Initial push
+        # Initial push (Priority 0 goes to default_queue)
         self.push(start_node_id, initial_stack or [], "Flow", priority=0)
         
     def has_next(self):
         with self._lock:
             # Check if any delayed items are ready
             self._process_delayed_locked()
-            return len(self.queue) > 0 or len(self.delayed_queue) > 0
+            return len(self.priority_queue) > 0 or len(self.default_queue) > 0 or len(self.delayed_queue) > 0
         
     def pop(self):
         with self._lock:
             self._process_delayed_locked()
             
-            if self.queue:
-                # Item: (neg_prio, count, node_id, stack, port)
-                _, _, node_id, stack, port = heapq.heappop(self.queue)
+            # Tier 1: High Priority (Actual P > 0, Negated P < 0)
+            if self.priority_queue and self.priority_queue[0][0] < 0:
+                _, _, node_id, stack, port = heapq.heappop(self.priority_queue)
+                return node_id, stack, port
+                
+            # Tier 2: Default Priority (O(1) fast path)
+            if self.default_queue:
+                return self.default_queue.popleft()
+                
+            # Tier 3: Low Priority (Actual P < 0, Negated P > 0)
+            if self.priority_queue:
+                _, _, node_id, stack, port = heapq.heappop(self.priority_queue)
                 return node_id, stack, port
                 
             return None, None, None
@@ -58,20 +74,26 @@ class FlowController:
                 item = (-priority, self.counter, node_id, context_stack, trigger_port)
                 self.counter += 1
                 heapq.heappush(self.delayed_queue, (wake_time, item))
-                # self.logger.debug(f"Delayed {node_id} for {delay}ms")
+            elif priority == 0:
+                # O(1) Fast path for default priority
+                self.default_queue.append((node_id, context_stack, trigger_port))
             else:
-                # Immediate Push
-                heapq.heappush(self.queue, (-priority, self.counter, node_id, context_stack, trigger_port))
+                # O(log N) path for non-zero priority
+                heapq.heappush(self.priority_queue, (-priority, self.counter, node_id, context_stack, trigger_port))
                 self.counter += 1
             
     def _process_delayed_locked(self):
-        """Moves ready items from delayed_queue to main queue. ASSUMES LOCK IS HELD."""
+        """Moves ready items from delayed_queue to relevant execution queue."""
         if not self.delayed_queue: return
         
         now = time.time()
         while self.delayed_queue and self.delayed_queue[0][0] <= now:
             _, item = heapq.heappop(self.delayed_queue)
-            heapq.heappush(self.queue, item)
+            # item is (neg_prio, arrival_order, node_id, context_stack, trigger_port)
+            if item[0] == 0: # Priority 0
+                self.default_queue.append((item[2], item[3], item[4]))
+            else:
+                heapq.heappush(self.priority_queue, item)
 
     def route_outputs(self, node_id, wires, bridge, context_stack, headless=False, trace=None, priority=0, delay=0, stack_override_map=None, port_exclude=None, port_include=None, force_trigger=False, push_directly=True):
         """
@@ -131,7 +153,6 @@ class FlowController:
                     continue 
 
             # 3. FALLBACK: Standard v2.3.0 Flow (No legacy loop)
-            # If a node doesn't explicitly mention active ports, we trigger the "Flow" port by default.
             if active_ports is None and not should_trigger and port == "Flow":
                 should_trigger = True
             
@@ -180,18 +201,16 @@ class FlowController:
         for sub_id, sub_node in all_nodes.items():
             sub_tag = sub_node.properties.get("tag", "")
             if sub_tag == tag:
-                self.logger.info(f"Wireless Jump: -> {sub_node.name}")
-                if trace and not headless:
-                    print(f"[FLOW] Wireless -> {sub_id}:Wireless")
-                self.push(sub_id, context_stack, "Wireless") # Priority 0 for wireless default
+                 # Default wireless priority is 0
+                self.push(sub_id, context_stack, "Wireless", priority=0)
                 flow_count += 1
         return flow_count
 
     def export_state(self):
-        """Exports the current flow queue and history for Time-Travel."""
-        # Clean queue for export (remove neg priority for readability if needed, but pickle handles implementation)
+        """Exports the current flow queue for Time-Travel."""
         return {
-            "queue": list(self.queue),
+            "default_queue": list(self.default_queue),
+            "priority_queue": list(self.priority_queue),
             "delayed_queue": list(self.delayed_queue),
             "executed_nodes": list(self.executed_nodes),
             "counter": self.counter
@@ -200,8 +219,9 @@ class FlowController:
     def import_state(self, state):
         """Restores flow state."""
         if not state: return
-        self.queue = list(state.get("queue", []))
-        heapq.heapify(self.queue) # Re-heapify just in case
+        self.default_queue = deque(state.get("default_queue", []))
+        self.priority_queue = list(state.get("priority_queue", []))
+        heapq.heapify(self.priority_queue)
         self.delayed_queue = list(state.get("delayed_queue", []))
         heapq.heapify(self.delayed_queue)
         self.executed_nodes = set(state.get("executed_nodes", []))

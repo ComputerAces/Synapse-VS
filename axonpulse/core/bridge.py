@@ -400,8 +400,15 @@ class AxonPulseBridge:
         try:
             existing_shm = shared_memory.SharedMemory(name=shm_name)
             try:
-                buf_data = existing_shm.buf[:payload_len] if payload_len else existing_shm.buf[:]
-                data = msgpack.unpackb(bytes(buf_data), object_hook=msgpack_decode, raw=False)
+                # [FIX] Explicitly manage memoryview scope to avoid 'cannot close exported pointers' error on Windows
+                buf = existing_shm.buf
+                data_subset = buf[:payload_len] if payload_len else buf[:]
+                data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
+                
+                # Cleanup view before closing
+                del data_subset
+                del buf
+                
                 self._local_cache[final_key] = (data, version)
                 return data
             finally:
@@ -581,9 +588,14 @@ class AxonPulseBridge:
             
             try:
                 existing_shm = shared_memory.SharedMemory(name=shm_name)
-                buf_data = existing_shm.buf[:payload_len] if payload_len else existing_shm.buf[:]
-                current_data = msgpack.unpackb(bytes(buf_data), object_hook=msgpack_decode, raw=False)
-                del buf_data # explicitly free memory view
+                # [FIX] Explicitly manage memoryview scope
+                buf = existing_shm.buf
+                data_subset = buf[:payload_len] if payload_len else buf[:]
+                current_data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
+                
+                # Cleanup view before closing
+                del data_subset
+                del buf
             except Exception as e:
                 logger.error(f"Cannot mutate '{scoped_key}': Failed to read existing SHM: {e}")
                 return False
