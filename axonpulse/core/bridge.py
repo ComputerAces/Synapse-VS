@@ -53,13 +53,20 @@ class AxonPulseBridge:
         
         # 1. System State (Shared across whole process tree for hardware sync)
         if system_state:
-            self._locks = system_state["locks"]
+            # [RWLock Upgrade] Support both legacy and new lock structures
+            self._writer_locks = system_state.get("writer_locks", system_state.get("locks"))
+            self._reader_locks = system_state.get("reader_locks")
+            self._reader_counts = system_state.get("reader_counts")
+            
             self._provider_locks = system_state["provider_locks"]
             self._identities = system_state["identities"]
             self._hijack_registry = system_state["hijack_registry"]
             self.root_registry = system_state.get("root_registry") # Inherit root from parent
         else:
-            self._locks = manager.list([manager.RLock() for _ in range(32)])
+            self._writer_locks = manager.list([manager.RLock() for _ in range(32)])
+            self._reader_locks = manager.list([manager.Lock() for _ in range(32)])
+            self._reader_counts = manager.list([0 for _ in range(32)])
+            
             self._provider_locks = manager.list([manager.RLock() for _ in range(128)])
             self._identities = manager.dict()
             self._hijack_registry = manager.dict()
@@ -95,7 +102,10 @@ class AxonPulseBridge:
     def get_system_state(self):
         """Returns only the hardware locks and system registries."""
         return {
-            "locks": self._locks,
+            "writer_locks": self._writer_locks,
+            "reader_locks": self._reader_locks,
+            "reader_counts": self._reader_counts,
+            "locks": self._writer_locks, # Legacy alias for backward compatibility
             "provider_locks": self._provider_locks,
             "identities": self._identities,
             "hijack_registry": self._hijack_registry,
@@ -320,10 +330,19 @@ class AxonPulseBridge:
         logger.warning(f"Hijack timeout for provider {provider_id} on {func_name}")
         return data # Fallback to original data
 
-    def _get_lock(self, key):
-        """Hashes the key to one of the 32 locks."""
+    def _get_writer_lock(self, key):
+        """Hashes the key to one of the 32 writer locks (RLocks)."""
         idx = hash(key) % 32
-        return self._locks[idx]
+        return self._writer_locks[idx]
+
+    def _get_reader_lock(self, key):
+        """Hashes the key to one of the 32 reader locks (Locks)."""
+        idx = hash(key) % 32
+        return self._reader_locks[idx]
+
+    def _get_reader_count_idx(self, key):
+        """Returns the pool index for the reader counter."""
+        return hash(key) % 32
 
     def get_provider_lock(self, lock_id):
         """
@@ -391,31 +410,54 @@ class AxonPulseBridge:
         shm_name, version = metadata[0], metadata[1]
         payload_len = metadata[3] if len(metadata) > 3 else None
         
-        # 2. Check Local Cache
+        # 2. Check Local Cache (Fast Path - No Lock Needed for Local Memory)
         cached_entry = self._local_cache.get(final_key)
         if cached_entry and cached_entry[1] == version:
             return cached_entry[0] # REUSE LOCAL OBJECT (Zero-Copy win)
 
-        # 3. Cache Miss / Outdated - Read from Shared Memory
+        # 3. [RWLock] Reader Acquisition for Shared Memory Access
+        # This prevents the SHM block from being unlinked/recreated while we read.
+        idx = self._get_reader_count_idx(final_key)
+        r_lock = self._reader_locks[idx]
+        w_lock = self._writer_locks[idx]
+        
+        # Increment reader count. If first reader, block writers.
+        with r_lock:
+            self._reader_counts[idx] += 1
+            if self._reader_counts[idx] == 1:
+                # We don't use timeout here because readers should wait for 
+                # active writes to finish to ensure data consistency.
+                w_lock.acquire() 
+
         try:
-            existing_shm = shared_memory.SharedMemory(name=shm_name)
+            # 4. Cache Miss / Outdated - Read from Shared Memory
             try:
-                # [FIX] Explicitly manage memoryview scope to avoid 'cannot close exported pointers' error on Windows
-                buf = existing_shm.buf
-                data_subset = buf[:payload_len] if payload_len else buf[:]
-                data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
-                
-                # Cleanup view before closing
-                del data_subset
-                del buf
-                
-                self._local_cache[final_key] = (data, version)
-                return data
-            finally:
-                existing_shm.close()
-        except Exception as e:
-            logger.error(f"Failed to read Shared Memory for '{final_key}': {e}")
-            return default
+                existing_shm = shared_memory.SharedMemory(name=shm_name)
+                try:
+                    # [FIX] Explicitly manage memoryview scope to avoid 'cannot close exported pointers' error on Windows
+                    buf = existing_shm.buf
+                    data_subset = buf[:payload_len] if payload_len else buf[:]
+                    data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
+                    
+                    # Cleanup view before closing
+                    del data_subset
+                    del buf
+                    
+                    self._local_cache[final_key] = (data, version)
+                    return data
+                finally:
+                    existing_shm.close()
+            except Exception as e:
+                logger.error(f"Failed to read Shared Memory for '{final_key}': {e}")
+                return default
+        finally:
+            # Decrement reader count. If last reader, allow writers.
+            with r_lock:
+                self._reader_counts[idx] -= 1
+                if self._reader_counts[idx] == 0:
+                    try:
+                        w_lock.release()
+                    except: pass # Lock might have been force-broken by watchdog
             
     def set_object(self, key, obj):
         """Sets a live, non-picklable object in the local process registry."""
@@ -466,8 +508,8 @@ class AxonPulseBridge:
             # 1. Serialize
             data_bytes = msgpack.packb(value, default=msgpack_encode, use_bin_type=True)
             
-            # [TIMEOUT LOCK] Wait up to 2.0 seconds for the lock
-            lock = self._get_lock(scoped_key)
+            # [TIMEOUT LOCK] Wait up to 2.0 seconds for the writer lock
+            lock = self._get_writer_lock(scoped_key)
             acquired = lock.acquire(timeout=2.0)
             if not acquired:
                 logger.error(f"[TIMEOUT] Failed to acquire lock for '{scoped_key}' after 2s. Forcing overlap.")
@@ -571,7 +613,7 @@ class AxonPulseBridge:
         target_scope = scope_id or self.default_scope
         scoped_key = f"{target_scope}:{key}"
         
-        lock = self._get_lock(scoped_key)
+        lock = self._get_writer_lock(scoped_key)
         acquired = lock.acquire(timeout=2.0)
         if not acquired:
             logger.error(f"[TIMEOUT] Failed to acquire lock for mutating '{scoped_key}' after 2s. Forcing overlap.")
@@ -689,7 +731,7 @@ class AxonPulseBridge:
         target_scope = scope_id or self.default_scope
         scoped_key = f"{target_scope}:{key}"
         
-        lock = self._get_lock(scoped_key)
+        lock = self._get_writer_lock(scoped_key)
         acquired = lock.acquire(timeout=2.0)
         if not acquired:
             logger.error(f"[TIMEOUT] Failed to acquire lock for incrementing '{scoped_key}' after 2s. Forcing overlap.")
@@ -790,7 +832,7 @@ class AxonPulseBridge:
         current_pid = os.getpid()
         
         while time.time() - start_time < timeout:
-            with self._get_lock(key):
+            with self._get_writer_lock(key):
                 current_owner_data = self._lock_owners.get(key)
                 
                 # 1. Lock is Free

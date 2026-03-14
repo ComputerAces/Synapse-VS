@@ -33,7 +33,7 @@ Outputs:
 - Error Flow: Pulse triggered if permission denied or error occurs."""
     path = Path if Path is not None else kwargs.get('Path') or _node.properties.get('Path', 'output.txt')
     start_pos = int(Start_Position) if Start_Position is not None else int(_node.properties.get('Start Position', 0))
-    user_provider_id = self.get_provider_id('User Provider')
+    user_provider_id = _node.get_provider_id('User Provider')
     if user_provider_id:
         user_provider = _bridge.get(user_provider_id)
         if user_provider and hasattr(user_provider, 'has_permission'):

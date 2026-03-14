@@ -429,7 +429,11 @@ class SubGraphNode(SuperNode):
             
             # [PORT MISMATCH REPORTING]
             # [FIX] Suppress reporting if the engine is in the process of stopping
-            if self.bridge.get("_SYSTEM_STOP"):
+            is_stopping = self.bridge.get("_SYSTEM_STOP")
+            if hasattr(self, "_active_engine") and self._active_engine and self._active_engine._stop_event.is_set():
+                is_stopping = True
+
+            if is_stopping:
                 self.logger.info(f"SubGraph '{self.name}' execution aborted by system stop. Suppressing results.")
                 return False
 

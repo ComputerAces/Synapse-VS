@@ -50,7 +50,7 @@ Outputs:
         _bridge.set(f'{_node_id}_ActivePorts', ['Error Flow'], _node.name)
     else:
         pass
-    user_provider_id = self.get_provider_id('User Provider')
+    user_provider_id = _node.get_provider_id('User Provider')
     if user_provider_id:
         user_provider = _bridge.get(user_provider_id)
         if user_provider and hasattr(user_provider, 'has_permission'):
@@ -89,7 +89,7 @@ Outputs:
                 else:
                     data = f.read()
             _node.logger.info(f'Read {len(data)} chars from {os.path.basename(path)}')
-        if self.is_hijacked:
+        if _node.is_hijacked:
             provider_id = kwargs.get('HijackProviderId')
             data = _bridge.invoke_hijack(provider_id, 'Read File', data)
         else:
