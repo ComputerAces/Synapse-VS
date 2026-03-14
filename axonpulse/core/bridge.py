@@ -280,11 +280,14 @@ class AxonPulseBridge:
         if not context_stack:
             return None
         
-        # Search from innermost (end of stack) to outermost
-        for provider_id in reversed(context_stack):
+        # Search from innermost (top of stack) to outermost (head of list)
+        curr = context_stack
+        while curr:
+            provider_id = curr[0]
             registry = self._hijack_registry.get(provider_id)
             if registry and func_name in registry:
                 return registry[func_name]
+            curr = curr[1] # Move to parent
         
         return None
 
@@ -296,17 +299,21 @@ class AxonPulseBridge:
         if not context_stack:
             return None
             
-        for node_id in reversed(context_stack):
-            # 1. Check if the Scope Node itself is the provider
-            ptype = self.get(f"{node_id}_Provider Type")
-            if ptype == provider_type:
+        # Search from innermost to outermost
+        curr = context_stack
+        while curr:
+            node_id = curr[0]
+            # 1. Check if the Scope Node itself is the provider (Provider IDs are literal node ids)
+            if getattr(self, "_provider_types", {}).get(node_id) == provider_type:
                 return node_id
             
-            # 2. [NEW] Check if a provider is registered IN this scope
+            # 2. Check if a provider is registered IN this scope
             # Key: "{scope_id}_Provider_{provider_type}" -> provider_node_id
             scoped_provider_id = self.get(f"{node_id}_Provider_{provider_type}")
             if scoped_provider_id:
                 return scoped_provider_id
+            
+            curr = curr[1] # Move to parent
                 
         return None
 

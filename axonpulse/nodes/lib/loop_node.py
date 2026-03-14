@@ -46,7 +46,7 @@ class LoopNode(SuperNode):
     def do_work(self, **kwargs):
         _trigger = kwargs.get("_trigger", "Flow")
         # [FIX] Use passed-in context for thread safety
-        curr_context = kwargs.get("_context_stack", getattr(self, "context_stack", []))
+        curr_context = kwargs.get("_context_stack", getattr(self, "context_stack", None))
         
         # State Keys
         active_key = f"{self.node_id}_loop_active"
@@ -109,7 +109,7 @@ class LoopNode(SuperNode):
             if active_scope:
                 # Dynamic port name for subclasses (defaults to "Body")
                 body_port = getattr(self, "_loop_body_port_name", "Body")
-                overrides = { body_port: base_stack + [active_scope] }
+                overrides = { body_port: (active_scope, base_stack) }
                 self.bridge.set(f"{self.node_id}_StackOverrides", overrides, self.name)
             
             # Pulse custom iteration port

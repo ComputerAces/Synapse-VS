@@ -8,46 +8,91 @@ class ContextManager:
     def __init__(self, bridge, initial_stack=None):
         self.logger = setup_logger("ContextManager")
         self.bridge = bridge
-        self.initial_stack = initial_stack or []
         self.error_registry = ErrorRegistry()
+        
+        # [BOOTSTRAP] Ensure initial stack is in the immutable linked-list format
+        # We assume initial_stack is already in the correct format (None or tuple).
+        # But if it's a list, we provide a quick fallback (Outer-to-Inner list to Inner-to-Outer tuple).
+        if isinstance(initial_stack, list):
+             stack = None
+             for s_id in initial_stack:
+                 stack = (s_id, stack)
+             initial_stack = stack
+        
+        self.initial_stack = initial_stack
+
+    def stack_push(self, stack, node_id):
+        """Pushes a node_id onto the immutable stack (linked-list tuple)."""
+        return (node_id, stack)
+
+    def stack_pop(self, stack):
+        """Pops the top item from the stack. Returns the parent stack."""
+        if not stack: return None
+        return stack[1]
+
+    def stack_peek(self, stack):
+        """Returns the top item (node_id) of the stack."""
+        if not stack: return None
+        return stack[0]
+
+    def stack_to_list(self, stack):
+        """Converts the linked-list tuple back to a Python list (Ordered Outer-to-Inner)."""
+        result = []
+        curr = stack
+        while curr:
+            result.append(curr[0])
+            curr = curr[1]
+        return result[::-1] # Reverse because linked list is Inner-to-Outer
+
+    def stack_from_list(self, items):
+        """Converts a Python list to an immutable linked-list tuple."""
+        stack = None
+        for item in items:
+            stack = (item, stack)
+        return stack
+
+    def get_stack_depth(self, stack):
+        """Returns the number of items in the immutable stack."""
+        count = 0
+        curr = stack
+        while curr:
+            count += 1
+            curr = curr[1]
+        return count
 
     def update_stack(self, node, current_stack, trigger_port="Flow"):
         """
         Returns the new stack based on node type.
+        Stack format: (top_node_id, parent_tuple) or None.
         """
         node_type = type(node).__name__
-        next_stack = list(current_stack)
+        next_stack = current_stack
         
         # 1. Error Handling (Try/Catch)
         if "TryNode" in node_type:
-            next_stack.append(node.node_id)
+            next_stack = self.stack_push(next_stack, node.node_id)
         elif "EndTryNode" in node_type:
-            if next_stack:
-                next_stack.pop()
+            next_stack = self.stack_pop(next_stack)
         
         # 2. Provider Scopes
-        # We check both class name and inheritance/method presence
         is_provider = "ProviderNode" in node_type or hasattr(node, "register_provider_context")
         
         if is_provider:
-            # Special Case: Start Node (Flow Provider)
-            # Get Provider Type
             provider_type = node.register_provider_context() if hasattr(node, "register_provider_context") else "Generic"
             
             # 1. Flow Provider (Start Node) - Root Scope
             if provider_type == "Flow Provider" and trigger_port == "Flow":
-                 if node.node_id not in next_stack:
-                     next_stack.append(node.node_id)
+                 # We only push if it's not already at the top (avoid duplicates in weird loopbacks)
+                 if self.stack_peek(next_stack) != node.node_id:
+                     next_stack = self.stack_push(next_stack, node.node_id)
             
             # 2. Standard Provider Scopes
             elif trigger_port == "Provider Flow":
-                # Enter Scope
-                if node.node_id not in next_stack:
-                    next_stack.append(node.node_id)
+                if self.stack_peek(next_stack) != node.node_id:
+                    next_stack = self.stack_push(next_stack, node.node_id)
             elif trigger_port == "Provider End":
-                # Exit Scope
-                if next_stack and next_stack[-1] == node.node_id:
-                    next_stack.pop()
+                if self.stack_peek(next_stack) == node.node_id:
+                    next_stack = self.stack_pop(next_stack)
         
         return next_stack
 
@@ -62,8 +107,8 @@ class ContextManager:
             self.logger.critical("Unhandled Exception (No active Try block).")
             return None
 
-        # Find handler
-        handler_id = context_stack[-1]
+        # Find handler (Innermost TryNode)
+        handler_id = self.stack_peek(context_stack)
         self.logger.warning(f"Caught by TryNode {handler_id}")
         
         # Set Error Data
@@ -80,6 +125,6 @@ class ContextManager:
         ]
         
         # Catch runs in parent context
-        parent_stack = context_stack[:-1]
+        parent_stack = self.stack_pop(context_stack)
         
         return handler_id, parent_stack, catch_wires

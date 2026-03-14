@@ -324,7 +324,7 @@ class SubGraphNode(SuperNode):
                 stop_file=stop_file,
                 pause_file=pause_file,
                 source_file=graph_path,
-                initial_context=kwargs.get("_context_stack", []) if not isolated else []
+                initial_context=kwargs.get("_context_stack") if not isolated else None
             )
             
             from axonpulse.core.loader import load_graph_data
@@ -429,7 +429,14 @@ class SubGraphNode(SuperNode):
             
             # [PORT MISMATCH REPORTING]
             # [FIX] Suppress reporting if the engine is in the process of stopping
-            is_stopping = self.bridge.get("_SYSTEM_STOP")
+            # Check locally, root_registry, AND Global scope for global stop propagation
+            root_reg = getattr(self.bridge, "root_registry", {})
+            is_stopping = (
+                self.bridge.get("_SYSTEM_STOP") or 
+                self.bridge.get("_SYSTEM_STOP", scope_id="Global") or 
+                root_reg.get("_SYSTEM_STOP")
+            )
+            
             if hasattr(self, "_active_engine") and self._active_engine and self._active_engine._stop_event.is_set():
                 is_stopping = True
 

@@ -15,7 +15,9 @@ def ensure_vosk():
     global vosk
     if vosk: return True
     if DependencyManager.ensure("vosk"):
-        import vosk as _v; vosk = _v; return True
+        import vosk as _v; vosk = _v; 
+        vosk.SetLogLevel(-1) # [FIX] Silence internal Vosk C++ logging
+        return True
     return False
 
 class VoskSpeechEngine:

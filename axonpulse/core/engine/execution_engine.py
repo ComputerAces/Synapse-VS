@@ -26,7 +26,14 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.bridge = bridge
         self.parent_bridge = parent_bridge
         self.parent_node_id = parent_node_id
-        self.initial_context = initial_context or []
+        # [CONTEXT BOOTSTRAP] (IMMUTABLE LINKED-LIST TUPLES)
+        # Convert list to tuple-linked list if needed
+        self.initial_context = initial_context if initial_context is not None else None
+        # The ContextManager will handle converting initial_context to the correct internal format.
+        # This line is removed as context_manager is initialized later.
+        # if isinstance(self.initial_context, list):
+        #      self.initial_context = self.context_manager.stack_from_list(self.initial_context)
+
         self.nodes = {} 
         self.wires = [] 
         self.headless = headless
@@ -291,6 +298,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         logger.info("Starting Pulse...")
         
         # Use provided stack or engine's initial context
+        # The ContextManager will handle converting initial_stack to the correct internal format.
         pulse_stack = initial_stack if initial_stack is not None else self.initial_context
 
         # [PRE-FLIGHT SCANNER / PRE-WARMING] (Phase 4)
@@ -352,7 +360,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         # [CONTEXT INITIALIZATION]
         # If this is a child engine (subgraph), inherit parent stack.
         # Otherwise start with the provided or default stack.
-        initial_stack = pulse_stack if pulse_stack is not None else []
+        # The ContextManager will handle converting initial_stack to the correct internal format.
+        # initial_stack = pulse_stack if pulse_stack is not None else [] # This line is now handled by pulse_stack assignment above
         if self.parent_bridge and self.parent_node_id:
             # SubGraph inheritance: The parent node might have an active stack
             # We can pull it from the bridge if the parent pushed it there, 
@@ -361,7 +370,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             # but cleaner is to assume a global default or empty for now.
             pass
 
-        self.flow = FlowController(start_node_id, initial_stack=initial_stack, trace=self.trace)
+        self.flow = FlowController(start_node_id, initial_stack=pulse_stack, trace=self.trace)
         
         # Initialize counts
         self.scope_pulse_counts = {"ROOT": 1}
@@ -553,12 +562,16 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             logger.info(f"Branch Thread Finished: {start_node_id}")
     def _check_cancellation(self, context_stack, pulse_stack, node_name):
         """[PIPELINE] Checks if any scope in the stack is marked as canceled."""
-        for scope_id in context_stack:
+        # Iterate through linked-list stack
+        curr = context_stack
+        while curr:
+            scope_id = curr[0]
             if self.bridge.get(f"AXONPULSE_CANCEL_SCOPE_{scope_id}"):
                 logger.info(f"Cancellation: Dropping pulse for {node_name} (Scope {scope_id} terminated)")
                 self._decrement_scope_counts(pulse_stack)
                 self._check_scope_terminations()
                 return True
+            curr = curr[1] # Move to parent tuple
         return False
 
     def _handle_return_barrier(self, node, node_id, context_stack, trigger_port, pulse_stack):
@@ -567,7 +580,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         if ntype != "Return Node":
             return True
             
-        active_scope = context_stack[-1] if context_stack else "ROOT"
+        active_scope = context_stack[0] if context_stack else "ROOT" # Get the top of the immutable stack
         is_loop_scope = str(active_scope).startswith("LO_")
         
         if not is_loop_scope:
@@ -647,7 +660,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.bridge.bubble_set(f"{node_id}_ActivePorts", None, "Engine_Sanitize")
         self.bridge.bubble_set(f"{node_id}_Condition", None, "Engine_Sanitize")
 
-        logger.info(f"Executing {node.name} (Context: {len(context_stack)})...")
+        logger.info(f"Executing {node.name} (Context: {self.context_manager.get_stack_depth(context_stack)})...")
         if self.parent_bridge and self.parent_node_id:
             self.parent_bridge.bubble_set(f"{self.parent_node_id}_SubGraphActivity", True, "ChildEngine")
             print(f"[AXON_SUBGRAPH_ACTIVITY] {self.parent_node_id}")
@@ -701,7 +714,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
 
         stack_overrides = {}
         if is_delayable_provider and prov_wired:
-            stack_overrides["Provider Flow"] = context_stack + [node_id]
+            # Push node_id onto the immutable stack
+            stack_overrides["Provider Flow"] = (node_id, context_stack)
             with self._lock:
                 if node_id not in self.scope_pulse_counts: self.scope_pulse_counts[node_id] = 0
         
@@ -769,7 +783,8 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         Returns: True if iteration should continue, False if thread should terminate.
         """
         # 1. Pipeline: Context and Node Lookup
-        context_stack = list(pulse_stack) if pulse_stack else []
+        # NO CLONING! Immutable stack shared by reference.
+        context_stack = pulse_stack 
         node = self.nodes.get(node_id)
         node_name = node.name if node else node_id
 
@@ -826,10 +841,16 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         with self._lock:
             if "ROOT" in self.scope_pulse_counts:
                 self.scope_pulse_counts["ROOT"] -= 1
-            if stack:
-                for s_id in stack:
-                    if s_id in self.scope_pulse_counts:
-                        self.scope_pulse_counts[s_id] -= 1
+            
+            # Iterate through linked-list stack
+            curr = stack
+            while curr:
+                s_id = curr[0]
+                if s_id in self.scope_pulse_counts:
+                    self.scope_pulse_counts[s_id] -= 1
+                    if self.scope_pulse_counts[s_id] <= 0:
+                        del self.scope_pulse_counts[s_id]
+                curr = curr[1] # Move to parent tuple
 
     def _handle_wireless(self, node, context_stack):
         node_type_name = type(node).__name__
@@ -989,22 +1010,21 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
 
         # Get all provider types active in the stack
         active_providers = set()
-        for ctx_item in context_stack:
-            # Stack contains IDs (Strings) or Dicts (Legacy/Future?) 
-            # Currently ContextManager pushes IDs.
+        curr = context_stack
+        while curr:
+            ctx_item = curr[0]
             if isinstance(ctx_item, str):
                 stack_node_id = ctx_item
                 stack_node = self.nodes.get(stack_node_id)
                 if stack_node:
-                    # Check if it is a provider
                      if hasattr(stack_node, "register_provider_context"):
                          active_providers.add(stack_node.register_provider_context())
                      elif "ProviderNode" in type(stack_node).__name__:
                          active_providers.add("Generic")
             elif isinstance(ctx_item, dict):
-                 # Fallback for structured context if implemented later
                  if ctx_item.get("type") == "provider":
                     active_providers.add(ctx_item.get("provider_type"))
+            curr = curr[1] # Move to parent tuple
         
         # Check if ALL required are present
         missing = []
@@ -1030,45 +1050,40 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             self.scope_pulse_counts["ROOT"] += count
             
             # Increment named scopes in stack
-            if stack:
-                for s_id in stack:
-                    if s_id not in self.scope_pulse_counts:
-                        self.scope_pulse_counts[s_id] = 0
-                    self.scope_pulse_counts[s_id] += count
-
+            curr = stack
+            while curr:
+                s_id = curr[0]
+                if s_id not in self.scope_pulse_counts:
+                    self.scope_pulse_counts[s_id] = 0
+                self.scope_pulse_counts[s_id] += count
+                curr = curr[1] # Move to parent tuple
     def _auto_cleanup_scopes(self, current_stack, target_stack):
         """
         Identifies scopes dropped during error handling and triggers cleanup
         on any Providers that were active in those scopes.
         """
-        if len(current_stack) <= len(target_stack):
-            return
-
-        # Identify dropped scopes (suffix)
-        dropped_ids = current_stack[len(target_stack):]
+        # Walking up current_stack until we find target_stack (the catch handler context)
+        dropped_ids = []
+        curr = current_stack
+        while curr and curr is not target_stack:
+            dropped_ids.append(curr[0])
+            curr = curr[1]
         
-        # Cleanup in reverse order (LIFO)
-        for node_id in reversed(dropped_ids):
-             # Handle IDs (Standard) or Objects (Legacy/Future)
-             nid = node_id if isinstance(node_id, str) else getattr(node_id, "get", lambda x: None)("id")
-             
-             if not nid: continue
-             
+        # Cleanup in order (Innermost to Outermost corresponds to traversal order)
+        for nid in dropped_ids:
              node = self.nodes.get(nid)
              if node and hasattr(node, "cleanup_provider_context"):
                  # [SINGLETON CHECK]
-                 # If Singleton Scope is True, we DO NOT force cleanup on error
                  is_singleton = node.properties.get("Singleton Scope", False)
                  if is_singleton:
-                     # logger.info(f"Preserving Singleton Provider: {node.name}")
                      continue
                      
                  # Force Cleanup
                  try:
                      node.cleanup_provider_context()
-                     # logger.info(f"[Safety Net] Cleaned up dropped provider: {node.name}")
                  except Exception as e:
                      logger.warning(f"Failed to cleanup provider {node.name}: {e}")
+
 
     def _check_scope_terminations(self):
         """
@@ -1164,6 +1179,9 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         """Variant of increment that assumes lock is already held."""
         if count <= 0: return
         self.scope_pulse_counts["ROOT"] = self.scope_pulse_counts.get("ROOT", 0) + count
-        if stack:
-            for s_id in stack:
-                self.scope_pulse_counts[s_id] = self.scope_pulse_counts.get(s_id, 0) + count
+        
+        curr = stack
+        while curr:
+            s_id = curr[0]
+            self.scope_pulse_counts[s_id] = self.scope_pulse_counts.get(s_id, 0) + count
+            curr = curr[1]

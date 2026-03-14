@@ -28,14 +28,13 @@ Outputs:
 - Text: The recognized text string."""
     provider = kwargs.get('Provider')
     audio_data = kwargs.get('Audio Data')
+    
     if not provider:
-        provider_id = _bridge.get_provider_id(kwargs.get('_context_stack', []), 'STT')
+        # [FIX] Use standardized, stack-aware lookup via _node.get_provider_id
+        provider_id = _node.get_provider_id('STT')
         if provider_id:
             provider = _bridge.get(f'{provider_id}_Provider')
-        else:
-            pass
-    else:
-        pass
+    
     if not provider:
         raise RuntimeError(f'[{_node.name}] No STT Provider found in scope.')
     else:

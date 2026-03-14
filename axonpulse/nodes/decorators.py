@@ -99,7 +99,8 @@ class DecoratedNode(SuperNode):
         # Handle **kwargs if the function accepts it
         if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in self.sig.parameters.values()):
             # Pass all remaining data_io inputs, filtering out internal engine vars and Flow pulses
-            args.update({k: v for k, v in kwargs.items() if k not in args and not k.startswith("_") and k != "Flow"})
+            # [FIX] Allow _context_stack to pass through so function nodes can do scoped lookups
+            args.update({k: v for k, v in kwargs.items() if k not in args and (not k.startswith("_") or k == "_context_stack") and k != "Flow"})
 
         try:
             result = self.func(**args)

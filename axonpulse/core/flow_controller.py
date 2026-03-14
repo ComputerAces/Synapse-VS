@@ -34,7 +34,15 @@ class FlowController:
         self._lock = threading.Lock() # Thread safety for queue operations
         
         # Initial push (Priority 0 goes to default_queue)
-        self.push(start_node_id, initial_stack or [], "Flow", priority=0)
+        # We assume initial_stack is already in the correct format (None or tuple).
+        # But if it's a list, we provide a quick fallback (Outer-to-Inner list to Inner-to-Outer tuple).
+        if isinstance(initial_stack, list):
+             stack = None
+             for s_id in initial_stack:
+                 stack = (s_id, stack)
+             initial_stack = stack
+
+        self.push(start_node_id, initial_stack, "Flow", priority=0)
         
     def has_next(self):
         with self._lock:
@@ -172,7 +180,7 @@ class FlowController:
             "from_port": wire["from_port"],
             "to_node": wire["to_node"],
             "to_port": wire["to_port"],
-            "stack": list(context_stack), # Clone stack
+            "stack": context_stack, # NO CLONING NEEDED! Immutable tuple is safe to share.
             "priority": priority,
             "delay": delay
         }

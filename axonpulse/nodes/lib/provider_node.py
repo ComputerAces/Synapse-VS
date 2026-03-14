@@ -59,7 +59,7 @@ class ProviderNode(SuperNode):
         self.bridge.set(f"{self.node_id}_Provider Type", self.provider_type, self.name)
         
         # Register in Current Scope
-        current_scope = self.context_stack[-1] if self.context_stack else self.bridge.default_scope
+        current_scope = self.context_stack[0] if self.context_stack else self.bridge.default_scope
         self.bridge.set(f"{current_scope}_Provider_{self.provider_type}", self.node_id, self.name)
         
         # 3. Trigger Provider Flow
