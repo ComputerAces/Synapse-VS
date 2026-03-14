@@ -60,7 +60,7 @@ project_name: Check/Make Folder
 project_type: ''
 project_vars: {}
 project_version: 1.0.0
-version: 2.3.0
+version: 2.3.1
 viewport:
   center_x: 1231.452860539624
   center_y: -285.9235377344874

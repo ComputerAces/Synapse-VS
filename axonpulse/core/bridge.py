@@ -2,6 +2,7 @@ import multiprocessing
 import time
 import msgpack
 import datetime
+import zlib
 from enum import Enum
 from multiprocessing import shared_memory
 from axonpulse.utils.logger import setup_logger
@@ -63,9 +64,9 @@ class AxonPulseBridge:
             self._hijack_registry = system_state["hijack_registry"]
             self.root_registry = system_state.get("root_registry") # Inherit root from parent
         else:
-            self._writer_locks = manager.list([manager.RLock() for _ in range(32)])
-            self._reader_locks = manager.list([manager.Lock() for _ in range(32)])
-            self._reader_counts = manager.list([0 for _ in range(32)])
+            self._writer_locks = manager.list([manager.RLock() for _ in range(256)])
+            self._reader_locks = manager.list([manager.Lock() for _ in range(256)])
+            self._reader_counts = manager.list([0 for _ in range(256)])
             
             self._provider_locks = manager.list([manager.RLock() for _ in range(128)])
             self._identities = manager.dict()
@@ -113,28 +114,27 @@ class AxonPulseBridge:
         }
 
     def bubble_set(self, key, value, source_node_id="System", scope_id=None):
+        """Sets a single value and bubbles it to root."""
+        self.bubble_set_batch({key: value}, source_node_id, scope_id)
+
+    def bubble_set_batch(self, data_dict, source_node_id="System", scope_id=None):
         """
-        Sets a value in the local registry AND bubbles it up to the root registry.
-        Used for status updates (highlights, error states) that must reach the GUI.
+        Sets multiple values in the local registry AND bubbles them to the root.
+        Optimized for Telemetry debouncing.
         """
-        # 1. Update Local Registry (Standard set)
-        self.set(key, value, source_node_id, scope_id)
+        # 1. Update Local Registry in bulk and get the FRESH metadata
+        local_updates = self.set_batch(data_dict, source_node_id, scope_id)
         
-        # 2. Update Root Registry if it's different (Cross-SubGraph propagation)
-        if self.root_registry is not self._variables_registry:
-            target_scope = scope_id or self.default_scope
-            scoped_key = f"{target_scope}:{key}"
-            
-            # Note: We reuse the SAME SHM block created by self.set()
-            # We just need to inject the metadata into the root registry.
-            metadata = self._variables_registry.get(scoped_key)
-            if metadata:
-                try:
-                    self.root_registry[scoped_key] = metadata
-                except (BrokenPipeError, EOFError, ConnectionResetError):
-                    pass
-                except Exception as e:
-                    logger.debug(f"Bubble Set failed to reach root: {e}")
+        # 2. Update Root Registry if different
+        if self.root_registry is not self._variables_registry and local_updates:
+            try:
+                # [FIX] Use local_updates directly instead of re-fetching from proxy
+                # This avoids race conditions where the proxy might return stale metadata.
+                self.root_registry.update(local_updates)
+            except (BrokenPipeError, EOFError, ConnectionResetError):
+                pass
+            except Exception as e:
+                logger.debug(f"Bubble Batch Set failed to reach root: {e}")
 
     def get_internal_state(self):
         """Returns the full shared registries and locks (deprecated for subgraphs)."""
@@ -338,18 +338,18 @@ class AxonPulseBridge:
         return data # Fallback to original data
 
     def _get_writer_lock(self, key):
-        """Hashes the key to one of the 32 writer locks (RLocks)."""
-        idx = hash(key) % 32
+        """Hashes the key to one of the 256 writer locks (RLocks) using stable CRC32."""
+        idx = zlib.crc32(key.encode()) % 256
         return self._writer_locks[idx]
 
     def _get_reader_lock(self, key):
-        """Hashes the key to one of the 32 reader locks (Locks)."""
-        idx = hash(key) % 32
+        """Hashes the key to one of the 256 reader locks (Locks) using stable CRC32."""
+        idx = zlib.crc32(key.encode()) % 256
         return self._reader_locks[idx]
 
     def _get_reader_count_idx(self, key):
-        """Returns the pool index for the reader counter."""
-        return hash(key) % 32
+        """Returns the pool index for the reader counter using stable CRC32."""
+        return zlib.crc32(key.encode()) % 256
 
     def get_provider_lock(self, lock_id):
         """
@@ -444,14 +444,23 @@ class AxonPulseBridge:
                     # [FIX] Explicitly manage memoryview scope to avoid 'cannot close exported pointers' error on Windows
                     buf = existing_shm.buf
                     data_subset = buf[:payload_len] if payload_len else buf[:]
-                    data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
-                    
-                    # Cleanup view before closing
-                    del data_subset
-                    del buf
-                    
-                    self._local_cache[final_key] = (data, version)
-                    return data
+                    try:
+                        try:
+                            # Try fast path
+                            data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
+                        except (msgpack.ExtraData, ValueError):
+                            # [ROBUST] Fallback to Unpacker if extra data exists in reused block
+                            unpacker = msgpack.Unpacker(object_hook=msgpack_decode, raw=False)
+                            unpacker.feed(bytes(data_subset))
+                            data = next(unpacker)
+                        
+                        self._local_cache[final_key] = (data, version)
+                        return data
+                    finally:
+                        # CRITICAL: Release the memoryview exports before closing the shm block
+                        if data_subset is not buf:
+                            data_subset.release()
+                        buf.release()
                 finally:
                     existing_shm.close()
             except Exception as e:
@@ -561,7 +570,13 @@ class AxonPulseBridge:
                             SHMTracker.register(shm_name)
 
                 try:
-                    shm.buf[:len(data_bytes)] = data_bytes
+                    # [FIX] Explicitly manage memoryview scope
+                    buf = shm.buf
+                    try:
+                        buf[:len(data_bytes)] = data_bytes
+                    finally:
+                        buf.release()
+                    
                     # 3. PIN handle to prevent Windows garbage collection
                     self._pinned_shm[shm_name] = shm 
                 except Exception as b_err:
@@ -589,6 +604,7 @@ class AxonPulseBridge:
     def set_batch(self, data_dict, source_node_id="System", scope_id=None):
         """
         Writes multiple values. Atomic registry update for performance.
+        Returns the registry_update dict (scoped_key -> metadata_tuple).
         """
         target_scope = scope_id or self.default_scope
         registry_update = {}
@@ -605,6 +621,7 @@ class AxonPulseBridge:
         if registry_update:
             self._variables_registry.update(registry_update)
             self._shm_dirty = True
+        return registry_update
 
     def mutate(self, key, action, payload, scope_id=None):
         """
@@ -631,26 +648,33 @@ class AxonPulseBridge:
             if not metadata:
                 logger.error(f"Cannot mutate '{scoped_key}': Variable does not exist.")
                 return False
-                
             shm_name, version = metadata[0], metadata[1]
             payload_len = metadata[3] if len(metadata) > 3 else None
             
             try:
                 existing_shm = shared_memory.SharedMemory(name=shm_name)
-                # [FIX] Explicitly manage memoryview scope
-                buf = existing_shm.buf
-                data_subset = buf[:payload_len] if payload_len else buf[:]
-                current_data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
-                
-                # Cleanup view before closing
-                del data_subset
-                del buf
+                try:
+                    # [FIX] Explicitly manage memoryview scope
+                    buf = existing_shm.buf
+                    data_subset = buf[:payload_len] if payload_len else buf[:]
+                    try:
+                        try:
+                            # Try fast path
+                            current_data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
+                        except (msgpack.ExtraData, ValueError):
+                            # [ROBUST] Fallback to Unpacker if extra data exists in reused block
+                            unpacker = msgpack.Unpacker(object_hook=msgpack_decode, raw=False)
+                            unpacker.feed(bytes(data_subset))
+                            current_data = next(unpacker)
+                    finally:
+                        if data_subset is not buf:
+                            data_subset.release()
+                        buf.release()
+                finally:
+                    existing_shm.close()
             except Exception as e:
                 logger.error(f"Cannot mutate '{scoped_key}': Failed to read existing SHM: {e}")
                 return False
-            finally:
-                if 'existing_shm' in locals():
-                    existing_shm.close()
 
             # 2. Apply In-Place Mutation
             try:

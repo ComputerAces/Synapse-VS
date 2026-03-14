@@ -381,9 +381,10 @@ class SubGraphNode(SuperNode):
             child_bridge.set("_AXON_PARENT_NODE_ID", self.node_id, "Parent_Injection")
             child_bridge.set("_AXON_PARENT_TRIGGER", kwargs.get("_trigger", "Flow"), "Parent_Injection")
                 
+            success = True
             if start_id:
                 try:
-                    self._active_engine.run(start_id)
+                    success = self._active_engine.run(start_id)
                 except Exception as e:
                     import traceback
                     self.logger.error(f"Nested SubGraph Failed: {e}\n{traceback.format_exc()}")
@@ -429,17 +430,26 @@ class SubGraphNode(SuperNode):
             
             # [PORT MISMATCH REPORTING]
             # [FIX] Suppress reporting if the engine is in the process of stopping
-            # Check locally, root_registry, AND Global scope for global stop propagation
-            root_reg = getattr(self.bridge, "root_registry", {})
-            is_stopping = (
-                self.bridge.get("_SYSTEM_STOP") or 
-                self.bridge.get("_SYSTEM_STOP", scope_id="Global") or 
-                root_reg.get("_SYSTEM_STOP")
-            )
+            is_stopping = False
             
-            if hasattr(self, "_active_engine") and self._active_engine and self._active_engine._stop_event.is_set():
+            # 1. Check if the child engine itself was signaled to stop
+            if hasattr(self, "_active_engine") and self._active_engine:
+                if self._active_engine._stop_event.is_set() or self._active_engine._check_stop_signal():
+                    is_stopping = True
+            
+            # 2. Check Success signal (None means aborted)
+            if success is None:
                 is_stopping = True
 
+            # 3. Check Bridge for global stop signals (Fallback)
+            if not is_stopping:
+                root_reg = getattr(self.bridge, "root_registry", {})
+                is_stopping = (
+                    self.bridge.get("_SYSTEM_STOP") or 
+                    self.bridge.get("_SYSTEM_STOP", scope_id="Global") or 
+                    root_reg.get("_SYSTEM_STOP")
+                )
+            
             if is_stopping:
                 self.logger.info(f"SubGraph '{self.name}' execution aborted by system stop. Suppressing results.")
                 return False

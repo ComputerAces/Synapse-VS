@@ -13,6 +13,7 @@ from .data_io import DataMixin
 from .state_management import StateMixin
 from .services import ServiceMixin
 from .debugging import DebugMixin
+from .telemetry import TelemetryDebouncer
 
 logger = setup_logger("AxonPulseEngine")
 
@@ -95,6 +96,9 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         self.deferred_returns = {} # {scope_id: payload_dict} Lockbox for early returns
         self._stop_event = threading.Event()
         
+        # [NEW] Telemetry Debouncing for UI highlights
+        self.telemetry = TelemetryDebouncer(bridge)
+        
         # [NEW] Register with CleanupManager for signal-driven stop
         from axonpulse.utils.cleanup import CleanupManager
         CleanupManager.register_engine(self)
@@ -108,7 +112,11 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
         # 1. Signal to the bridge so nodes and subgraphs can react
         self.bridge.set("_SYSTEM_STOP", True, "System")
         
-        # 2. Pulse the speed file if applicable to break out of waiting loops
+        # 2. Stop telemetry (performs final flush)
+        if hasattr(self, "telemetry"):
+            self.telemetry.stop()
+
+        # 3. Pulse the speed file if applicable to break out of waiting loops
         if self.speed_file and os.path.exists(self.speed_file):
             try:
                 with open(self.speed_file, 'w') as f:
@@ -446,6 +454,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
                     # ReturnNode barrier or another terminal condition
                     continue
             logger.info("Execution finished.")
+            return True
             
             # [LOCKBOX] Final Aggregation: Auto-Flush all remaining stashed returns
             with self._lock:
@@ -472,7 +481,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
 
             # Notify Parent
             if self.parent_bridge and self.parent_node_id:
-                self.parent_bridge.bubble_set(f"{self.parent_node_id}_SubGraphActivity", False, "ChildEngine")
+                self.telemetry.update(f"{self.parent_node_id}_SubGraphActivity", False)
                 print(f"[AXON_SUBGRAPH_FINISHED] {self.parent_node_id}")
 
         finally:
@@ -515,7 +524,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
             
             # 4. Bubble Up if child engine
             if self.parent_bridge and self.parent_node_id:
-                self.parent_bridge.bubble_set(f"{self.parent_node_id}_SubGraphActivity", False, "Engine_Cleanup")
+                self.telemetry.update(f"{self.parent_node_id}_SubGraphActivity", False)
         except Exception as e:
             logger.debug(f"Visual cleanup failed (likely bridge shutdown): {e}")
 
@@ -657,12 +666,12 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
     def _dispatch_task(self, node, node_id, node_inputs, context_stack, pulse_stack, flow_controller):
         """[PIPELINE] Dispatches the node task and waits for completion."""
         if self.trace and not self.headless: print(f"[NODE_START] {node_id}", flush=True)
-        self.bridge.bubble_set(f"{node_id}_ActivePorts", None, "Engine_Sanitize")
-        self.bridge.bubble_set(f"{node_id}_Condition", None, "Engine_Sanitize")
+        self.telemetry.update(f"{node_id}_ActivePorts", None)
+        self.telemetry.update(f"{node_id}_Condition", None)
 
         logger.info(f"Executing {node.name} (Context: {self.context_manager.get_stack_depth(context_stack)})...")
         if self.parent_bridge and self.parent_node_id:
-            self.parent_bridge.bubble_set(f"{self.parent_node_id}_SubGraphActivity", True, "ChildEngine")
+            self.telemetry.update(f"{self.parent_node_id}_SubGraphActivity", True)
             print(f"[AXON_SUBGRAPH_ACTIVITY] {self.parent_node_id}")
 
         node_inputs["_context_stack"] = context_stack
@@ -699,7 +708,7 @@ class ExecutionEngine(DataMixin, StateMixin, ServiceMixin, DebugMixin):
     def _route_signals(self, node, node_id, exec_result, context_stack, pulse_stack, trigger_port, flow_controller):
         """[PIPELINE] Handles wireless signals, yield logic, and output routing."""
         if exec_result is not None: 
-            self.bridge.bubble_set(f"{node_id}_Condition", exec_result, "Engine_Sync", scope_id=self.bridge.default_scope)
+            self.telemetry.update(f"{node_id}_Condition", exec_result)
         self._handle_wireless(node, context_stack)
 
         cond_result = exec_result 
