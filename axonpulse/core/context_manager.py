@@ -1,4 +1,5 @@
 from axonpulse.utils.logger import setup_logger
+from axonpulse.core.error_registry import ErrorRegistry
 
 class ContextManager:
     """
@@ -8,16 +9,7 @@ class ContextManager:
         self.logger = setup_logger("ContextManager")
         self.bridge = bridge
         self.initial_stack = initial_stack or []
-        self.error_mapping = {
-            "ZeroDivisionError": 1,
-            "ValueError": 2,
-            "TypeError": 3,
-            "KeyError": 4,
-            "IndexError": 5,
-            "FileNotFoundError": 6,
-            "PermissionError": 7,
-            "RuntimeError": 8
-        }
+        self.error_registry = ErrorRegistry()
 
     def update_stack(self, node, current_stack, trigger_port="Flow"):
         """
@@ -76,7 +68,7 @@ class ContextManager:
         
         # Set Error Data
         error_name = type(error).__name__
-        error_code = self.error_mapping.get(error_name, 999)
+        error_code = self.error_registry.get_code(error_name)
         
         self.bridge.set(f"{handler_id}_FailedNode", failing_node.name, "Engine")
         self.bridge.set(f"{handler_id}_ErrorCode", error_code, "Engine")

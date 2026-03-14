@@ -29,7 +29,7 @@ Outputs:
     provider = kwargs.get('Provider')
     audio_data = kwargs.get('Audio Data')
     if not provider:
-        provider_id = self.get_provider_id('STT')
+        provider_id = _bridge.get_provider_id(kwargs.get('_context_stack', []), 'STT')
         if provider_id:
             provider = _bridge.get(f'{provider_id}_Provider')
         else:
@@ -60,9 +60,8 @@ Outputs:
     try:
         text = provider.transcribe(target_audio)
         _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+        return text
     except Exception as e:
         _node.logger.error(f'STT Transcription Error: {e}')
         _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
-    finally:
-        pass
-    return f'Error: {str(e)}'
+        return f'Error: {str(e)}'
