@@ -97,7 +97,7 @@ project_type: ''
 project_vars: {}
 project_version: 1.0.0
 variables: {}
-version: 2.3.1
+version: 2.3.0
 viewport:
   center_x: 2237.9294403822273
   center_y: 295.3279320152499

@@ -87,7 +87,7 @@ project_name: Wait For No User Interaction
 project_type: ''
 project_vars: {}
 project_version: 1.0.0
-version: 2.3.1
+version: 2.3.0
 viewport:
   center_x: 797.6835361361375
   center_y: 85.46609315744331

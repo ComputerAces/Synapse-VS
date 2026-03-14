@@ -89,10 +89,6 @@ class FlowController:
             condition_result = signals.get(f"{node_id}_Condition")
 
         flow_priority = priority
-        legacy_flow_names = [
-            "Flow", "True", "False", "Out", "Exec", "Then", "Else", "Loop", 
-            "Try", "Catch", "Finished Flow", "Done", "Success", "Failure"
-        ]
         
         relevant_wires = [w for w in wires if w["from_node"] == node_id]
         triggered_pulses = []
@@ -134,8 +130,9 @@ class FlowController:
                 if isinstance(condition_result, bool) and has_true_false:
                     continue 
 
-            # 3. FALLBACK: Legacy Name Convention
-            if active_ports is None and not should_trigger and port in legacy_flow_names:
+            # 3. FALLBACK: Standard v2.3.0 Flow (No legacy loop)
+            # If a node doesn't explicitly mention active ports, we trigger the "Flow" port by default.
+            if active_ports is None and not should_trigger and port == "Flow":
                 should_trigger = True
             
             if should_trigger:

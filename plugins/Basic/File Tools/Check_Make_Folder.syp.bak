@@ -60,7 +60,7 @@ project_name: Check/Make Folder
 project_type: ''
 project_vars: {}
 project_version: 1.0.0
-version: 2.3.1
+version: 2.3.0
 viewport:
   center_x: 1231.452860539624
   center_y: -285.9235377344874
@@ -103,7 +103,7 @@ wires:
   to_node: 418fb894-2bc4-43d0-9f87-11cfa3bfb778
   to_port: Item 0
 - from_node: 2419fdb2-b677-4a76-a61f-da7e1d4a5fe0
-  from_port: Flow
+  from_port: Success
   to_node: 418fb894-2bc4-43d0-9f87-11cfa3bfb778
   to_port: Item 1
 - from_node: 418fb894-2bc4-43d0-9f87-11cfa3bfb778
@@ -113,4 +113,4 @@ wires:
 - from_node: 418fb894-2bc4-43d0-9f87-11cfa3bfb778
   from_port: Result
   to_node: 8dec7932-5ba5-4c48-a23c-a54202ba29c0
-  to_port: In
+  to_port: Success

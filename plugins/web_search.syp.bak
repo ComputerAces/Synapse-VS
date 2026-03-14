@@ -92,7 +92,7 @@ project_name: Web Crawler
 project_type: ''
 project_vars: {}
 project_version: 1.1.0
-version: 2.3.1
+version: 2.3.0
 viewport:
   center_x: 252.47294589178355
   center_y: 198.79759519038075
@@ -123,7 +123,7 @@ wires:
   to_node: python_0
   to_port: Flow
 - from_node: python_0
-  from_port: Flow
+  from_port: Finished Flow
   to_node: return_0
   to_port: Flow
 - from_node: python_0
@@ -143,6 +143,6 @@ wires:
   to_node: b547eb6d-b58f-49c9-945a-7dd58a06936c
   to_port: Data
 - from_node: python_0
-  from_port: Flow
+  from_port: Finished Flow
   to_node: e6c76ae7-9d4d-479a-ac93-79f3a115498b
   to_port: Flow
