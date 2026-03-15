@@ -34,8 +34,20 @@ class NodeRegistry:
             node_class.node_label = label
             node_class.node_category = category
             node_class.node_namespaced_id = namespaced_label
-            node_class.node_version = getattr(node_class, "node_version", 1)
             
+            # [NEW] Automate DocString Versioning
+            version = getattr(node_class, "node_version", "1.0.0")
+            if hasattr(node_class, "version"):
+                version = node_class.version
+            
+            doc = node_class.__doc__ or ""
+            if "Version:" not in doc:
+                version_str = f"\n\nVersion: {version}"
+                if node_class.__doc__:
+                    node_class.__doc__ += version_str
+                else:
+                    node_class.__doc__ = version_str
+
             return node_class
         return decorator
 

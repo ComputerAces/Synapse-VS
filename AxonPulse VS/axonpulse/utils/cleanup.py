@@ -6,6 +6,7 @@ import subprocess
 import multiprocessing
 import time
 from axonpulse.utils.logger import setup_logger
+from axonpulse.utils.shm_tracker import SHMTracker
 
 logger = setup_logger("CleanupManager")
 
@@ -16,6 +17,7 @@ class CleanupManager:
     """
     _instance = None
     _processes = []
+    _engines = []
 
     def __new__(cls):
         if cls._instance is None:
@@ -28,10 +30,26 @@ class CleanupManager:
         cls._processes.append(process)
 
     @classmethod
+    def register_engine(cls, engine):
+        """Registers an ExecutionEngine instance for graceful stop."""
+        cls._engines.append(engine)
+
+    @classmethod
     def cleanup_all(cls):
         """Terminates all registered processes and reaps orphaned children."""
         logger.info("Initiating Global Cleanup...")
         
+        # 0. Gracefully Stop Engines
+        if cls._engines:
+            logger.info(f"Signaling {len(cls._engines)} engine(s) to stop...")
+            for engine in cls._engines:
+                try:
+                    engine.stop()
+                except: pass
+            
+            # Wait briefly for engines to finish (Barrier)
+            time.sleep(0.5)
+
         # 1. Kill Registered Processes
         for p in cls._processes:
             try:
@@ -75,6 +93,39 @@ class CleanupManager:
             logger.error(f"Cleanup Error: {e}")
 
     @classmethod
+    def cleanup_orphaned_shm(cls):
+        """
+        [NEW] Orphaned SHM Garbage Collection.
+        Reads the SHM registry and unlinks any blocks that are still allocated in the OS.
+        This prevents memory leaks on Windows after crashes.
+        """
+        from multiprocessing import shared_memory
+        tracked_blocks = SHMTracker.get_all()
+        if not tracked_blocks:
+            return
+
+        logger.info(f"[SHM_GC] Checking {len(tracked_blocks)} tracked SHM blocks for orphans...")
+        cleaned_count = 0
+        for shm_name in tracked_blocks:
+            try:
+                # Try to attach. If it exists, we close and unlink it.
+                # If it doesn't exist, we just unregister it.
+                try:
+                    shm = shared_memory.SharedMemory(name=shm_name)
+                    shm.close()
+                    shm.unlink()
+                    cleaned_count += 1
+                except FileNotFoundError:
+                    pass # Already gone from OS
+                
+                SHMTracker.unregister(shm_name)
+            except Exception as e:
+                logger.debug(f"[SHM_GC] Failed to cleanup block '{shm_name}': {e}")
+        
+        if cleaned_count > 0:
+            logger.info(f"[SHM_GC] Successfully unlinked {cleaned_count} orphaned SHM blocks.")
+
+    @classmethod
     def handle_exception(cls, exc_type, exc_value, exc_traceback):
         """Global exception hook to capture crashes and ensure cleanup."""
         if issubclass(exc_type, KeyboardInterrupt):
@@ -106,6 +157,9 @@ def init_global_handlers():
     
     # 1. Sys Exception Hook
     sys.excepthook = manager.handle_exception
+
+    # [NEW] Perform initial SHM cleanup to catch orphans from previous crashes
+    manager.cleanup_orphaned_shm()
     
     # 2. Signal Handlers
     _shutting_down = False
@@ -117,10 +171,16 @@ def init_global_handlers():
             os._exit(1)
         _shutting_down = True
         logger.info(f"Received signal {signum}. Shutting down...")
+        
+        # [FIX] Instead of os._exit, we raise KeyboardInterrupt to allow the main thread 
+        # to catch it and exit cleanly through its own finally blocks.
         manager.cleanup_all()
-        # [FIX] sys.exit() raises SystemExit which can be caught by blocking threads.
-        # os._exit() terminates the process immediately at the OS level.
-        os._exit(0)
+        # On Windows, raising KeyboardInterrupt in a signal handler might not work 
+        # as expected if the signal handler is called in a separate thread, 
+        # but in current Python it should be pushed to the main thread.
+        # We also call os.kill(pid, signal.CTRL_C_EVENT) inside cleanup if needed,
+        # but for now, raising should work or the engine will see _SYSTEM_STOP.
+        raise KeyboardInterrupt()
 
     try:
         signal.signal(signal.SIGINT, sig_handler)

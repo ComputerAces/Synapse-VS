@@ -28,14 +28,13 @@ Outputs:
 - Text: The recognized text string."""
     provider = kwargs.get('Provider')
     audio_data = kwargs.get('Audio Data')
+    
     if not provider:
-        provider_id = self.get_provider_id('STT')
+        # [FIX] Use standardized, stack-aware lookup via _node.get_provider_id
+        provider_id = _node.get_provider_id('STT')
         if provider_id:
             provider = _bridge.get(f'{provider_id}_Provider')
-        else:
-            pass
-    else:
-        pass
+    
     if not provider:
         raise RuntimeError(f'[{_node.name}] No STT Provider found in scope.')
     else:
@@ -60,9 +59,8 @@ Outputs:
     try:
         text = provider.transcribe(target_audio)
         _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+        return text
     except Exception as e:
         _node.logger.error(f'STT Transcription Error: {e}')
         _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
-    finally:
-        pass
-    return f'Error: {str(e)}'
+        return f'Error: {str(e)}'

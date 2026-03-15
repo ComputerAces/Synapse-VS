@@ -33,19 +33,22 @@ class CompareNode(SuperNode):
         
         self.define_schema()
         self.register_handler("Flow", self.compare_values)
+        # [FIX] Defensive Triggering: Allow 'A' and 'B' as triggers if wired incorrectly
+        self.register_handler("A", self.compare_values)
+        self.register_handler("B", self.compare_values)
         
     def define_schema(self):
         self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Compare Type": DataType.COMPARE_TYPE,
-            "A": DataType.ANY,
-            "B": DataType.ANY
+            'Flow': DataType.FLOW,
+            'A': DataType.ANY,
+            'B': DataType.ANY,
+            'Comparison': DataType.ENUM
         }
         self.output_schema = {
-            "True": DataType.FLOW,
-            "False": DataType.FLOW,
-            "Result": DataType.NUMBER,
-            "Compare Result": DataType.BOOLEAN
+            'Flow': DataType.FLOW,
+            'True': DataType.FLOW,
+            'False': DataType.FLOW,
+            'Result': DataType.BOOLEAN
         }
 
     def compare_values(self, A=None, B=None, **kwargs):

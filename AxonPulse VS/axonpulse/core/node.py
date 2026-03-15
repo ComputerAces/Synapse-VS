@@ -17,7 +17,7 @@ class BaseNode(abc.ABC):
         self.bridge = bridge
         self.logger = setup_logger(f"Node-{name}")
         self.inputs = {}
-        self.context_stack = []
+        self.context_stack = None
         self.required_providers = getattr(self, "required_providers", []) # runtime dependency check
         self._hijack_provider_id = None # Set by Dispatcher if node is hijacked
         
@@ -49,7 +49,7 @@ class BaseNode(abc.ABC):
         if not self.context_stack:
             return None
             
-        stack_hash = hash(tuple(self.context_stack))
+        stack_hash = hash(self.context_stack)
         
         # Check cache
         if provider_type in self._provider_cache:
@@ -161,7 +161,9 @@ class BaseNode(abc.ABC):
             for input_name, input_type in self.input_types.items():
                 if final_args.get(input_name) is None:
                     # Look for provider context matching this input name or type
-                    for ctx in reversed(runtime_context):
+                    curr = runtime_context
+                    while curr:
+                        ctx = curr[0] # ctx is the node_id (string) or dict
                         if isinstance(ctx, str):
                             provider_id = ctx
                             provider_type = "Generic"
@@ -175,6 +177,7 @@ class BaseNode(abc.ABC):
                         if val is not None:
                             final_args[input_name] = val
                             break
+                        curr = curr[1] # Move to parent tuple
         
         # 4. Auto-Cast Inputs
         from axonpulse.core.types import TypeCaster
@@ -268,6 +271,10 @@ class BaseNode(abc.ABC):
     @abc.abstractmethod
     def execute(self, **kwargs):
         pass
+
+    def is_handler_async(self, trigger):
+        """Returns True if the handler for the given trigger is asynchronous."""
+        return False
 
     def join(self):
         if self.process:

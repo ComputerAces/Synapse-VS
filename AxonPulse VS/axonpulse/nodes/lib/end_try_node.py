@@ -22,6 +22,6 @@ Inputs:
 - Flow: Execution trigger from the Try or Catch block.
 
 Outputs:
-- Flow: Pulse triggered after the scope is safely closed."""
-    _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
+- None (Terminator node)."""
+    _bridge.set(f'{_node_id}_ActivePorts', [], _node.name)
     return True

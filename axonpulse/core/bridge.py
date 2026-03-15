@@ -439,20 +439,30 @@ class AxonPulseBridge:
         try:
             # 4. Cache Miss / Outdated - Read from Shared Memory
             try:
+                if not shm_name or (payload_len is not None and payload_len == 0):
+                    return default
+
                 existing_shm = shared_memory.SharedMemory(name=shm_name)
                 try:
                     # [FIX] Explicitly manage memoryview scope to avoid 'cannot close exported pointers' error on Windows
                     buf = existing_shm.buf
                     data_subset = buf[:payload_len] if payload_len else buf[:]
+                    
+                    if len(data_subset) == 0:
+                        return default
+
                     try:
                         try:
                             # Try fast path
                             data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
-                        except (msgpack.ExtraData, ValueError):
+                        except (msgpack.ExtraData, ValueError, msgpack.UnpackValueError):
                             # [ROBUST] Fallback to Unpacker if extra data exists in reused block
                             unpacker = msgpack.Unpacker(object_hook=msgpack_decode, raw=False)
                             unpacker.feed(bytes(data_subset))
-                            data = next(unpacker)
+                            try:
+                                data = next(unpacker)
+                            except StopIteration:
+                                return default
                         
                         self._local_cache[final_key] = (data, version)
                         return data
@@ -524,11 +534,12 @@ class AxonPulseBridge:
             # 1. Serialize
             data_bytes = msgpack.packb(value, default=msgpack_encode, use_bin_type=True)
             
-            # [TIMEOUT LOCK] Wait up to 2.0 seconds for the writer lock
+            # [TIMEOUT LOCK] Wait up to 10.0 seconds for the writer lock
             lock = self._get_writer_lock(scoped_key)
-            acquired = lock.acquire(timeout=2.0)
+            acquired = lock.acquire(timeout=10.0)
             if not acquired:
-                logger.error(f"[TIMEOUT] Failed to acquire lock for '{scoped_key}' after 2s. Forcing overlap.")
+                logger.error(f"[TIMEOUT] Failed to acquire lock for '{scoped_key}' after 10s. Aborting write to prevent corruption.")
+                return None 
             
             try:
                 # 2. Manage Versioning and Naming
@@ -638,9 +649,10 @@ class AxonPulseBridge:
         scoped_key = f"{target_scope}:{key}"
         
         lock = self._get_writer_lock(scoped_key)
-        acquired = lock.acquire(timeout=2.0)
+        acquired = lock.acquire(timeout=10.0)
         if not acquired:
-            logger.error(f"[TIMEOUT] Failed to acquire lock for mutating '{scoped_key}' after 2s. Forcing overlap.")
+            logger.error(f"[TIMEOUT] Failed to acquire lock for mutating '{scoped_key}' after 10s. Mutation aborted.")
+            return False
             
         try:
             # 1. Read Current Data
@@ -661,11 +673,15 @@ class AxonPulseBridge:
                         try:
                             # Try fast path
                             current_data = msgpack.unpackb(bytes(data_subset), object_hook=msgpack_decode, raw=False)
-                        except (msgpack.ExtraData, ValueError):
+                        except (msgpack.ExtraData, ValueError, msgpack.UnpackValueError):
                             # [ROBUST] Fallback to Unpacker if extra data exists in reused block
                             unpacker = msgpack.Unpacker(object_hook=msgpack_decode, raw=False)
                             unpacker.feed(bytes(data_subset))
-                            current_data = next(unpacker)
+                            try:
+                                current_data = next(unpacker)
+                            except StopIteration:
+                                logger.error(f"Mutation failed: No data found in SHM for '{scoped_key}'")
+                                return False
                     finally:
                         if data_subset is not buf:
                             data_subset.release()
@@ -763,9 +779,10 @@ class AxonPulseBridge:
         scoped_key = f"{target_scope}:{key}"
         
         lock = self._get_writer_lock(scoped_key)
-        acquired = lock.acquire(timeout=2.0)
+        acquired = lock.acquire(timeout=10.0)
         if not acquired:
-            logger.error(f"[TIMEOUT] Failed to acquire lock for incrementing '{scoped_key}' after 2s. Forcing overlap.")
+            logger.error(f"[TIMEOUT] Failed to acquire lock for incrementing '{scoped_key}' after 10s. Increment aborted.")
+            return None
             
         try:
             val = self.get(key, 0, scope_id=target_scope)
@@ -853,7 +870,7 @@ class AxonPulseBridge:
                 except OSError:
                     return False
 
-    def lock(self, key, node_id, timeout=2.0):
+    def lock(self, key, node_id, timeout=10.0):
         """
         Attempts to conceptually 'lock' a variable key for exclusive access by a node.
         Includes a Watchdog that verifies if the lock owner's OS Process ID is still alive.
@@ -897,7 +914,7 @@ class AxonPulseBridge:
 
     def unlock(self, key, node_id):
         """Releases a lock on a variable."""
-        with self._get_lock(key):
+        with self._get_writer_lock(key):
             current_owner_data = self._lock_owners.get(key)
             if current_owner_data is None:
                 return

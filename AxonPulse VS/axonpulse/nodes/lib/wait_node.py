@@ -77,9 +77,7 @@ Inputs:
 
 Outputs:
 - Flow: Pulse triggered after the timer expires."""
-    Milliseconds = kwargs.get('Milliseconds')
-    ms = int(Milliseconds) if Milliseconds is not None else int(_node.properties.get('Milliseconds', 1000))
-    return ('_YSWAIT', ms, True)
+    return ('_YSWAIT', int(Milliseconds), True)
 
 
 @axon_node(category="Flow/Wait", version="2.3.0", node_label="Throttle")
@@ -95,19 +93,9 @@ Inputs:
 
 Outputs:
 - Flow: Triggered after the delay is complete."""
-    delay_ms_arg = kwargs.get('Delay MS')
-    if delay_ms_arg is None:
-        delay_ms = int(_node.properties.get('Delay MS', 0))
-    else:
-        try:
-            delay_ms = abs(int(delay_ms_arg))
-        except:
-            delay_ms = 0
-        finally:
-            pass
+    delay_ms = abs(int(Delay_MS))
     if delay_ms > 0:
         return ('_YSWAIT', delay_ms)
-    else:
-        pass
+    
     _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
     return True

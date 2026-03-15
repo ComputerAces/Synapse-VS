@@ -27,4 +27,4 @@ Outputs:
 - FailedNode: Name or ID of the node that threw the error.
 - ErrorCode: Error message or status code."""
     _bridge.set(f'{_node_id}_ActivePorts', ['Flow'], _node.name)
-    return {'FailedNode': '', 'ErrorCode': 0}
+    return {'FailedNode': '', 'ErrorCode': ''}

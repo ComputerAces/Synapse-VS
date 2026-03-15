@@ -118,8 +118,11 @@ class NodeDispatcher:
             inputs["_hijack_provider_id"] = handler_node_id
             inputs["_is_hijacked"] = True
 
-        # 1. Async Node
-        if getattr(node, "is_async", False):
+        # 1. Async Detection (Node Flag or specific Trigger Handler)
+        trigger = inputs.get("_trigger", "Flow")
+        is_async_exec = getattr(node, "is_async", False) or node.is_handler_async(trigger)
+
+        if is_async_exec:
             future = FutureResult()
             loop = self._ensure_async_worker()
             asyncio.run_coroutine_threadsafe(self._execute_async_wrapper(node, inputs, future), loop)
@@ -218,6 +221,14 @@ class FutureResult:
         self._error = e
         self._event.set()
         
+    def done(self):
+        """Standard check for completion."""
+        return self._event.is_set()
+
+    def is_ready(self):
+        """Alias for done."""
+        return self.done()
+
     def wait(self):
         self._event.wait()
         if self._error:
@@ -234,6 +245,13 @@ class PooledFuture:
     def __init__(self, future):
         self.future = future
         
+    def done(self):
+        """Check if underlying future is finished."""
+        return self.future.done()
+        
+    def is_ready(self):
+        return self.done()
+
     def wait(self):
         # Result() blocks until done and re-raises exceptions
         return self.future.result()

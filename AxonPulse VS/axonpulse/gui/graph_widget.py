@@ -395,7 +395,7 @@ class GraphWidget(QWidget):
             self._set_state(self.STATE_RUNNING)
     
     def stop(self):
-        """Stop the running process gracefully."""
+        """Stop the running process gracefully, with a recursive fallback for orphans."""
         if self.process and self.process.state() != QProcess.ProcessState.NotRunning:
             # 1. Soft Stop via Flag File
             stop_file = self._get_stop_file_path()
@@ -404,9 +404,15 @@ class GraphWidget(QWidget):
                     f.write("STOP")
             except: pass
             
-            # 2. Wait for graceful exit
+            # 2. Try to get PID before wait finishes (for recursive cleanup)
+            pid = self.process.processId()
+
+            # 3. Wait for graceful exit
             if not self.process.waitForFinished(1500):
-                # 3. Force Kill if still running
+                # 4. Nuclear Cleanup: Recursive tree termination
+                self._terminate_process_tree(pid)
+                
+                # Double-tap with QProcess kill
                 self.process.kill()
                 self.process.waitForFinished(1000)
         
@@ -421,6 +427,37 @@ class GraphWidget(QWidget):
             except: pass
             
         self._set_state(self.STATE_STOPPED)
+
+    def _terminate_process_tree(self, pid):
+        """Recursively terminates all child/grandchild processes."""
+        if pid <= 0: return
+        try:
+            import psutil
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            
+            # Terminate children first
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            
+            # Terminate parent
+            parent.terminate()
+            
+            # Wait briefly and then kill survivors
+            _, alive = psutil.wait_procs(children + [parent], timeout=2)
+            for p in alive:
+                try:
+                    p.kill()
+                except psutil.NoSuchProcess:
+                    pass
+        except ImportError:
+            # Fallback if psutil is missing (less robust)
+            pass
+        except Exception as e:
+            print(f"Recursive cleanup failed: {e}")
     
     def set_speed(self, delay):
         if self.execution_state == self.STATE_RUNNING:

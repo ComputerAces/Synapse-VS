@@ -33,7 +33,7 @@ class StartNode(ProviderNode):
         return "Flow Provider"
 
     def define_schema(self):
-        # Initiators are forbidden from having Input Flow or Input Data
+        # Initiators are strictly forbidden from having any Input Flow connectors or Input Data variables.
         self.input_schema = {}
         
         self.output_schema = {

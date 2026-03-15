@@ -39,29 +39,30 @@ class CompareNode(SuperNode):
         
     def define_schema(self):
         self.input_schema = {
-            "Flow": DataType.FLOW,
-            "Compare Type": DataType.COMPARE_TYPE,
-            "A": DataType.ANY,
-            "B": DataType.ANY
+            'Flow': DataType.FLOW,
+            'A': DataType.ANY,
+            'B': DataType.ANY,
+            'Compare Type': DataType.COMPARE_TYPE
         }
         self.output_schema = {
-            "True": DataType.FLOW,
-            "False": DataType.FLOW,
-            "Result": DataType.NUMBER,
-            "Compare Result": DataType.BOOLEAN
+            'Flow': DataType.FLOW,
+            'True': DataType.FLOW,
+            'False': DataType.FLOW,
+            'Result': DataType.BOOLEAN
         }
 
     def compare_values(self, A=None, B=None, **kwargs):
-        # Fallback to properties
+        # Resolve inputs
         val_a = A if A is not None else kwargs.get("A") or self.properties.get("A", 0)
         val_b = B if B is not None else kwargs.get("B") or self.properties.get("B", 0)
+        op = kwargs.get("Compare Type") or self.properties.get("Compare Type", "==")
         
         # 1. Date/Time Comparison
         if is_formatted_datetime(str(val_a)) and is_formatted_datetime(str(val_b)):
-             result = self._compare_dates(val_a, val_b)
+             result = self._compare_dates(val_a, val_b, op)
         else:
              # 2. Universal Comparison
-             result = self._compare_universal(val_a, val_b)
+             result = self._compare_universal(val_a, val_b, op)
         
         # Outputs
         self.bridge.set(f"{self.node_id}_Compare Result", result, self.name)
@@ -72,8 +73,7 @@ class CompareNode(SuperNode):
         self.bridge.set(f"{self.node_id}_ActivePorts", [branch], self.name)
         return True
 
-    def _compare_dates(self, a, b):
-        op = self.properties.get("Compare Type", "==")
+    def _compare_dates(self, a, b, op):
         cmp = compare_datetimes(str(a), str(b))
         if cmp is None: return False
         
@@ -106,9 +106,7 @@ class CompareNode(SuperNode):
             
         return str(val)
 
-    def _compare_universal(self, a, b):
-        op = self.properties.get("Compare Type", "==")
-        
+    def _compare_universal(self, a, b, op):
         # Helper for smart casting (numeric/bool)
         def try_numeric(val):
             if isinstance(val, (int, float, bool)): return val

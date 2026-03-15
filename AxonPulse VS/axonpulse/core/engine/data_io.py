@@ -169,7 +169,10 @@ class DataMixin:
                  
                  # 2. Trigger Error Flow (if wired)
                  # We need to manually trigger because dispatch() won't be called.
-                 self.bridge.set(f"{node_id}_ActivePorts", ["Error Flow", "Error"], "Engine")
+                 if hasattr(self, "telemetry"):
+                     self.telemetry.update(f"{node_id}_ActivePorts", ["Error Flow", "Error"])
+                 else:
+                     self.bridge.set(f"{node_id}_ActivePorts", ["Error Flow", "Error"], "Engine")
                  
                  # 3. Abort Execution for this node
                  return None

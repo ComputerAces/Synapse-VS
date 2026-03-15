@@ -44,6 +44,15 @@ class Wire(QGraphicsPathItem):
         
         self.update_path()
         self.setAcceptHoverEvents(True)
+        self._is_hovered = False
+
+    def shape(self):
+        """Provides a wider hit area for easier mouse interaction."""
+        from PyQt6.QtGui import QPainterPathStroker
+        stroker = QPainterPathStroker()
+        stroker.setWidth(12)  # Wider interaction area
+        stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+        return stroker.createStroke(self.path())
 
     def get_color_from_port(self, port):
         # Default Logic
@@ -237,27 +246,33 @@ class Wire(QGraphicsPathItem):
         self.setPath(path)
 
     def hoverEnterEvent(self, event):
-        self.pen.setWidth(self.width + 2)
-        self.pen.setColor(QColor("#ff9900")) # Highlight Orange
-        self.setPen(self.pen)
+        self._is_hovered = True
+        self.update()
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
         if getattr(self, "_menu_active", False):
             return
-        self.pen.setWidth(self.width)
-        self.pen.setColor(self.color)
-        self.setPen(self.pen)
+        self._is_hovered = False
+        self.update()
         super().hoverLeaveEvent(event)
         
+    def _get_glow_color(self, color, is_selected=False):
+        """Returns a brightened version of the color with alpha for the glow effect."""
+        glow = QColor(color)
+        if is_selected:
+            # Selection is very bright / nearly white glow
+            glow = glow.lighter(180)
+            glow.setAlpha(200)
+        else:
+            # Hover is a distinct but recognizable bright version
+            glow = glow.lighter(150)
+            glow.setAlpha(150)
+        return glow
+
     def contextMenuEvent(self, event):
         event.accept()
         self._menu_active = True
-        
-        # Force Highlight
-        self.pen.setWidth(self.width + 2)
-        self.pen.setColor(QColor("#ff9900"))
-        self.setPen(self.pen)
         
         from PyQt6.QtWidgets import QMenu
         menu = QMenu()
@@ -273,9 +288,7 @@ class Wire(QGraphicsPathItem):
         if action == delete_action:
             self.delete_wire()
         else:
-             self.pen.setWidth(self.width)
-             self.pen.setColor(self.color)
-             self.setPen(self.pen)
+             self.update()
             
     def delete_wire(self):
         # Remove from ports
@@ -329,6 +342,30 @@ class Wire(QGraphicsPathItem):
                 self._is_active = False
                 alpha = 0
         
+        # [NEW] Draw Selection/Hover Highlight (Dynamic Glow Effect)
+        if self._is_hovered or self.isSelected() or getattr(self, "_menu_active", False):
+            painter.save()
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            is_selected = self.isSelected()
+            
+            # 1. Create Glow Gradient (Matches base wire gradient but brightened)
+            from PyQt6.QtGui import QLinearGradient
+            glow_grad = QLinearGradient(self.start_pos, self.end_pos)
+            
+            s_glow = self._get_glow_color(self.start_color, is_selected)
+            e_glow = self._get_glow_color(self.end_color, is_selected)
+            
+            glow_grad.setColorAt(0, s_glow)
+            glow_grad.setColorAt(1, e_glow)
+            
+            # 2. Draw thicker glow path
+            glow_pen = QPen(glow_grad, self.width + 6)
+            glow_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(glow_pen)
+            painter.drawPath(self.path())
+            painter.restore()
+
         # 1. Draw Base Wire (Gradient Support)
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

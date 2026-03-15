@@ -23,5 +23,7 @@ Inputs:
 
 Outputs:
 - None: This node is a terminator and has no outputs."""
+    label = kwargs.get('label', _node.name)
+    _bridge.set('__RETURN_NODE_LABEL__', label, _node.name)
     _bridge.set(f'{_node_id}_ActivePorts', [], _node.name)
     return True

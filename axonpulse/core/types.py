@@ -35,6 +35,7 @@ class DataType(Enum):
     SENDKEYMODE = "sendkey_mode"
     SENDKEY_MODE = "sendkey_mode"
     WINSTATEACTION = "winstateaction"
+    ENUM = "enum"
     
     @classmethod
     def get_abbreviation(cls, data_type):

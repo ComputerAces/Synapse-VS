@@ -53,7 +53,16 @@ Outputs:
         _bridge.set(return_key, existing_returns, _node.name)
     else:
         _bridge.set(return_key, return_values, _node.name)
-    label = _node.name if _node.name != 'Return Node' else 'Flow'
+    # [FIX] Robust Label Normalization: Ensure 'Return node', 'Returnnode', etc. map to 'Flow'
+    raw_label = _node.name if _node.name else 'Return Node'
+    clean_label = raw_label.strip()
+    
+    # Case-insensitive generic check
+    if clean_label.lower() in ['return', 'return node', 'returnnode', 'return search']:
+        label = 'Flow'
+    else:
+        label = clean_label
+
     _bridge.set('__RETURN_NODE_LABEL__', label, _node.name)
     _bridge.set(f'{_node_id}_ActivePorts', [], _node.name)
     return True

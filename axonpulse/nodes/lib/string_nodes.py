@@ -11,18 +11,18 @@ from axonpulse.core.types import DataType, TypeCaster
 from axonpulse.nodes.decorators import axon_node
 
 @axon_node(category="Data/Strings", version="2.3.0", node_label="String Join")
-def StringJoinNode(List: list, Separator: str = ' ', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
+def StringJoinNode(Items: list, Separator: str = ' ', _bridge: Any = None, _node: Any = None, _node_id: str = None, **kwargs) -> Any:
     """Concatenates a list of strings into a single string using a specified separator.
 
 Inputs:
 - Flow: Execution trigger.
-- List: The list of string items to join.
+- Items: The list of string items to join.
 - Separator: The string to insert between items.
 
 Outputs:
 - Flow: Triggered after the join is complete.
 - Result: The concatenated string."""
-    items = List if List is not None else _node.properties.get('List', [])
+    items = Items if Items is not None else _node.properties.get('Items', [])
     sep = Separator if Separator is not None else _node.properties.get('Separator', ' ')
     if not isinstance(items, list):
         items = [str(items)]

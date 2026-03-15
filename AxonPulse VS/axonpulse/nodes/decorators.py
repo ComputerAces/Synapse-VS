@@ -30,17 +30,17 @@ class DecoratedNode(SuperNode):
         self.input_mapping = {} # sanitized -> original
         self.property_defaults = {}
         
-        for name, param in self.sig.parameters.items():
-            if name in ["_bridge", "_node", "_node_id", "kwargs"] or name.startswith("_"):
+        for p_name, param in self.sig.parameters.items():
+            if p_name in ["_bridge", "_node", "_node_id", "kwargs"] or p_name.startswith("_"):
                 continue
             
             # Map underscores back to spaces and TitleCase the name (The Mandate)
-            original_name = name.replace("_", " ").title().strip()
-            self.input_params.append(name)
-            self.input_mapping[name] = original_name
+            original_name = p_name.replace("_", " ").title().strip()
+            self.input_params.append(p_name)
+            self.input_mapping[p_name] = original_name
             
             if param.default != inspect.Parameter.empty:
-                self.property_defaults[name] = param.default
+                self.property_defaults[p_name] = param.default
 
         super().__init__(node_id, name, bridge)
         # Restore execution flags after SuperNode/BaseNode init
@@ -98,8 +98,9 @@ class DecoratedNode(SuperNode):
         
         # Handle **kwargs if the function accepts it
         if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in self.sig.parameters.values()):
-            # Pass all remaining data_io inputs
-            args.update({k: v for k, v in kwargs.items() if k not in args})
+            # Pass all remaining data_io inputs, filtering out internal engine vars and Flow pulses
+            # [FIX] Allow _context_stack to pass through so function nodes can do scoped lookups
+            args.update({k: v for k, v in kwargs.items() if k not in args and (not k.startswith("_") or k == "_context_stack") and k != "Flow"})
 
         try:
             result = self.func(**args)
@@ -108,6 +109,10 @@ class DecoratedNode(SuperNode):
             if result is False:
                 return False
                 
+            # [NEW] Pass through Yield Signals (Wait/Throttle/etc.)
+            if isinstance(result, tuple) and len(result) > 0 and str(result[0]).startswith("_YS"):
+                return result
+
             if isinstance(result, dict) and len(self.custom_outputs) > 1:
                 for k, v in result.items():
                     if k in self.output_schema:
@@ -118,7 +123,9 @@ class DecoratedNode(SuperNode):
                 if port != "Flow":
                     self.set_output(port, result)
             
-            return True
+            # [FIX] Return the actual result to the engine so it can be captured as {id}_Condition
+            # If the result is None (void function), return True to continue flow.
+            return result if result is not None else True
         except Exception as e:
             self.logger.error(f"Error in decorated node {self.name}: {e}")
             return False
@@ -136,16 +143,31 @@ def axon_node(category: str, version: str = "1.0.0", outputs: List[str] = None, 
             raw_name = func.__name__
             # Insert spaces before capital letters (CamelCase -> Camel Case)
             label = re.sub(r'([a-z])([A-Z])', r'\1 \2', raw_name)
+            
             # Replace underscores with spaces
-            label = label.replace("_", " ").title().strip()
+            label = label.replace("_", " ")
+            
+            # Apply title case to get standardized 'Word Word' format
+            label = label.title().strip()
 
             if label.endswith(" Node"):
                 label = label[:-5]
 
         # Create a dynamic wrapper class with a unique name for pickling
+
+        # Create a dynamic wrapper class with a unique name for pickling
         class_name = f"Node_{func.__name__}"
         
+        # Analyze signature for dynamic capabilities
+        sig = inspect.signature(func)
+        allow_dynamic_in = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        allow_dynamic_out = (outputs is not None) or (sig.return_annotation == dict) or (sig.return_annotation == Any)
+
         class DynamicNode(DecoratedNode):
+            allow_dynamic_inputs = allow_dynamic_in
+            allow_dynamic_outputs = allow_dynamic_out
+            node_label = label # [FIX] Ensure metadata is available on class
+
             def __init__(self, node_id, name, bridge):
                 super().__init__(node_id, name, bridge, func, category, version, outputs, is_native, is_async)
 
